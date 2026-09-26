@@ -4,12 +4,19 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-09-26 — Deploy funcionando** (front → back → BD verificado con `/api/health/`)
+- Repo: https://github.com/felipetourn/Fly-Away (rama `main`, auto-deploy en Render y Vercel)
+- Frontend (Vercel): https://fly-away-one.vercel.app — env: `VITE_API_URL` (requiere redeploy al cambiarla)
+- Backend (Render, Virginia, free): https://fly-away-iz7s.onrender.com — env: `SECRET_KEY`, `DEBUG`, `PYTHON_VERSION`, `DATABASE_URL`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `CORS_ALLOWED_ORIGINS`
+- BD (Supabase): conexión por **Session pooler** (puerto 5432). Contraseña sin caracteres especiales (rompen la URL).
+- Render free se duerme tras ~15 min: abrir `/api/health/` antes de una demo.
+- La BD de Supabase tiene las tablas del setup (`accounts`). Al implementar el modelo relacional definitivo hay que **resetearla** (no hay datos reales).
+
 **2026-09-26 — Setup inicial**
 - Backend Django creado (`config/`, app `accounts` con `User` custom + `role`), migrado en SQLite local.
 - Endpoints: `/api/health/`, `/api/auth/token/`, `/api/auth/token/refresh/`.
 - Frontend Vite + React + TS + Tailwind v4 + react-router; rutas vacías `/`, `/mostrador`, `/admin`. Build OK.
 - Archivos de deploy: `backend/build.sh` (Render), `frontend/vercel.json` (Vercel).
-- Todavía **no** se conectó Supabase ni se deployó nada.
 
 ## Decisiones
 
@@ -31,9 +38,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Próximos pasos
 
-1. Crear repo git y subir a GitHub.
-2. App `flights`: modelos `Airport`, `Flight` + ABM (admin).
-3. Búsqueda de vuelos con disponibilidad.
-4. App `bookings`: compra + pago + emails.
-5. Reportes de ocupación.
-6. Deploy (Supabase → Render → Vercel).
+1. App `flights`: modelos `Airport`, `Flight` + ABM (admin).
+2. Búsqueda de vuelos con disponibilidad.
+3. App `bookings`: compra + pago + emails.
+4. Reportes de ocupación.
