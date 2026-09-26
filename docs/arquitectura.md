@@ -27,6 +27,7 @@ Fly Away/
 ├── docs/
 │   ├── enunciado.md
 │   ├── arquitectura.md       este archivo
+│   ├── modelo.dbml           modelo relacional (fuente de verdad del esquema)
 │   └── memoria.md            estado + decisiones + pendientes
 ├── backend/
 │   ├── .venv/                (no se commitea)
@@ -35,8 +36,8 @@ Fly Away/
 │   ├── build.sh              build command de Render
 │   ├── manage.py
 │   ├── config/               settings, urls, wsgi
-│   └── accounts/             User custom con rol
-│   # apps a crear: flights/, bookings/, reports/ (ver abajo)
+│   └── accounts/             User custom provisorio del setup (se reemplaza por `usuarios`)
+│   # apps a crear según modelo.dbml
 └── frontend/
     ├── .env.local / .env.example
     ├── vercel.json           rewrite SPA
@@ -48,39 +49,49 @@ Fly Away/
 
 ## Roles
 
-| Rol (`User.role`) | Interfaz | Puede |
+| Rol (`usuarios.rol`) | Interfaz | Puede |
 |---|---|---|
-| `passenger` | `/` | buscar vuelos, comprar (≤ 9 pasajes), ver/descargar sus pasajes |
-| `counter` | `/mostrador` | vender pasajes a un pasajero en mostrador, consultar reservas |
-| `admin` | `/admin` | ABM de vuelos, cancelar, reportes de ocupación |
+| `pasajero` | `/` | buscar vuelos, comprar (≤ 9 pasajes), ver/descargar sus pasajes |
+| `empleado_mostrador` | `/mostrador` | vender pasajes a un pasajero en mostrador, consultar reservas |
+| `administrador` | `/admin` | ABM de vuelos, cancelar, reportes de ocupación |
 
 El Django admin (`/admin/` del backend) queda como herramienta interna, no como la interfaz de administradores.
 
-## Modelo de datos (propuesta)
+## Modelo de datos
+
+**Fuente de verdad: [modelo.dbml](modelo.dbml)** (se visualiza en dbdiagram.io). Si cambia el esquema, se actualiza primero ese archivo.
 
 ```
-Airport        code (IATA, único), name, city
-Flight         number, origin→Airport, destination→Airport,
-               departure_time, arrival_time,
-               weekdays (lista de 0-6),
-               sale_from, sale_to               (periodo disponible para venta)
-               economy_seats, first_seats,
-               economy_price, first_price,
-               status (active | cancelled)
-Booking        user→User (comprador), flight→Flight, travel_date, seat_class,
-               created_at, status                (una transacción, 1..9 pasajes)
-Ticket         booking→Booking, passenger_name, passenger_dni, code (único)
-Payment        booking→Booking (1:1), amount, method, last4, status, paid_at
+usuarios        (rol: administrador | empleado_mostrador | pasajero)
+aeropuertos     catálogo IATA
+aviones         capacidad_economy, capacidad_primera
+vuelos          una fila por vuelo real en una fecha → avion, origen, destino, creado_por
+  └─ reservas   comprador (usuario) + vuelo + cantidad_pasajes (1..9)
+       ├─ pasajes   uno por asiento: datos del viajero, clase, precio, codigo_pasaje
+       └─ pagos     monto, estado, ultimos_4, numero_factura
+notificaciones  usuario + vuelo (cambio de horario / cancelación)
 ```
 
-- **Ocupación** de un vuelo en una fecha = `Ticket` con `booking.flight = X`, `booking.travel_date = D`, agrupado por clase. Sin tabla de "instancias de vuelo".
-  - ponytail: si hace falta cancelar/reprogramar **una fecha puntual** (no el vuelo entero), agregar `FlightDate(flight, date, status, overrides)`.
-- **Validaciones de compra** (backend, en `transaction.atomic` + `select_for_update` del `Flight`):
-  1. 1 ≤ cantidad ≤ 9
-  2. `travel_date` dentro de `sale_from..sale_to` y su día de semana ∈ `weekdays`
-  3. vuelo `active` y fecha futura
-  4. asientos libres de la clase ≥ cantidad
-- **Precio** se copia al `Booking`/`Payment` al momento de la compra (si el admin cambia precios después, no afecta ventas pasadas).
+Ideas clave del modelo:
+
+- **Sin tabla de recurrencia.** El admin define días de semana + período en el front; el backend genera **una fila en `vuelos` por fecha**. Cada fila es independiente: modificar o cancelar una no afecta a las demás.
+- **Capacidad:** al generar un vuelo, `asientos_disponibles_*` se inicializa con la `capacidad_*` del avión. Cada compra descuenta.
+- **Validaciones de compra** (backend, dentro de `transaction.atomic()` + `select_for_update()` sobre el vuelo):
+  1. 1 ≤ `cantidad_pasajes` ≤ 9
+  2. vuelo `activo` y `fecha_operacion` futura
+  3. `asientos_disponibles_<clase>` ≥ pasajes pedidos de esa clase
+- **Precio** se copia a cada `pasaje` al comprar: si el admin cambia el precio del vuelo después, no afecta ventas pasadas.
+- **Comprador ≠ viajero:** `reservas.pasajero_id` es quien compra (recibe emails); los datos de cada viajero están en `pasajes`.
+- **Ocupación** (reportes) = capacidad del avión − `asientos_disponibles_*`, por vuelo/fecha/clase.
+- **Pagos:** nunca guardar el número de tarjeta completo; solo `ultimos_4`. Una reserva puede tener varios pagos (reintentos tras un rechazo).
+
+Traducción a Django (al implementar):
+
+- `usuarios` → modelo de usuario custom (`AUTH_USER_MODEL`); `password_hash` y `activo` se mapean a `password` e `is_active` de Django con `db_column`.
+- Enums → `CharField` + `choices` (en la BD quedan como `varchar`).
+- `actualizado_en` → `auto_now=True`; `creado_en` → `auto_now_add=True`.
+- `db_table` explícito para que las tablas se llamen igual que en el DBML.
+- Reglas simples como constraints de Postgres (`CheckConstraint`): cantidad 1..9, origen ≠ destino.
 
 ## API (propuesta)
 
@@ -88,15 +99,15 @@ Payment        booking→Booking (1:1), amount, method, last4, status, paid_at
 POST /api/auth/token/            login → {access, refresh}        ✅ hecho
 POST /api/auth/token/refresh/                                      ✅ hecho
 GET  /api/health/                                                  ✅ hecho
-POST /api/auth/register/         alta de pasajero
-GET  /api/airports/
-GET  /api/flights/search/?origin=&destination=&date=   vuelos + disponibilidad
-CRUD /api/flights/               (admin)
-POST /api/flights/{id}/cancel/   (admin) → notifica por email
-POST /api/bookings/              compra + pago → emails
-GET  /api/bookings/mine/
-GET  /api/tickets/{code}/pdf/    descarga pasaje
-GET  /api/reports/occupancy/?flight=&date_from=&date_to=   (admin)
+POST /api/auth/registro/         alta de pasajero
+GET  /api/aeropuertos/
+GET  /api/vuelos/buscar/?origen=&destino=&fecha=   vuelos + disponibilidad
+CRUD /api/vuelos/                (admin) — el alta con días + período genera N filas
+POST /api/vuelos/{id}/cancelar/  (admin) → notifica por email
+POST /api/reservas/              compra + pago → emails con pasajes y factura
+GET  /api/reservas/mias/
+GET  /api/pasajes/{codigo}/pdf/  descarga ticket electrónico
+GET  /api/reportes/ocupacion/?vuelo=&desde=&hasta=   (admin)
 ```
 
 ## Emails

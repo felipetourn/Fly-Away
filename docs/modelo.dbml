@@ -1,0 +1,155 @@
+// Modelo relacional de Fly Away — fuente de verdad del esquema.
+// Se visualiza pegándolo en https://dbdiagram.io
+
+// ---------- USUARIOS Y AUTENTICACIÓN ----------
+
+Table usuarios {
+  id uuid [pk, default: `gen_random_uuid()`]
+  email varchar [unique, not null]
+  password_hash varchar [not null]
+  nombre varchar [not null]
+  apellido varchar [not null]
+  rol usuario_rol [not null]
+  activo boolean [default: true]
+  creado_en timestamp [default: `now()`]
+  actualizado_en timestamp [default: `now()`]
+
+  Note: 'Representa a los 3 tipos de usuario: admin, empleado, pasajero. El rol define el acceso a funcionalidades.'
+}
+
+Enum usuario_rol {
+  administrador
+  empleado_mostrador
+  pasajero
+}
+
+// ---------- AEROPUERTOS ----------
+
+Table aeropuertos {
+  id uuid [pk, default: `gen_random_uuid()`]
+  codigo_iata varchar(3) [unique, not null]
+  nombre varchar [not null]
+  ciudad varchar [not null]
+  pais varchar [not null]
+
+  Note: 'Catálogo de aeropuertos usados como origen/destino de vuelos.'
+}
+
+// ---------- AVIONES ----------
+
+Table aviones {
+  id uuid [pk, default: `gen_random_uuid()`]
+  matricula varchar [unique, not null]
+  modelo varchar [not null]
+  capacidad_economy int [not null]
+  capacidad_primera int [not null]
+
+  Note: 'Define la capacidad total de asientos por clase para un avión.'
+}
+
+// ---------- VUELOS ----------
+
+Table vuelos {
+  id uuid [pk, default: `gen_random_uuid()`]
+  numero_vuelo varchar [not null]
+  avion_id uuid [not null, ref: > aviones.id]
+  aeropuerto_origen_id uuid [not null, ref: > aeropuertos.id]
+  aeropuerto_destino_id uuid [not null, ref: > aeropuertos.id]
+  fecha_operacion date [not null]
+  hora_partida time [not null]
+  hora_llegada time [not null]
+  precio_economy decimal(10,2) [not null]
+  precio_primera decimal(10,2) [not null]
+  asientos_disponibles_economy int [not null]
+  asientos_disponibles_primera int [not null]
+  estado vuelo_estado [default: 'activo']
+  creado_por uuid [not null, ref: > usuarios.id]
+  creado_en timestamp [default: `now()`]
+  actualizado_en timestamp [default: `now()`]
+
+  Note: '''
+    Cada fila = un vuelo real e independiente, con su propio id.
+    No existe tabla de recurrencia: cuando el admin define días de semana + período
+    en el front (como un cron), el backend genera N filas acá, una por fecha,
+    cada una totalmente autocontenida y desvinculada de las demás.
+    Modificar o cancelar una fila nunca afecta a otras (US02, US03).
+    Si en el futuro se necesita agrupar instancias generadas juntas, se resuelve
+    con una query por rango de fechas + ruta + horario, sin tabla adicional.
+    asientos_disponibles_* se van descontando con cada compra (base para US11 más adelante).
+    No se modela en el schema, pero es obligatorio: todo descuento de asientos_disponibles_*
+    debe hacerse dentro de una transacción con locking (SELECT ... FOR UPDATE) para evitar
+    sobreventa en compras concurrentes.
+  '''
+}
+
+Enum vuelo_estado {
+  activo
+  cancelado
+}
+
+Table reservas {
+  id uuid [pk, default: `gen_random_uuid()`]
+  pasajero_id uuid [not null, ref: > usuarios.id]
+  vuelo_id uuid [not null, ref: > vuelos.id]
+  cantidad_pasajes int [not null]
+  estado reserva_estado [default: 'pendiente']
+  creado_en timestamp [default: `now()`]
+
+  Note: 'Máximo 9 pasajes por transacción (regla de negocio, se valida en backend).'
+}
+
+Enum reserva_estado {
+  pendiente
+  pagada
+  cancelada
+}
+
+Table pasajes {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reserva_id uuid [not null, ref: > reservas.id]
+  codigo_pasaje varchar [unique, not null]
+  nombre_pasajero varchar [not null]
+  apellido_pasajero varchar [not null]
+  dni_pasajero varchar [not null]
+  clase pasaje_clase [not null]
+  asiento varchar
+  precio decimal(10,2) [not null]
+  ticket_electronico_url varchar
+
+  Note: 'Un registro por asiento comprado. Los datos del viajero son independientes del comprador (reserva.pasajero_id).'
+}
+
+Enum pasaje_clase {
+  economy
+  primera
+}
+
+Table pagos {
+  id uuid [pk, default: `gen_random_uuid()`]
+  reserva_id uuid [not null, ref: > reservas.id]
+  monto decimal(10,2) [not null]
+  estado pago_estado [default: 'pendiente']
+  metodo_pago varchar [not null]
+  ultimos_4 varchar(4)
+  numero_factura varchar [unique]
+  transaccion_externa_id varchar
+  procesado_en timestamp
+}
+
+Enum pago_estado {
+  pendiente
+  aprobado
+  rechazado
+}
+
+Table notificaciones {
+  id uuid [pk, default: `gen_random_uuid()`]
+  usuario_id uuid [not null, ref: > usuarios.id]
+  vuelo_id uuid [not null, ref: > vuelos.id]
+  tipo varchar [not null]
+  mensaje varchar [not null]
+  enviado boolean [default: false]
+  creado_en timestamp [default: `now()`]
+
+  Note: 'Notificaciones por cambio de horario o cancelación (US15, US16). Siempre ligada a un vuelo: no hay notificaciones genéricas en el alcance actual.'
+}

@@ -22,10 +22,13 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
-| 2026-09-26 | `User` custom con campo `role` desde el inicio | Cambiar el modelo de usuario después de la 1ª migración es muy costoso |
+| 2026-09-26 | Modelo relacional definido en `docs/modelo.dbml` (fuente de verdad); nombres en español | Diseño del equipo; código y BD usan los mismos nombres |
+| 2026-09-26 | Usuario custom desde el inicio (hoy `accounts.User` provisorio → se reemplaza por `usuarios`) | Cambiar el modelo de usuario con datos cargados es muy costoso; hoy no hay datos |
 | 2026-09-26 | JWT (SimpleJWT) en vez de sesiones | Front y back en dominios distintos (Vercel/Render); evita problemas de cookies cross-site |
 | 2026-09-26 | Sin `DATABASE_URL` → SQLite local | Poder desarrollar sin conexión a Supabase |
-| 2026-09-26 | Ocupación calculada desde `Ticket` (sin tabla de instancias de vuelo) | Más simple; se agrega `FlightDate` si se necesita cancelar fechas puntuales |
+| 2026-09-26 | Una fila en `vuelos` por fecha, sin tabla de recurrencia | Cancelar/modificar una fecha puntual no afecta a las demás (US02, US03) |
+| 2026-09-26 | `asientos_disponibles_*` como contador, descontado con `select_for_update()` | Disponibilidad y ocupación sin contar pasajes; el lock evita sobreventa |
+| 2026-09-26 | Comprador (`reservas.pasajero_id`) ≠ viajero (datos en `pasajes`) | Se pueden comprar hasta 9 pasajes para otras personas |
 | 2026-09-26 | Solo web (sin app móvil), responsive | Alcance definido por el equipo |
 
 ## Pendientes / a definir
@@ -33,12 +36,17 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 - [ ] **Pagos:** ¿simulados (form de tarjeta que se valida y se registra) o pasarela real (Mercado Pago sandbox)? Propuesta: simulado.
 - [ ] **Proveedor de email en prod:** verificar si el plan free de Render permite SMTP saliente; si no, usar la API HTTP de un proveedor (Resend, Brevo, etc.).
 - [ ] **PDF de pasajes/factura:** elegir librería (p. ej. `reportlab`) cuando se implemente.
-- [ ] ¿Cancelación por fecha puntual o solo del vuelo completo?
+- [ ] **Periodo de venta:** el modelo lo toma como "fechas en que opera". Si la cátedra lo entiende como "desde cuándo se puede comprar", falta un campo (ej. `venta_desde`). Confirmar con el docente.
+- [ ] **Venta en mostrador a alguien sin cuenta:** ¿quién queda en `reservas.pasajero_id`? Opciones: crear la cuenta en el momento, o agregar `vendido_por` + datos de contacto del comprador.
+- [ ] **Ida y vuelta:** son 2 reservas; si se pagan juntas, `pagos` hoy apunta a una sola reserva. Si el alcance es solo ida, no aplica.
+- [ ] **Sugerencias al modelo** (no aplicadas): único (`numero_vuelo`, `fecha_operacion`); `CheckConstraint` para 1..9 pasajes y origen ≠ destino; `cantidad_pasajes` duplica el conteo de `pasajes` (mantener sincronizado).
 - [ ] ¿El empleado de mostrador puede cancelar/modificar reservas?
 
 ## Próximos pasos
 
-1. App `flights`: modelos `Airport`, `Flight` + ABM (admin).
-2. Búsqueda de vuelos con disponibilidad.
-3. App `bookings`: compra + pago + emails.
-4. Reportes de ocupación.
+1. Cerrar los pendientes del modelo (arriba) e implementarlo en Django; resetear la BD de Supabase (hoy tiene las tablas provisorias de `accounts`).
+2. ABM de vuelos (admin), con generación de N filas a partir de días + período.
+3. Búsqueda de vuelos con disponibilidad.
+4. Compra: reservas + pasajes + pagos + emails.
+5. Reportes de ocupación.
+6. Notificaciones por cambio de horario / cancelación.
