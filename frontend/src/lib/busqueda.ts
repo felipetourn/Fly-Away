@@ -46,6 +46,23 @@ export function hoyISO(): string {
   return new Date().toLocaleDateString('sv-SE')
 }
 
+/** Rango que se está eligiendo en el calendario. `abierto` = falta el día de fin. */
+export interface RangoEnCurso {
+  desde: string
+  hasta: string
+  abierto: boolean
+}
+
+/**
+ * Clic en un día (YYYY-MM-DD) del calendario de rango: el primer clic marca el inicio y el segundo el fin.
+ * El mismo día cierra un rango de un solo día; un día anterior al inicio pasa a ser el nuevo inicio.
+ * Con un rango ya cerrado, el clic empieza uno nuevo.
+ */
+export function elegirDia(r: RangoEnCurso, dia: string): RangoEnCurso {
+  if (!r.abierto || dia < r.desde) return { desde: dia, hasta: '', abierto: true }
+  return { desde: r.desde, hasta: dia === r.desde ? '' : dia, abierto: false }
+}
+
 /** Error del rango de precio, o undefined si está bien. */
 export function validarPrecio(min: number | null, max: number | null): string | undefined {
   const mal = (n: number | null) => n !== null && (!Number.isFinite(n) || n < 0)
