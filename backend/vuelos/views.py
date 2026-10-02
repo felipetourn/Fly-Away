@@ -1,0 +1,52 @@
+from django.utils import timezone
+from rest_framework import generics
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from .models import Aeropuerto, Vuelo
+from .serializers import AeropuertoSerializer, BusquedaSerializer, VueloDetalleSerializer, VueloSerializer
+
+
+class AeropuertosView(generics.ListAPIView):
+    queryset = Aeropuerto.objects.all()
+    serializer_class = AeropuertoSerializer
+
+
+class BuscarVuelosView(APIView):
+    """Vuelos activos, con lugar para todos, en el rango de precio y que todavía no salieron."""
+
+    def get(self, request):
+        # Un parámetro vacío (?hasta=) cuenta como no enviado.
+        busqueda = BusquedaSerializer(data={k: v for k, v in request.query_params.items() if v != ''})
+        busqueda.is_valid(raise_exception=True)
+        d = busqueda.validated_data
+        clase = d['clase']
+        ahora = timezone.localtime()  # hora de Buenos Aires (TIME_ZONE)
+
+        vuelos = (
+            Vuelo.objects.select_related('aeropuerto_origen', 'aeropuerto_destino')
+            .filter(
+                estado=Vuelo.Estado.ACTIVO,
+                fecha_operacion__range=(d['desde'], d.get('hasta', d['desde'])),
+                **{f'asientos_disponibles_{clase}__gte': d['pasajeros']},
+            )
+            .exclude(fecha_operacion=ahora.date(), hora_partida__lte=ahora.time())
+            .order_by('fecha_operacion', 'hora_partida', 'numero_vuelo')  # numero_vuelo: desempate estable
+        )
+        if d.get('origen'):
+            vuelos = vuelos.filter(aeropuerto_origen=d['origen'])
+        if d.get('destino'):
+            vuelos = vuelos.filter(aeropuerto_destino=d['destino'])
+        if 'precio_min' in d:
+            vuelos = vuelos.filter(**{f'precio_{clase}__gte': d['precio_min']})
+        if 'precio_max' in d:
+            vuelos = vuelos.filter(**{f'precio_{clase}__lte': d['precio_max']})
+        # ponytail: sin paginación; sumar PageNumberPagination si un rango largo devuelve demasiados vuelos.
+        return Response(VueloSerializer(vuelos, many=True).data)
+
+
+class VueloDetalleView(generics.RetrieveAPIView):
+    """Incluye cancelados: el detalle informa la cancelación. Un id que no es UUID da 404 (no 500)."""
+
+    queryset = Vuelo.objects.select_related('avion', 'aeropuerto_origen', 'aeropuerto_destino')
+    serializer_class = VueloDetalleSerializer

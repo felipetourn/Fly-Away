@@ -1,8 +1,7 @@
-const API_URL = import.meta.env.VITE_API_URL
-
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('access')
-  const res = await fetch(`${API_URL}${path}`, {
+  // La URL se lee al llamar (no al importar) para que los chequeos en Node puedan importar los módulos de lib/.
+  const res = await fetch(`${import.meta.env.VITE_API_URL}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',

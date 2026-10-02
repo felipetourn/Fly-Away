@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import {
   MAX_PASAJEROS,
   hoyISO,
@@ -33,6 +33,44 @@ function MensajeError({ id, texto }: { id: string; texto?: string }) {
   ) : null
 }
 
+function CampoFecha(props: {
+  id: string
+  texto: ReactNode
+  valor: string
+  min: string
+  error?: string
+  onChange: (v: string) => void
+}) {
+  return (
+    <div>
+      <div className={caja}>
+        <label htmlFor={props.id} className={etiqueta}>
+          {props.texto}
+        </label>
+        <input
+          id={props.id}
+          type="date"
+          min={props.min}
+          value={props.valor}
+          onChange={(e) => props.onChange(e.target.value)}
+          aria-invalid={!!props.error}
+          aria-describedby={`error-${props.id}`}
+          className={control}
+        />
+      </div>
+      <MensajeError id={`error-${props.id}`} texto={props.error} />
+    </div>
+  )
+}
+
+/** "Hasta (opcional)"; `de` aclara a cuál fecha para lectores de pantalla. */
+const hastaOpcional = (de: string) => (
+  <>
+    Hasta <span className="sr-only">{de} </span>
+    <span className="font-normal">(opcional)</span>
+  </>
+)
+
 export default function BuscadorVuelos({ aeropuertos, inicial, erroresIniciales = {}, onBuscar }: Props) {
   const pasajerosIniciales = inicial?.pasajeros ?? 1
   const [soloIda, setSoloIda] = useState(inicial?.vuelta === null)
@@ -41,6 +79,7 @@ export default function BuscadorVuelos({ aeropuertos, inicial, erroresIniciales 
   const [ida, setIda] = useState(inicial?.ida ?? '')
   const [hasta, setHasta] = useState(inicial?.hasta ?? '')
   const [vuelta, setVuelta] = useState(inicial?.vuelta ?? '')
+  const [vueltaHasta, setVueltaHasta] = useState(inicial?.vueltaHasta ?? '')
   const [pasajeros, setPasajeros] = useState(
     Number.isInteger(pasajerosIniciales) && pasajerosIniciales >= 1 && pasajerosIniciales <= MAX_PASAJEROS
       ? pasajerosIniciales
@@ -57,8 +96,9 @@ export default function BuscadorVuelos({ aeropuertos, inicial, erroresIniciales 
       origen,
       destino,
       ida,
-      hasta: soloIda ? hasta : '',
+      hasta,
       vuelta: soloIda ? null : vuelta,
+      vueltaHasta: soloIda ? '' : vueltaHasta,
       pasajeros,
       clase,
       // El rango de precio se edita sobre los resultados; una búsqueda nueva lo conserva.
@@ -95,7 +135,13 @@ export default function BuscadorVuelos({ aeropuertos, inicial, erroresIniciales 
         </label>
       </fieldset>
 
-      <div className="grid gap-2 lg:grid-cols-[1fr_auto_1fr_1fr_1fr_1.3fr_auto] lg:items-start">
+      <div
+        className={`grid gap-2 lg:items-start ${
+          soloIda
+            ? 'lg:grid-cols-[1fr_auto_1fr_2fr_1.3fr_auto]'
+            : 'lg:grid-cols-[1fr_auto_1fr_2fr_2fr_1.3fr_auto]'
+        }`}
+      >
         <div>
           <div className={caja}>
             <label htmlFor="origen" className={etiqueta}>
@@ -150,62 +196,43 @@ export default function BuscadorVuelos({ aeropuertos, inicial, erroresIniciales 
           <MensajeError id="error-destino" texto={errores.destino} />
         </div>
 
-        <div>
-          <div className={caja}>
-            <label htmlFor="ida" className={etiqueta}>
-              {soloIda ? 'Desde' : 'Ida'}
-            </label>
-            <input
-              id="ida"
-              type="date"
-              min={hoy}
-              value={ida}
-              onChange={(e) => setIda(e.target.value)}
-              aria-invalid={!!errores.ida}
-              aria-describedby="error-ida"
-              className={control}
-            />
-          </div>
-          <MensajeError id="error-ida" texto={errores.ida} />
+        <div className="grid grid-cols-2 gap-2">
+          <CampoFecha
+            id="ida"
+            texto={soloIda ? 'Desde' : 'Ida'}
+            valor={ida}
+            min={hoy}
+            error={errores.ida}
+            onChange={setIda}
+          />
+          <CampoFecha
+            id="hasta"
+            texto={hastaOpcional(soloIda ? '' : 'de la ida')}
+            valor={hasta}
+            min={ida || hoy}
+            error={errores.hasta}
+            onChange={setHasta}
+          />
         </div>
 
-        {soloIda ? (
-          <div>
-            <div className={caja}>
-              <label htmlFor="hasta" className={etiqueta}>
-                Hasta <span className="font-normal">(opcional)</span>
-              </label>
-              <input
-                id="hasta"
-                type="date"
-                min={ida || hoy}
-                value={hasta}
-                onChange={(e) => setHasta(e.target.value)}
-                aria-invalid={!!errores.hasta}
-                aria-describedby="error-hasta"
-                className={control}
-              />
-            </div>
-            <MensajeError id="error-hasta" texto={errores.hasta} />
-          </div>
-        ) : (
-          <div>
-            <div className={caja}>
-              <label htmlFor="vuelta" className={etiqueta}>
-                Vuelta
-              </label>
-              <input
-                id="vuelta"
-                type="date"
-                min={ida || hoy}
-                value={vuelta}
-                onChange={(e) => setVuelta(e.target.value)}
-                aria-invalid={!!errores.vuelta}
-                aria-describedby="error-vuelta"
-                className={control}
-              />
-            </div>
-            <MensajeError id="error-vuelta" texto={errores.vuelta} />
+        {!soloIda && (
+          <div className="grid grid-cols-2 gap-2">
+            <CampoFecha
+              id="vuelta"
+              texto="Vuelta"
+              valor={vuelta}
+              min={ida || hoy}
+              error={errores.vuelta}
+              onChange={setVuelta}
+            />
+            <CampoFecha
+              id="vueltaHasta"
+              texto={hastaOpcional('de la vuelta')}
+              valor={vueltaHasta}
+              min={vuelta || ida || hoy}
+              error={errores.vueltaHasta}
+              onChange={setVueltaHasta}
+            />
           </div>
         )}
 
