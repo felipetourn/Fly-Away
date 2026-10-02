@@ -4,13 +4,11 @@ export const NOMBRE_CLASE: Record<Clase, string> = { economy: 'Economy', primera
 
 export const MAX_PASAJEROS = 9
 
-/** Máximo de días del rango "desde–hasta" del explorador (incluye ambos extremos). */
-export const MAX_DIAS_RANGO = 14
-
 /**
  * Filtros de búsqueda. Fechas en YYYY-MM-DD.
- * - `vuelta: null` = solo ida (explorador): origen o destino pueden ser '' (cualquiera) y `hasta` arma un rango.
- * - `vuelta: string` = ida y vuelta: origen y destino obligatorios, `hasta` siempre ''.
+ * - `vuelta: null` = solo ida (explorador): origen o destino pueden ser '' (cualquiera).
+ * - `vuelta: string` = ida y vuelta: origen y destino obligatorios.
+ * - `hasta` arma un rango con `ida` ('' = solo ese día); `vueltaHasta` lo mismo con `vuelta` (siempre '' en solo ida).
  * - `precioMin` / `precioMax`: por persona en la clase elegida; `null` = sin límite.
  */
 export interface Filtros {
@@ -19,6 +17,7 @@ export interface Filtros {
   ida: string
   hasta: string
   vuelta: string | null
+  vueltaHasta: string
   pasajeros: number
   clase: Clase
   precioMin: number | null
@@ -26,7 +25,7 @@ export interface Filtros {
 }
 
 export type ErroresBusqueda = Partial<
-  Record<'origen' | 'destino' | 'ida' | 'hasta' | 'vuelta' | 'pasajeros' | 'clase' | 'precio', string>
+  Record<'origen' | 'destino' | 'ida' | 'hasta' | 'vuelta' | 'vueltaHasta' | 'pasajeros' | 'clase' | 'precio', string>
 >
 
 /** Lo mínimo de un aeropuerto que necesita la validación. */
@@ -45,11 +44,6 @@ function fechaValida(v: string): boolean {
 /** Fecha local de hoy en YYYY-MM-DD (sv-SE formatea así). */
 export function hoyISO(): string {
   return new Date().toLocaleDateString('sv-SE')
-}
-
-/** Días entre dos fechas ISO (b − a). */
-export function diasEntre(a: string, b: string): number {
-  return (Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000
 }
 
 /** Error del rango de precio, o undefined si está bien. */
@@ -83,13 +77,13 @@ export function validarBusqueda(f: Filtros, hoy: string, aeropuertos?: Aeropuert
   }
   if (!f.ida) e.ida = 'Elegí la fecha'
   else if (f.ida < hoy) e.ida = 'La fecha no puede ser en el pasado'
-  if (f.hasta && f.ida) {
-    if (f.hasta < f.ida) e.hasta = 'No puede ser antes de "Desde"'
-    else if (diasEntre(f.ida, f.hasta) + 1 > MAX_DIAS_RANGO) e.hasta = `El rango puede ser de hasta ${MAX_DIAS_RANGO} días`
+  if (f.hasta && f.ida && f.hasta < f.ida) {
+    e.hasta = f.vuelta === null ? 'No puede ser antes de "Desde"' : 'No puede ser antes de la ida'
   }
   if (f.vuelta !== null) {
     if (!f.vuelta) e.vuelta = 'Elegí la fecha de vuelta'
     else if (f.ida && f.vuelta < f.ida) e.vuelta = 'La vuelta no puede ser antes de la ida'
+    if (f.vueltaHasta && f.vuelta && f.vueltaHasta < f.vuelta) e.vueltaHasta = 'No puede ser antes de la vuelta'
   }
   if (f.clase !== 'economy' && f.clase !== 'primera') e.clase = 'Elegí Economy o Primera'
   if (!Number.isInteger(f.pasajeros) || f.pasajeros < 1 || f.pasajeros > MAX_PASAJEROS) {
@@ -116,8 +110,9 @@ export function leerFiltros(p: URLSearchParams): Filtros | null {
     origen: (p.get('origen') ?? '').toUpperCase(),
     destino: (p.get('destino') ?? '').toUpperCase(),
     ida: fecha('ida'),
-    hasta: idaYVuelta ? '' : fecha('hasta'),
+    hasta: fecha('hasta'),
     vuelta: idaYVuelta ? fecha('vuelta') : null,
+    vueltaHasta: idaYVuelta ? fecha('vueltaHasta') : '',
     pasajeros: Number(p.get('pasajeros') ?? 1),
     // Un valor desconocido se conserva para que validarBusqueda lo marque (no se cambia en silencio).
     clase: (p.get('clase') ?? 'economy') as Clase,
@@ -132,8 +127,11 @@ export function aParams(f: Filtros): URLSearchParams {
   if (f.origen) p.set('origen', f.origen)
   if (f.destino) p.set('destino', f.destino)
   p.set('ida', f.ida)
-  if (f.vuelta !== null) p.set('vuelta', f.vuelta)
-  else if (f.hasta) p.set('hasta', f.hasta)
+  if (f.hasta) p.set('hasta', f.hasta)
+  if (f.vuelta !== null) {
+    p.set('vuelta', f.vuelta)
+    if (f.vueltaHasta) p.set('vueltaHasta', f.vueltaHasta)
+  }
   p.set('pasajeros', String(f.pasajeros))
   p.set('clase', f.clase)
   if (f.precioMin !== null) p.set('precioMin', String(f.precioMin))

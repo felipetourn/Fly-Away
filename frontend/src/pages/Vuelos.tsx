@@ -91,7 +91,7 @@ export default function Vuelos() {
           origen: f.destino,
           destino: f.origen,
           desde: f.vuelta,
-          hasta: '',
+          hasta: f.vueltaHasta,
           pasajeros: f.pasajeros,
           clase: f.clase,
           precioMin: f.precioMin,
@@ -146,7 +146,7 @@ export default function Vuelos() {
     const sugerencia =
       f.precioMin !== null || f.precioMax !== null
         ? 'Probá ampliar el rango de precio.'
-        : f.vuelta === null && !f.hasta
+        : !f.hasta || (f.vuelta !== null && !f.vueltaHasta)
           ? 'Probá con un rango de fechas.'
           : 'Probá con otras fechas.'
     const tituloIda =
@@ -187,7 +187,7 @@ export default function Vuelos() {
           <ListaVuelos
             key={`${claveFiltros}-${idaElegida.id}`}
             titulo={`${ciudad(f.destino)} → ${ciudad(f.origen)}`}
-            subtitulo={`${fechaLarga(f.vuelta)} · ${detalle}`}
+            subtitulo={`${f.vueltaHasta ? rangoFechas(f.vuelta, f.vueltaHasta) : fechaLarga(f.vuelta)} · ${detalle}`}
             estado={busquedaVuelta.estado}
             vuelos={vueltasPosibles(busquedaVuelta.vuelos, idaElegida)}
             clase={f.clase}

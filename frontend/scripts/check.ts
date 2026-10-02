@@ -25,6 +25,7 @@ const base: Filtros = {
   ida: '2026-10-26',
   hasta: '',
   vuelta: '2026-10-31',
+  vueltaHasta: '',
   pasajeros: 2,
   clase: 'economy',
   precioMin: null,
@@ -41,6 +42,10 @@ assert.ok(validarBusqueda({ ...base, ida: '2026-10-01' }, hoy).ida, 'ida en el p
 assert.deepEqual(validarBusqueda({ ...base, ida: hoy, vuelta: hoy }, hoy), {}, 'ida hoy y vuelta el mismo día valen')
 assert.ok(validarBusqueda({ ...base, vuelta: '' }, hoy).vuelta, 'ida y vuelta sin fecha de vuelta')
 assert.ok(validarBusqueda({ ...base, vuelta: '2026-10-25' }, hoy).vuelta, 'vuelta antes que la ida')
+const conRangos: Filtros = { ...base, hasta: '2026-10-28', vueltaHasta: '2026-11-04' }
+assert.deepEqual(validarBusqueda(conRangos, hoy), {}, 'ida y vuelta con rango en las dos')
+assert.ok(validarBusqueda({ ...base, hasta: '2026-10-25' }, hoy).hasta, 'hasta de la ida antes que la ida')
+assert.ok(validarBusqueda({ ...base, vueltaHasta: '2026-10-30' }, hoy).vueltaHasta, 'hasta de la vuelta antes que la vuelta')
 assert.ok(validarBusqueda({ ...base, pasajeros: 0 }, hoy).pasajeros)
 assert.ok(validarBusqueda({ ...base, pasajeros: 10 }, hoy).pasajeros)
 assert.ok(validarBusqueda({ ...base, pasajeros: Number.NaN }, hoy).pasajeros)
@@ -50,8 +55,7 @@ assert.deepEqual(validarBusqueda(soloIda, hoy), {})
 assert.deepEqual(validarBusqueda({ ...soloIda, destino: '' }, hoy), {}, 'solo origen alcanza')
 assert.deepEqual(validarBusqueda({ ...soloIda, origen: '' }, hoy), {}, 'solo destino alcanza')
 assert.ok(validarBusqueda({ ...soloIda, origen: '', destino: '' }, hoy).origen, 'al menos uno de los dos')
-assert.deepEqual(validarBusqueda({ ...soloIda, hasta: '2026-11-08' }, hoy), {}, 'rango de 14 días')
-assert.ok(validarBusqueda({ ...soloIda, hasta: '2026-11-09' }, hoy).hasta, 'rango de 15 días')
+assert.deepEqual(validarBusqueda({ ...soloIda, hasta: '2027-10-01' }, hoy), {}, 'rango sin límite de días')
 assert.ok(validarBusqueda({ ...soloIda, hasta: '2026-10-25' }, hoy).hasta, 'hasta antes que desde')
 
 // validarBusqueda: contra la lista de aeropuertos (si se pasa)
@@ -79,7 +83,8 @@ assert.deepEqual(leerFiltros(aParams(base)), base, 'ida y vuelta por la URL')
 const explorador: Filtros = { ...soloIda, origen: '', hasta: '2026-10-30', precioMin: 50000, precioMax: 150000 }
 assert.deepEqual(leerFiltros(aParams(explorador)), explorador, 'explorador por la URL')
 assert.equal(aParams(base).has('idaId'), false, 'una búsqueda nueva no arrastra el vuelo elegido')
-assert.equal(leerFiltros(new URLSearchParams('ida=2026-10-26&vuelta=2026-10-31&hasta=2026-10-28'))!.hasta, '', 'hasta solo en solo ida')
+assert.deepEqual(leerFiltros(aParams(conRangos)), conRangos, 'ida y vuelta con rangos por la URL')
+assert.equal(leerFiltros(new URLSearchParams('ida=2026-10-26&hasta=2026-10-28&vueltaHasta=2026-11-01'))!.vueltaHasta, '', 'vueltaHasta solo en ida y vuelta')
 const basura = leerFiltros(new URLSearchParams('origen=bhi&destino=AEP&ida=mañana&vuelta=2026-13&pasajeros=50&clase=xx'))!
 assert.equal(basura.origen, 'BHI')
 assert.equal(basura.ida, '', 'fecha mal formada se descarta')
