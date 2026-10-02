@@ -2,8 +2,8 @@
 process.env.TZ = 'America/Argentina/Buenos_Aires' // UTC−3: detecta fechas corridas un día
 
 import assert from 'node:assert/strict'
-import { aParams, leerFiltros, validarBusqueda, type Filtros } from '../src/lib/busqueda.ts'
-import { duracion, fechaCompleta, fechaCorta, fechaLarga, hora, precio, rangoFechas } from '../src/lib/formato.ts'
+import { aParams, elegirDia, leerFiltros, validarBusqueda, type Filtros } from '../src/lib/busqueda.ts'
+import { duracion, fechaCompleta, fechaCorta, fechaLarga, hora, precio, rangoCorto, rangoFechas } from '../src/lib/formato.ts'
 import { duracionDe, estadoClase, queryBusqueda, vueltasPosibles, type ParamsBusqueda, type Vuelo } from '../src/lib/vuelos.ts'
 
 const hoy = '2026-10-02'
@@ -82,7 +82,20 @@ assert.equal(leerFiltros(new URLSearchParams('origen=BHI&ida=2026-10-26'))!.clas
 assert.equal(leerFiltros(new URLSearchParams('origen=BHI&ida=2027-02-30'))!.ida, '', 'fecha inexistente se descarta')
 assert.equal(leerFiltros(new URLSearchParams('origen=BHI&ida=2026-13-45'))!.ida, '', 'mes inexistente se descarta')
 
+// elegirDia: primer clic = inicio, segundo clic = fin (un rango cerrado se reemplaza con el próximo clic)
+const vacio = { desde: '', hasta: '', abierto: false }
+const inicio = elegirDia(vacio, '2026-10-26')
+assert.deepEqual(inicio, { desde: '2026-10-26', hasta: '', abierto: true }, 'primer clic marca el inicio')
+assert.deepEqual(elegirDia(inicio, '2026-10-28'), { desde: '2026-10-26', hasta: '2026-10-28', abierto: false }, 'segundo clic cierra el rango')
+assert.deepEqual(elegirDia(inicio, '2026-10-26'), { desde: '2026-10-26', hasta: '', abierto: false }, 'mismo día = un solo día')
+assert.deepEqual(elegirDia(inicio, '2026-10-20'), { desde: '2026-10-20', hasta: '', abierto: true }, 'día anterior = nuevo inicio')
+const cerrado = { desde: '2026-10-26', hasta: '2026-10-28', abierto: false }
+assert.deepEqual(elegirDia(cerrado, '2026-11-02'), { desde: '2026-11-02', hasta: '', abierto: true }, 'con rango cerrado empieza otro')
+
 // formato
+assert.equal(rangoCorto('', ''), '')
+assert.equal(rangoCorto('2026-10-26', ''), '26 oct')
+assert.equal(rangoCorto('2026-10-26', '2026-10-28'), '26 oct – 28 oct')
 assert.ok(fechaLarga('2026-10-26').startsWith('Lunes') && fechaLarga('2026-10-26').includes('26'), fechaLarga('2026-10-26'))
 assert.ok(fechaCorta('2026-10-26').startsWith('Lun') && fechaCorta('2026-10-26').includes('26'), fechaCorta('2026-10-26'))
 assert.equal(rangoFechas('2026-10-20', '2026-10-25'), 'Del 20 de octubre al 25 de octubre')

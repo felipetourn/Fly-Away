@@ -25,6 +25,13 @@ export function rangoFechas(desde: string, hasta: string): string {
   return `Del ${diaMes(desde)} al ${diaMes(hasta)}`
 }
 
+/** Etiqueta del selector de fechas: "26 oct" o "26 oct – 28 oct"; '' sin fecha. */
+export function rangoCorto(desde: string, hasta: string): string {
+  const diaMes = (iso: string) => aFecha(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })
+  if (!desde) return ''
+  return hasta ? `${diaMes(desde)} – ${diaMes(hasta)}` : diaMes(desde)
+}
+
 /** "06:40:00" → "06:40" */
 export function hora(t: string): string {
   return t.slice(0, 5)

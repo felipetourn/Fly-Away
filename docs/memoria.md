@@ -4,6 +4,10 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-02 — Calendario de rango y logo de la card (rama `fix/logo-card-y-calendario`)**
+- El buscador tiene una caja por tramo: "Fechas" en solo ida; "Ida" y "Vuelta" en ida y vuelta. Cada caja abre un calendario (`SelectorFechas`, con react-day-picker): primer clic = inicio, segundo = fin, el mismo día = un solo día. La lógica de búsqueda, la URL y el backend no cambian.
+- La card de resultados usa `logoA`, como el detalle.
+
 **2026-10-02 — Backend de vuelos (rama `feat/backend-vuelos`)**
 - Modelo `usuarios` del DBML (login por email, `rol`), que reemplaza a `accounts`. **Para la US de login:** el modelo ya está; faltan `POST /auth/registro/`, `GET /auth/yo/` y conectar `auth.ts`/`sesion.tsx` (hoy mock).
 - App `vuelos`: aeropuertos, aviones y vuelos con los constraints del DBML; `GET /api/aeropuertos/`, `/api/vuelos/buscar/` y `/api/vuelos/{id}/`. El front ya no usa el mock de vuelos.
@@ -41,6 +45,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-10-02 | `react-day-picker` para elegir el rango en un mismo calendario | `<input type="date">` no elige rangos; la librería trae accesibilidad (teclado, lectores) y español resueltos |
 | 2026-10-02 | Sin límite de días en el rango de búsqueda; rango también en ida y vuelta | Pedido del equipo: elegir ida y vuelta en una fecha o entre dos |
 | 2026-10-02 | Errores 400 con el formato de DRF (`{"param": ["mensaje"]}`) en español | Estándar del framework; el front puede ubicar cada error en su campo |
 | 2026-10-02 | `seed` en `build.sh`, idempotente con `ignore_conflicts` | Render free no tiene shell; hasta que exista el ABM de vuelos no hay otra forma de cargar datos |

@@ -45,6 +45,17 @@
   --color-ambar: #ff9f1b;
 }
 
+/* Calendario del selector de fechas (react-day-picker) con los colores de la marca */
+.rdp-root {
+  --rdp-accent-color: var(--color-cielo);
+  --rdp-accent-background-color: #e3f3fa;
+  --rdp-today-color: var(--color-naranja);
+  --rdp-day-width: 40px;
+  --rdp-day-height: 40px;
+  --rdp-day_button-width: 38px;
+  --rdp-day_button-height: 38px;
+}
+
 /* Carrusel del hero: fundido + zoom lento */
 .slide {
   opacity: 0;
