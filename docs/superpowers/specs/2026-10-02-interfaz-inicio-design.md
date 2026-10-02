@@ -1,6 +1,6 @@
 # Interfaz de inicio (Vuelos) — diseño
 
-Fecha: 2026-10-02 · Rama: `feat/interfaz-inicio` · Alcance: **solo frontend, datos mockeados**.
+Fecha: 2026-10-02, Rama: `feat/interfaz-inicio`, Alcance: **solo frontend, datos mockeados**.
 
 ## Objetivo
 
@@ -28,7 +28,7 @@ Referencia visual aprobada: mockup estático (Despegar / TurismoCity como inspir
 ## Identidad visual
 
 - Paleta del logo como tokens de Tailwind v4 (`@theme` en `src/index.css`):
-  `marino #064D7D` · `cielo #068EC1` · `naranja #FF6F13` · `ambar #FF9F1B`. Fondo general `slate-50`.
+  `marino #064D7D`, `cielo #068EC1`, `naranja #FF6F13`, `ambar #FF9F1B`. Fondo general `slate-50`.
 - Tipografía: **Montserrat**, archivos locales en `src/fonts/` (`woff2`, subset latin, pesos 400–800) declarados con `@font-face` en `src/index.css` (`font-display: swap`). Sin dependencias externas.
 - Logo del header: `public/titulo.svg`. Ícono de la pestaña y logo del header en mobile: `public/logoMain.svg` (el avión). Logo del detalle de vuelo: `public/logoA.svg`.
 - Botón principal (Buscar): naranja. Acciones secundarias (Elegir, Registrarse, Aplicar): marino → cielo en hover.
@@ -127,14 +127,14 @@ Así el botón "atrás" del navegador y recargar la página funcionan. Las fecha
 - Al enviar sin errores, se escribe la query string (sin `idaId`, conservando el rango de precio). La búsqueda la dispara la página, no el formulario.
 
 ### FiltroPrecio (`components/FiltroPrecio.tsx`)
-- Fila blanca sobre los resultados: "Precio por persona · {clase}", dos campos numéricos con `$` (Mínimo / Máximo), botón **Aplicar** y, si hay un rango aplicado, **Limpiar**.
+- Fila blanca sobre los resultados: "Precio por persona - {clase}", dos campos numéricos con `$` (Mínimo / Máximo), botón **Aplicar** y, si hay un rango aplicado, **Limpiar**.
 - Al aplicar se valida con `validarPrecio(min, max)`; si está bien, se actualizan `precioMin` / `precioMax` en la URL y se vuelve a buscar.
 - Se muestra siempre que haya búsqueda, aunque la URL sea inválida (así se puede corregir un rango mal cargado).
 
 ### CardVuelo (`components/CardVuelo.tsx`)
 - Cabecera: título chico + `numero_vuelo`, badge "Directo".
-- Cuerpo: hora de partida e IATA de origen · duración, línea con ✈ y fecha corta · hora de llegada e IATA de destino.
-- Pie (fondo `slate-50`): "Por persona · {clase}", precio de la clase elegida en formato `es-AR` (`$ 175.512`), y asientos disponibles de esa clase. Con 5 o menos: "¡Quedan N asientos!" en naranja.
+- Cuerpo: hora de partida e IATA de origen, duración, línea con ✈ y fecha corta, hora de llegada e IATA de destino.
+- Pie (fondo `slate-50`): "Por persona - {clase}", precio de la clase elegida en formato `es-AR` (`$ 175.512`), y asientos disponibles de esa clase. Con 5 o menos: "¡Quedan N asientos!" en naranja.
 - Botón **Elegir** → `onElegir(vuelo)`. Hover: leve elevación y borde cielo.
 
 ### ListaVuelos (`components/ListaVuelos.tsx`)
@@ -157,7 +157,7 @@ Compone Hero + Buscador + FiltroPrecio + resultados y maneja el flujo por pasos 
 Encabezado de resultados:
 - Indicador de pasos (1 Vuelo de ida → 2 Vuelo de vuelta; en solo ida, solo el 1).
 - Título: "Ciudad → Ciudad", "Desde Ciudad" (sin destino) o "Hacia Ciudad" (sin origen).
-- Subtítulo: "fecha larga" o "Del 20 de octubre al 26 de octubre" · N pasajeros · Clase · N vuelos encontrados.
+- Subtítulo: "fecha larga" o "Del 20 de octubre al 26 de octubre", N pasajeros, Clase, N vuelos encontrados.
 
 ### Próximamente (`pages/Proximamente.tsx`)
 Una sola página que recibe `titulo` y, opcionalmente, una acción (los botones demo de login y perfil).

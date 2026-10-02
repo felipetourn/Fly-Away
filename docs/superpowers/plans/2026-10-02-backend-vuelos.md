@@ -1378,10 +1378,10 @@ por:
         : !f.hasta || (f.vuelta !== null && !f.vueltaHasta)
 ```
 
-En el `subtitulo` de la lista de vuelta, cambiar `` `${fechaLarga(f.vuelta)} · ${detalle}` `` por:
+En el `subtitulo` de la lista de vuelta, cambiar `` `${fechaLarga(f.vuelta)} - ${detalle}` `` por:
 
 ```tsx
-`${f.vueltaHasta ? rangoFechas(f.vuelta, f.vueltaHasta) : fechaLarga(f.vuelta)} · ${detalle}`
+`${f.vueltaHasta ? rangoFechas(f.vuelta, f.vueltaHasta) : fechaLarga(f.vuelta)} - ${detalle}`
 ```
 
 - [ ] **Paso 7: Verificar tipos, lint y chequeos**

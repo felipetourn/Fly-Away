@@ -1,6 +1,6 @@
 # US05 — Consultar información de un vuelo — diseño
 
-Fecha: 2026-10-02 · Rama: `feat/detalle-vuelo` (sale de `feat/interfaz-inicio`) · Alcance: **solo frontend, datos mockeados**.
+Fecha: 2026-10-02, Rama: `feat/detalle-vuelo` (sale de `feat/interfaz-inicio`), Alcance: **solo frontend, datos mockeados**.
 
 Parte de la [interfaz de inicio](2026-10-02-interfaz-inicio-design.md): reutiliza su buscador, sus resultados y su mock.
 
@@ -50,9 +50,9 @@ Tareas de la US y dónde quedan: definir la información (esta sección), crear 
 - **Cabecera:** `public/logoA.svg` (32px de alto), número de vuelo (`FA 1010`, extrabold marino), badge "Directo", botón ✕ (`aria-label="Cerrar"`).
 - **Cuerpo:**
   - Fecha completa (`fechaCompleta`).
-  - Trayecto en 3 columnas (desde `sm`; apiladas debajo): origen (etiqueta "Origen", hora, `IATA · Ciudad`, nombre del aeropuerto) · duración + línea con ✈ + "Directo" · destino (igual, alineado a la derecha).
+  - Trayecto en 3 columnas (desde `sm`; apiladas debajo): origen (etiqueta "Origen", hora, `IATA - Ciudad`, nombre del aeropuerto), duración + línea con ✈ + "Directo", destino (igual, alineado a la derecha).
   - "Avión: Airbus A320", en texto chico debajo del aeropuerto de origen. Origen y destino alinean arriba; la duración queda centrada.
-  - **Tabla de clases** (`<caption>` accesible "Clases, precios y disponibilidad"): Clase · Precio por persona · Asientos · Estado.
+  - **Tabla de clases** (`<caption>` accesible "Clases, precios y disponibilidad"): Clase, Precio por persona, Asientos, Estado.
     - Estado con badge: **Disponible** (verde), **Últimos asientos** (naranja, 1 a 5), **Agotada** (gris, 0).
     - La fila de la clase buscada va resaltada y marcada "(tu búsqueda)".
 - **Pie:** "Cerrar" y **"Elegir este vuelo"** (hace lo mismo que "Elegir" en la card y cierra el diálogo).

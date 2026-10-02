@@ -1734,7 +1734,7 @@ export default function CardVuelo({ vuelo, clase, onElegir }: Props) {
 
       <div className="mt-auto flex items-end justify-between rounded-b-3xl bg-slate-50 px-5 py-4">
         <div>
-          <p className="text-xs text-slate-500">Por persona · {NOMBRE_CLASE[clase]}</p>
+          <p className="text-xs text-slate-500">Por persona - {NOMBRE_CLASE[clase]}</p>
           <p className="text-2xl font-extrabold text-marino">{precio(precioDe(vuelo, clase))}</p>
           <p className={`text-xs font-semibold ${quedan <= 5 ? 'text-naranja' : 'text-slate-400'}`}>
             {quedan <= 5
@@ -1784,7 +1784,7 @@ const grilla = 'grid gap-4 md:grid-cols-2 lg:grid-cols-3'
 export default function ListaVuelos({ titulo, subtitulo, estado, vuelos, clase, sugerencia, onElegir, onReintentar }: Props) {
   const [visibles, setVisibles] = useState(POR_PAGINA)
   const encontrados =
-    estado === 'ok' ? ` · ${vuelos.length} ${vuelos.length === 1 ? 'vuelo encontrado' : 'vuelos encontrados'}` : ''
+    estado === 'ok' ? `, ${vuelos.length} ${vuelos.length === 1 ? 'vuelo encontrado' : 'vuelos encontrados'}` : ''
   return (
     <section aria-live="polite">
       <h2 className="mb-1 text-2xl font-extrabold text-marino md:text-3xl">{titulo}</h2>
@@ -1884,7 +1884,7 @@ export default function FiltroPrecio({ min, max, clase, onAplicar }: Props) {
       noValidate
       className="mb-8 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm"
     >
-      <span className="font-semibold text-marino">Precio por persona · {NOMBRE_CLASE[clase]}</span>
+      <span className="font-semibold text-marino">Precio por persona - {NOMBRE_CLASE[clase]}</span>
       <label className={campo}>
         <span className="text-slate-400">$</span>
         <input
@@ -1975,9 +1975,9 @@ function Pasos({ actual, total }: { actual: 1 | 2; total: 1 | 2 }) {
 function LineaVuelo({ etiqueta, vuelo, clase }: { etiqueta: string; vuelo: Vuelo; clase: Clase }) {
   return (
     <p className="text-slate-700">
-      <span className="font-bold text-marino">{etiqueta}</span> · {vuelo.numero_vuelo} ·{' '}
-      {fechaCorta(vuelo.fecha_operacion)} · {hora(vuelo.hora_partida)} → {hora(vuelo.hora_llegada)} ·{' '}
-      {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata} · {precio(precioDe(vuelo, clase))} por persona
+      <span className="font-bold text-marino">{etiqueta}</span> - {vuelo.numero_vuelo},{' '}
+      {fechaCorta(vuelo.fecha_operacion)}, {hora(vuelo.hora_partida)} → {hora(vuelo.hora_llegada)},{' '}
+      {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}, {precio(precioDe(vuelo, clase))} por persona
     </p>
   )
 }
@@ -2056,7 +2056,7 @@ export default function Vuelos() {
     contenido = <p className="text-slate-500">Revisá los datos de la búsqueda y volvé a buscar.</p>
   } else if (f) {
     const total = f.vuelta === null ? 1 : 2
-    const detalle = `${f.pasajeros} ${f.pasajeros === 1 ? 'pasajero' : 'pasajeros'} · ${NOMBRE_CLASE[f.clase]}`
+    const detalle = `${f.pasajeros} ${f.pasajeros === 1 ? 'pasajero' : 'pasajeros'}, ${NOMBRE_CLASE[f.clase]}`
     const sugerencia =
       f.precioMin !== null || f.precioMax !== null
         ? 'Probá ampliar el rango de precio.'
@@ -2077,7 +2077,7 @@ export default function Vuelos() {
           <ListaVuelos
             key={claveFiltros}
             titulo={tituloIda}
-            subtitulo={`${f.hasta ? rangoFechas(f.ida, f.hasta) : fechaLarga(f.ida)} · ${detalle}`}
+            subtitulo={`${f.hasta ? rangoFechas(f.ida, f.hasta) : fechaLarga(f.ida)} - ${detalle}`}
             estado={busquedaIda.estado}
             vuelos={busquedaIda.vuelos}
             clase={f.clase}
@@ -2100,7 +2100,7 @@ export default function Vuelos() {
           <ListaVuelos
             key={`${claveFiltros}-${idaElegida.id}`}
             titulo={`${ciudad(f.destino)} → ${ciudad(f.origen)}`}
-            subtitulo={`${fechaLarga(f.vuelta)} · ${detalle}`}
+            subtitulo={`${fechaLarga(f.vuelta)} - ${detalle}`}
             estado={busquedaVuelta.estado}
             vuelos={vueltasPosibles(busquedaVuelta.vuelos, idaElegida)}
             clase={f.clase}
@@ -2122,7 +2122,7 @@ export default function Vuelos() {
           </div>
           <div className="mt-6 flex flex-wrap items-end justify-between gap-4 border-t border-slate-100 pt-6">
             <div>
-              <p className="text-sm text-slate-500">Total · {detalle}</p>
+              <p className="text-sm text-slate-500">Total - {detalle}</p>
               <p className="text-3xl font-extrabold text-marino">{precio(totalPrecio)}</p>
             </div>
             <div className="text-right">

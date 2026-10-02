@@ -1,6 +1,6 @@
 # Backend de vuelos — diseño
 
-Fecha: 2026-10-02 · Rama: `feat/backend-vuelos` (sale de `main`) · Alcance: **backend de búsqueda y detalle + conexión del front**.
+Fecha: 2026-10-02, Rama: `feat/backend-vuelos` (sale de `main`), Alcance: **backend de búsqueda y detalle + conexión del front**.
 
 Sigue a la [interfaz de inicio](2026-10-02-interfaz-inicio-design.md) y al [detalle de vuelo](2026-10-02-detalle-vuelo-design.md), que hoy funcionan con datos mock.
 
