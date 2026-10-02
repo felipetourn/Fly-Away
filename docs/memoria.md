@@ -4,6 +4,13 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-02 — Interfaz de inicio (rama `feat/interfaz-inicio`)**
+- Pantalla `/` del pasajero: header con sesión, hero con carrusel de destinos, buscador y resultados.
+- Búsqueda según los criterios de la US: en **Solo ida** origen y/o destino y fecha o rango (≤ 14 días); en **Ida y vuelta**, flujo en dos pasos (ida → vuelta). Filtro de rango de precio sobre los resultados.
+- **Todo mockeado** en `frontend/src/lib/vuelos.ts` y `lib/auth.ts`, con la forma de la API. Conectar el back = reemplazar el cuerpo de `getAeropuertos`, `buscarVuelos` y `usuarioActual` por `api(...)`.
+- Páginas `/reservas`, `/perfil`, `/login`, `/registro` vacías ("Próximamente"); `/login` tiene "Entrar (demo)".
+- Chequeos de lógica pura: `npm run check` (Node + assert, sin framework).
+
 **2026-09-26 — Deploy funcionando** (front → back → BD verificado con `/api/health/`)
 - Repo: https://github.com/felipetourn/Fly-Away (rama `main`, auto-deploy en Render y Vercel)
 - Frontend (Vercel): https://fly-away-one.vercel.app — env: `VITE_API_URL` (requiere redeploy al cambiarla)
@@ -22,6 +29,13 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-10-02 | Front de búsqueda con datos mock que respetan el contrato del back | Avanzar la UI sin bloquearse con el modelo; cambiar a la API toca solo `src/lib/` |
+| 2026-10-02 | Avatar con iniciales (sin foto) | `usuarios` no tiene campo de foto; evita subir archivos |
+| 2026-10-02 | Ida y vuelta = dos pasos (elegir ida, después vuelta) | Cada fila de `vuelos` es un tramo; coincide con el endpoint de búsqueda |
+| 2026-10-02 | Estado de búsqueda en la query string | Funcionan "atrás" y recargar |
+| 2026-10-02 | "Solo ida" funciona como explorador (origen/destino opcionales, rango de fechas); "Ida y vuelta" pide ruta y fechas exactas | Cumple los criterios de la US sin perder el flujo de ida y vuelta; una vuelta sin los dos extremos no tiene sentido |
+| 2026-10-02 | El rango de precio y "ya salió" los filtra el backend (`precio_min`, `precio_max` en `/vuelos/buscar/`) | El front no filtra resultados por su cuenta: el mock aplica la misma regla que el endpoint |
+| 2026-10-02 | `modelo.dbml` actualizado: `reservas.vendido_por`, `contacto_email`, `contacto_nombre`, `pasajero_id` opcional, índice único (`numero_vuelo`, `fecha_operacion`), CHECKs | Resuelve la venta en mostrador a alguien sin cuenta |
 | 2026-09-26 | Modelo relacional definido en `docs/modelo.dbml` (fuente de verdad); nombres en español | Diseño del equipo; código y BD usan los mismos nombres |
 | 2026-09-26 | Usuario custom desde el inicio (hoy `accounts.User` provisorio → se reemplaza por `usuarios`) | Cambiar el modelo de usuario con datos cargados es muy costoso; hoy no hay datos |
 | 2026-09-26 | JWT (SimpleJWT) en vez de sesiones | Front y back en dominios distintos (Vercel/Render); evita problemas de cookies cross-site |
@@ -37,9 +51,8 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 - [ ] **Proveedor de email en prod:** verificar si el plan free de Render permite SMTP saliente; si no, usar la API HTTP de un proveedor (Resend, Brevo, etc.).
 - [ ] **PDF de pasajes/factura:** elegir librería (p. ej. `reportlab`) cuando se implemente.
 - [ ] **Periodo de venta:** el modelo lo toma como "fechas en que opera". Si la cátedra lo entiende como "desde cuándo se puede comprar", falta un campo (ej. `venta_desde`). Confirmar con el docente.
-- [ ] **Venta en mostrador a alguien sin cuenta:** ¿quién queda en `reservas.pasajero_id`? Opciones: crear la cuenta en el momento, o agregar `vendido_por` + datos de contacto del comprador.
 - [ ] **Ida y vuelta:** son 2 reservas; si se pagan juntas, `pagos` hoy apunta a una sola reserva. Si el alcance es solo ida, no aplica.
-- [ ] **Sugerencias al modelo** (no aplicadas): único (`numero_vuelo`, `fecha_operacion`); `CheckConstraint` para 1..9 pasajes y origen ≠ destino; `cantidad_pasajes` duplica el conteo de `pasajes` (mantener sincronizado).
+- [ ] **Ida y vuelta en la compra:** el front ya permite elegir ida + vuelta; al implementar la compra definir si son 2 reservas con un pago cada una o un pago para ambas (`pagos.reserva_id` hoy apunta a una sola).
 - [ ] ¿El empleado de mostrador puede cancelar/modificar reservas?
 
 ## Próximos pasos

@@ -1,1 +1,69 @@
 @import "tailwindcss";
+
+/* Montserrat local (subset latin: alcanza para el español) */
+@font-face {
+  font-family: "Montserrat";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/montserrat-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Montserrat";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("./fonts/montserrat-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Montserrat";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("./fonts/montserrat-latin-600-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Montserrat";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("./fonts/montserrat-latin-700-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Montserrat";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("./fonts/montserrat-latin-800-normal.woff2") format("woff2");
+}
+
+@theme {
+  --font-sans: "Montserrat", ui-sans-serif, system-ui, sans-serif;
+  --color-marino: #064d7d;
+  --color-cielo: #068ec1;
+  --color-naranja: #ff6f13;
+  --color-ambar: #ff9f1b;
+}
+
+/* Carrusel del hero: fundido + zoom lento */
+.slide {
+  opacity: 0;
+  transform: scale(1.06);
+  transition: opacity 1.6s ease-in-out;
+}
+.slide.on {
+  opacity: 1;
+  animation: acercar 8s linear forwards;
+}
+@keyframes acercar {
+  from { transform: scale(1.06); }
+  to { transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slide,
+  .slide.on {
+    transition: none;
+    animation: none;
+    transform: none;
+  }
+}

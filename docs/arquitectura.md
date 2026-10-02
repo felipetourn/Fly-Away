@@ -42,7 +42,8 @@ Fly Away/
     ├── .env.local / .env.example
     ├── vercel.json           rewrite SPA
     └── src/
-        ├── lib/api.ts        cliente fetch + JWT
+        ├── lib/              api.ts (fetch + JWT), mocks con la forma de la API, lógica pura
+        ├── components/       Header, HeroCarrusel, BuscadorVuelos, CardVuelo, ListaVuelos
         ├── pages/            pantallas
         └── App.tsx           rutas: / (pasajero), /mostrador, /admin
 ```
@@ -100,8 +101,13 @@ POST /api/auth/token/            login → {access, refresh}        ✅ hecho
 POST /api/auth/token/refresh/                                      ✅ hecho
 GET  /api/health/                                                  ✅ hecho
 POST /api/auth/registro/         alta de pasajero
+GET  /api/auth/yo/               usuario logueado {id, email, nombre, apellido, rol} (header del front)
 GET  /api/aeropuertos/
-GET  /api/vuelos/buscar/?origen=&destino=&fecha=   vuelos + disponibilidad
+GET  /api/vuelos/buscar/?origen=&destino=&desde=&hasta=&pasajeros=&clase=&precio_min=&precio_max=
+                                 origen y/o destino (al menos uno), hasta opcional (rango ≤ 14 días);
+                                 devuelve vuelos activos, con asientos_disponibles_<clase> >= pasajeros,
+                                 precio_<clase> dentro del rango, que todavía no salieron, por fecha y hora;
+                                 origen/destino anidados (codigo_iata, ciudad…)
 CRUD /api/vuelos/                (admin) — el alta con días + período genera N filas
 POST /api/vuelos/{id}/cancelar/  (admin) → notifica por email
 POST /api/reservas/              compra + pago → emails con pasajes y factura
