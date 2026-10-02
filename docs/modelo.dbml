@@ -1,5 +1,5 @@
 // Modelo relacional de Fly Away — fuente de verdad del esquema.
-// Se visualiza pegándolo en https://dbdiagram.io
+// Se visualiza pegándolo en https://dbdiagram.io  (https://dbdiagram.io/d/Aerolinea-6ab6811b0f25a52d010aa740)
 
 // ---------- USUARIOS Y AUTENTICACIÓN ----------
 
@@ -66,6 +66,9 @@ Table vuelos {
   creado_por uuid [not null, ref: > usuarios.id]
   creado_en timestamp [default: `now()`]
   actualizado_en timestamp [default: `now()`]
+  Indexes {
+    (numero_vuelo, fecha_operacion) [unique]
+  }
 
   Note: '''
     Cada fila = un vuelo real e independiente, con su propio id.
@@ -79,6 +82,10 @@ Table vuelos {
     No se modela en el schema, pero es obligatorio: todo descuento de asientos_disponibles_*
     debe hacerse dentro de una transacción con locking (SELECT ... FOR UPDATE) para evitar
     sobreventa en compras concurrentes.
+    Constraints a nivel DB (agregar en la migración):
+    CHECK (aeropuerto_origen_id <> aeropuerto_destino_id)
+    CHECK (asientos_disponibles_economy >= 0)
+    CHECK (asientos_disponibles_primera >= 0)
   '''
 }
 
@@ -89,13 +96,23 @@ Enum vuelo_estado {
 
 Table reservas {
   id uuid [pk, default: `gen_random_uuid()`]
-  pasajero_id uuid [not null, ref: > usuarios.id]
+  pasajero_id uuid [ref: > usuarios.id]
+  vendido_por uuid [ref: > usuarios.id]
+  contacto_email varchar [not null]
+  contacto_nombre varchar
   vuelo_id uuid [not null, ref: > vuelos.id]
-  cantidad_pasajes int [not null]
+  cantidad_pasajes int [not null, note: 'CHECK (cantidad_pasajes BETWEEN 1 AND 9)']
   estado reserva_estado [default: 'pendiente']
   creado_en timestamp [default: `now()`]
 
-  Note: 'Máximo 9 pasajes por transacción (regla de negocio, se valida en backend).'
+  Note: '''
+    pasajero_id es NULL cuando la venta la hace un empleado de mostrador a alguien sin cuenta.
+    En ese caso vendido_por identifica al empleado, y contacto_email es obligatorio
+    para poder enviar el ticket y la factura (US10).
+    Cuando la compra es online, pasajero_id está seteado y vendido_por es NULL.
+    IMPORTANTE: cantidad_pasajes debe coincidir con COUNT(pasajes) una vez confirmada la
+    reserva (estado = 'pagada'). Validar en el backend antes de confirmar el pago.
+  '''
 }
 
 Enum reserva_estado {
