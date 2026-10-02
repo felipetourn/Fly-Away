@@ -119,3 +119,127 @@ class DetalleTests(Datos):
             r = self.client.get(f'/api/vuelos/{id_}/')
             self.assertEqual(r.status_code, 404, id_)
             self.assertIn('detail', r.json())
+
+
+MANANA = HOY + dt.timedelta(days=1)
+
+
+class BuscarTests(Datos):
+    def buscar(self, **params):
+        r = self.client.get('/api/vuelos/buscar/', {'desde': str(HOY), **params})
+        self.assertEqual(r.status_code, 200, r.content)
+        return [v['numero_vuelo'] for v in r.json()]
+
+    def test_forma_de_la_respuesta(self):
+        self.vuelo()
+        r = self.client.get('/api/vuelos/buscar/', {'origen': 'BHI', 'desde': str(MANANA)})
+        self.assertEqual(set(r.json()[0]), VUELO_CAMPOS)
+
+    def test_filtra_cancelados_y_sin_lugar(self):
+        self.vuelo('FA 1')
+        self.vuelo('FA 2', estado=Vuelo.Estado.CANCELADO)
+        self.vuelo('FA 3', asientos_disponibles_economy=1)
+        self.vuelo('FA 4', asientos_disponibles_primera=1)
+        self.assertEqual(self.buscar(origen='BHI', desde=str(MANANA), pasajeros=2), ['FA 1', 'FA 4'])
+        self.assertEqual(self.buscar(origen='BHI', desde=str(MANANA), pasajeros=2, clase='primera'), ['FA 1', 'FA 3'])
+
+    def test_ruta(self):
+        self.vuelo('FA 1', origen=self.bhi, destino=self.aep)
+        self.vuelo('FA 2', origen=self.bhi, destino=self.cor)
+        self.vuelo('FA 3', origen=self.cor, destino=self.aep)
+        d = str(MANANA)
+        self.assertEqual(self.buscar(origen='BHI', desde=d), ['FA 1', 'FA 2'])
+        self.assertEqual(self.buscar(destino='AEP', desde=d), ['FA 1', 'FA 3'])
+        self.assertEqual(self.buscar(origen='BHI', destino='AEP', desde=d), ['FA 1'])
+
+    def test_rango_de_fechas_sin_limite(self):
+        self.vuelo('FA 1', fecha=HOY + dt.timedelta(days=1))
+        self.vuelo('FA 2', fecha=HOY + dt.timedelta(days=3))
+        self.vuelo('FA 3', fecha=HOY + dt.timedelta(days=40))
+        desde = str(HOY + dt.timedelta(days=1))
+        self.assertEqual(self.buscar(origen='BHI', desde=desde), ['FA 1'], 'sin hasta: solo ese día')
+        hasta = str(HOY + dt.timedelta(days=40))
+        self.assertEqual(self.buscar(origen='BHI', desde=desde, hasta=hasta), ['FA 1', 'FA 2', 'FA 3'])
+
+    def test_rango_de_precio_en_la_clase_elegida(self):
+        self.vuelo('FA 1', precio_economy=Decimal('80000'), precio_primera=Decimal('300000'))
+        self.vuelo('FA 2', precio_economy=Decimal('120000'), precio_primera=Decimal('150000'))
+        d = str(MANANA)
+        self.assertEqual(self.buscar(origen='BHI', desde=d, precio_min='100000'), ['FA 2'])
+        self.assertEqual(self.buscar(origen='BHI', desde=d, precio_max='100000'), ['FA 1'])
+        self.assertEqual(self.buscar(origen='BHI', desde=d, clase='primera', precio_max='200000'), ['FA 2'])
+        self.assertEqual(self.buscar(origen='BHI', desde=d, precio_min='80000', precio_max='120000'), ['FA 1', 'FA 2'])
+
+    def test_no_ofrece_vuelos_que_ya_salieron(self):
+        self.vuelo('FA 1', fecha=HOY, partida='11:00')
+        self.vuelo('FA 2', fecha=HOY, partida='12:00')  # sale justo ahora
+        self.vuelo('FA 3', fecha=HOY, partida='12:30')
+        self.vuelo('FA 4', fecha=MANANA, partida='08:00')
+        self.assertEqual(self.buscar(origen='BHI', hasta=str(MANANA)), ['FA 3', 'FA 4'])
+
+    def test_hoy_es_la_fecha_de_buenos_aires(self):
+        # 23:30 en Buenos Aires = 02:30 UTC del día siguiente.
+        noche = dt.datetime(2026, 10, 20, 23, 30, tzinfo=BA)
+        self.vuelo('FA 1', fecha=HOY, partida='22:00')
+        self.vuelo('FA 2', fecha=HOY, partida='23:45', hora_llegada=dt.time(23, 59))
+        with patch('django.utils.timezone.now', return_value=noche):
+            self.assertEqual(self.buscar(origen='BHI'), ['FA 2'])
+
+    def test_orden_por_fecha_y_hora(self):
+        self.vuelo('FA 1', fecha=MANANA + dt.timedelta(days=1), partida='08:00')
+        self.vuelo('FA 2', fecha=MANANA, partida='18:00')
+        self.vuelo('FA 3', fecha=MANANA, partida='09:00')
+        hasta = str(MANANA + dt.timedelta(days=1))
+        self.assertEqual(self.buscar(origen='BHI', desde=str(MANANA), hasta=hasta), ['FA 3', 'FA 2', 'FA 1'])
+
+    def test_parametros_vacios_cuentan_como_no_enviados(self):
+        self.vuelo('FA 1')
+        self.assertEqual(
+            self.buscar(origen='BHI', destino='', desde=str(MANANA), hasta='', precio_min='', precio_max=''), ['FA 1']
+        )
+
+    def test_iata_en_minusculas(self):
+        self.vuelo('FA 1')
+        self.assertEqual(self.buscar(origen='bhi', destino='aep', desde=str(MANANA)), ['FA 1'])
+
+
+class ErroresBusquedaTests(Datos):
+    BASE = {'origen': 'BHI', 'desde': str(HOY)}
+
+    def error(self, params, clave, mensaje):
+        r = self.client.get('/api/vuelos/buscar/', params)
+        self.assertEqual(r.status_code, 400, params)
+        self.assertEqual(r.json(), {clave: [mensaje]}, params)
+
+    def test_ruta(self):
+        self.error({'desde': str(HOY)}, 'origen', 'Indicá un origen, un destino o ambos.')
+        self.error({**self.BASE, 'origen': 'ZZZ'}, 'origen', 'No conocemos el aeropuerto "ZZZ".')
+        self.error({**self.BASE, 'destino': 'zzz'}, 'destino', 'No conocemos el aeropuerto "ZZZ".')
+        self.error({**self.BASE, 'destino': 'BHI'}, 'destino', 'El destino tiene que ser distinto del origen.')
+        self.error({**self.BASE, 'origen': 'AEP', 'destino': 'EZE'}, 'destino', 'Origen y destino están en la misma ciudad.')
+
+    def test_fechas(self):
+        fecha_invalida = 'Indicá una fecha válida (AAAA-MM-DD).'
+        self.error({'origen': 'BHI'}, 'desde', fecha_invalida)
+        self.error({**self.BASE, 'desde': 'mañana'}, 'desde', fecha_invalida)
+        self.error({**self.BASE, 'desde': '2027-02-30'}, 'desde', fecha_invalida)
+        self.error({**self.BASE, 'desde': str(HOY - dt.timedelta(days=1))}, 'desde', 'La fecha no puede ser en el pasado.')
+        self.error({**self.BASE, 'hasta': 'x'}, 'hasta', fecha_invalida)
+        self.error(
+            {**self.BASE, 'desde': str(MANANA), 'hasta': str(HOY)}, 'hasta', '"Hasta" no puede ser antes de "Desde".'
+        )
+
+    def test_pasajeros_y_clase(self):
+        for pasajeros in ('0', '10', 'dos', '1.5'):
+            self.error({**self.BASE, 'pasajeros': pasajeros}, 'pasajeros', 'Tienen que ser entre 1 y 9 pasajeros.')
+        self.error({**self.BASE, 'clase': 'business'}, 'clase', 'La clase tiene que ser economy o primera.')
+
+    def test_precio(self):
+        for monto in ('-1', 'abc', 'nan', 'inf'):
+            self.error({**self.BASE, 'precio_min': monto}, 'precio_min', 'Ingresá un monto válido.')
+            self.error({**self.BASE, 'precio_max': monto}, 'precio_max', 'Ingresá un monto válido.')
+        self.error(
+            {**self.BASE, 'precio_min': '200', 'precio_max': '100'},
+            'precio_min',
+            'El mínimo no puede ser mayor que el máximo.',
+        )
