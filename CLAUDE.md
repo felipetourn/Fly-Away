@@ -29,6 +29,7 @@ docs/       documentación del proyecto
 npm run dev      # http://localhost:5173
 npm run build    # tsc + vite build (usar para verificar tipos)
 npm run lint
+npm run check    # chequeos de la lógica pura (scripts/check.ts)
 ```
 
 ## Reglas
