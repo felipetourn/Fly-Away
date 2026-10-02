@@ -16,7 +16,7 @@ export default function CardVuelo({ vuelo, clase, onElegir, onVerDetalle }: Prop
     <article className="group flex flex-col rounded-3xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-cielo hover:shadow-xl hover:shadow-marino/10">
       <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
         <span className="flex items-center gap-2 text-sm font-semibold text-marino">
-          <img src="/titulo.svg" alt="Fly Away" className="h-3" />
+          <img src="/logoA.svg" alt="Fly Away" className="h-6" />
           {vuelo.numero_vuelo}
         </span>
         <span className="rounded-full bg-cielo/10 px-2.5 py-0.5 text-xs font-bold text-cielo">Directo</span>
