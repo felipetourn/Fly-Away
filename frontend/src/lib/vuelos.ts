@@ -36,9 +36,25 @@ export interface ParamsBusqueda {
   precioMax: number | null
 }
 
+export interface Avion {
+  matricula: string
+  modelo: string
+}
+
+/** Respuesta de GET /vuelos/<id>/: el vuelo de la búsqueda más el avión. */
+export interface VueloDetalle extends Vuelo {
+  avion: Avion
+}
+
+export type EstadoClase = 'disponible' | 'ultimos' | 'agotada'
+
+/** Con esta cantidad de asientos o menos, la clase está en "últimos asientos". */
+export const UMBRAL_ULTIMOS = 5
+
 // ponytail: todo lo de abajo es mock. Al conectar el backend:
 //   getAeropuertos → api('/aeropuertos/')
 //   buscarVuelos   → api(`/vuelos/buscar/?origen=&destino=&desde=&hasta=&pasajeros=&clase=&precio_min=&precio_max=`)
+//   getVuelo       → api(`/vuelos/${id}/`)
 const aeropuerto = (codigo_iata: string, ciudad: string, nombre: string): Aeropuerto => ({
   id: codigo_iata,
   codigo_iata,
@@ -60,6 +76,19 @@ const AEROPUERTOS: Aeropuerto[] = [
   aeropuerto('SLA', 'Salta', 'Aeropuerto Martín Miguel de Güemes'),
   aeropuerto('JUJ', 'San Salvador de Jujuy', 'Aeropuerto Horacio Guzmán'),
 ]
+
+const FLOTA: Avion[] = [
+  { matricula: 'LV-FAA', modelo: 'Airbus A320' },
+  { matricula: 'LV-FAB', modelo: 'Boeing 737-800' },
+  { matricula: 'LV-FAC', modelo: 'Embraer E190' },
+  { matricula: 'LV-FAD', modelo: 'Airbus A330-200' },
+]
+
+// Cada ruta (par ordenado de aeropuertos) tiene su bloque de números: FA 1000 + índice × 10 + n.
+// Así no se repite (numero_vuelo, fecha_operacion), como exige el modelo, y el número dice de qué ruta es.
+const PRIMER_NUMERO = 1000
+const NUMEROS_POR_RUTA = 10
+const indiceRuta = (o: Aeropuerto, d: Aeropuerto) => AEROPUERTOS.indexOf(o) * AEROPUERTOS.length + AEROPUERTOS.indexOf(d)
 
 const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -86,18 +115,19 @@ const aHora = (min: number) => `${dosDigitos(Math.floor(min / 60))}:${dosDigitos
 const aMinutos = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5))
 
 /** Vuelos de una ruta y fecha, sin filtrar. Determinístico. Exportado para los chequeos. */
-export function generarVuelos(origen: string, destino: string, fecha: string): Vuelo[] {
+export function generarVuelos(origen: string, destino: string, fecha: string): VueloDetalle[] {
   const o = AEROPUERTOS.find((a) => a.codigo_iata === origen)
   const d = AEROPUERTOS.find((a) => a.codigo_iata === destino)
   if (!o || !d || o.ciudad === d.ciudad) return []
   const ruta = semilla(`${origen}-${destino}`)
   const r = azar(semilla(`${origen}-${destino}-${fecha}`))
   const duracionMin = 60 + (ruta % 30) * 5 // 1 h a 3 h 25 m, fija por ruta
+  const avion = FLOTA[ruta % FLOTA.length]
   const cantidad = Math.floor(r() * 5) // 0 a 4 vuelos ese día
-  return Array.from({ length: cantidad }, (_, i): Vuelo => {
+  return Array.from({ length: cantidad }, (_, i): VueloDetalle => {
     const partida = (6 + i * 4) * 60 + Math.floor(r() * 8) * 15 // de 06:00 a 19:45: siempre llega antes de medianoche
     const economy = Math.round((40000 + duracionMin * 900 + r() * 40000) / 10) * 10
-    const numero = `FA ${1000 + (ruta % 90) * 10 + i}`
+    const numero = `FA ${PRIMER_NUMERO + indiceRuta(o, d) * NUMEROS_POR_RUTA + i}`
     return {
       id: `${numero.replace(' ', '')}-${fecha}`,
       numero_vuelo: numero,
@@ -111,6 +141,7 @@ export function generarVuelos(origen: string, destino: string, fecha: string): V
       asientos_disponibles_economy: Math.floor(r() * 40),
       asientos_disponibles_primera: Math.floor(r() * 10),
       estado: r() < 0.1 ? 'cancelado' : 'activo',
+      avion,
     }
   })
 }
@@ -168,4 +199,27 @@ export async function buscarVuelos(p: ParamsBusqueda, ahora = new Date()): Promi
 /** Si la vuelta es el mismo día que la ida, solo sirven las que salen después de que la ida aterriza. */
 export function vueltasPosibles(vueltas: Vuelo[], ida: Vuelo): Vuelo[] {
   return vueltas.filter((v) => v.fecha_operacion !== ida.fecha_operacion || v.hora_partida > ida.hora_llegada)
+}
+
+const ID_VUELO = /^FA(\d+)-(\d{4}-\d{2}-\d{2})$/
+
+/** Detalle de un vuelo. El mock reconstruye la ruta desde el número y regenera el vuelo. */
+export async function getVuelo(id: string): Promise<VueloDetalle> {
+  await esperar(300)
+  const m = ID_VUELO.exec(id)
+  if (m) {
+    const n = Number(m[1]) - PRIMER_NUMERO
+    const indice = Math.floor(n / NUMEROS_POR_RUTA)
+    const o = AEROPUERTOS[Math.floor(indice / AEROPUERTOS.length)]
+    const d = AEROPUERTOS[indice % AEROPUERTOS.length]
+    const vuelo = n >= 0 && o && d ? generarVuelos(o.codigo_iata, d.codigo_iata, m[2]).find((v) => v.id === id) : undefined
+    if (vuelo) return vuelo
+  }
+  throw new Error('Vuelo no encontrado')
+}
+
+/** Estado de una clase según sus asientos libres. */
+export function estadoClase(asientos: number): EstadoClase {
+  if (asientos <= 0) return 'agotada'
+  return asientos <= UMBRAL_ULTIMOS ? 'ultimos' : 'disponible'
 }
