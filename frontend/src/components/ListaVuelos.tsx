@@ -3,6 +3,7 @@ import type { Clase } from '../lib/busqueda'
 import type { EstadoBusqueda } from '../lib/useVuelos'
 import type { Vuelo } from '../lib/vuelos'
 import CardVuelo from './CardVuelo'
+import DetalleVuelo from './DetalleVuelo'
 
 interface Props {
   titulo: string
@@ -10,6 +11,7 @@ interface Props {
   estado: EstadoBusqueda
   vuelos: Vuelo[]
   clase: Clase
+  pasajeros: number
   /** Consejo que acompaña al "no hay resultados". */
   sugerencia: string
   onElegir: (v: Vuelo) => void
@@ -21,8 +23,20 @@ const POR_PAGINA = 12
 const grilla = 'grid gap-4 md:grid-cols-2 lg:grid-cols-3'
 
 /** Muestra los vuelos de a 12. Se resetea con una `key` distinta por búsqueda. */
-export default function ListaVuelos({ titulo, subtitulo, estado, vuelos, clase, sugerencia, onElegir, onReintentar }: Props) {
+export default function ListaVuelos({
+  titulo,
+  subtitulo,
+  estado,
+  vuelos,
+  clase,
+  pasajeros,
+  sugerencia,
+  onElegir,
+  onReintentar,
+}: Props) {
   const [visibles, setVisibles] = useState(POR_PAGINA)
+  // Vuelo cuyo detalle está abierto (null = diálogo cerrado).
+  const [detalle, setDetalle] = useState<Vuelo | null>(null)
   const encontrados =
     estado === 'ok' ? ` · ${vuelos.length} ${vuelos.length === 1 ? 'vuelo encontrado' : 'vuelos encontrados'}` : ''
   return (
@@ -66,7 +80,13 @@ export default function ListaVuelos({ titulo, subtitulo, estado, vuelos, clase, 
         <>
           <div className={grilla}>
             {vuelos.slice(0, visibles).map((v) => (
-              <CardVuelo key={v.id} vuelo={v} clase={clase} onElegir={() => onElegir(v)} />
+              <CardVuelo
+                key={v.id}
+                vuelo={v}
+                clase={clase}
+                onElegir={() => onElegir(v)}
+                onVerDetalle={() => setDetalle(v)}
+              />
             ))}
           </div>
           {vuelos.length > visibles && (
@@ -81,6 +101,15 @@ export default function ListaVuelos({ titulo, subtitulo, estado, vuelos, clase, 
             </div>
           )}
         </>
+      )}
+      {detalle && (
+        <DetalleVuelo
+          vuelo={detalle}
+          clase={clase}
+          pasajeros={pasajeros}
+          onElegir={onElegir}
+          onCerrar={() => setDetalle(null)}
+        />
       )}
     </section>
   )

@@ -167,6 +167,7 @@ export default function Vuelos() {
             estado={busquedaIda.estado}
             vuelos={busquedaIda.vuelos}
             clase={f.clase}
+            pasajeros={f.pasajeros}
             sugerencia={sugerencia}
             onElegir={elegirIda}
             onReintentar={busquedaIda.reintentar}
@@ -190,6 +191,7 @@ export default function Vuelos() {
             estado={busquedaVuelta.estado}
             vuelos={vueltasPosibles(busquedaVuelta.vuelos, idaElegida)}
             clase={f.clase}
+            pasajeros={f.pasajeros}
             sugerencia={sugerencia}
             onElegir={(v) => setVuelta({ busqueda: params.toString(), vuelo: v })}
             onReintentar={busquedaVuelta.reintentar}
