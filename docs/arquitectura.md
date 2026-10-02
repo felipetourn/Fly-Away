@@ -36,13 +36,13 @@ Fly Away/
 │   ├── build.sh              build command de Render
 │   ├── manage.py
 │   ├── config/               settings, urls, wsgi
-│   └── accounts/             User custom provisorio del setup (se reemplaza por `usuarios`)
-│   # apps a crear según modelo.dbml
+│   ├── usuarios/             modelo Usuario (tabla usuarios, login por email, rol)
+│   └── vuelos/               aeropuertos, aviones, vuelos; API de búsqueda/detalle; comando seed
 └── frontend/
     ├── .env.local / .env.example
     ├── vercel.json           rewrite SPA
     └── src/
-        ├── lib/              api.ts (fetch + JWT), mocks con la forma de la API, lógica pura
+        ├── lib/              api.ts (fetch + JWT), llamadas a la API, lógica pura (sesión todavía mock)
         ├── components/       Header, HeroCarrusel, BuscadorVuelos, FiltroPrecio, CardVuelo, ListaVuelos, DetalleVuelo
         ├── pages/            pantallas
         └── App.tsx           rutas: / (pasajero), /mostrador, /admin
@@ -102,13 +102,13 @@ POST /api/auth/token/refresh/                                      ✅ hecho
 GET  /api/health/                                                  ✅ hecho
 POST /api/auth/registro/         alta de pasajero
 GET  /api/auth/yo/               usuario logueado {id, email, nombre, apellido, rol} (header del front)
-GET  /api/aeropuertos/
-GET  /api/vuelos/buscar/?origen=&destino=&desde=&hasta=&pasajeros=&clase=&precio_min=&precio_max=
-                                 origen y/o destino (al menos uno), hasta opcional (rango ≤ 14 días);
+GET  /api/aeropuertos/                                             ✅ hecho
+GET  /api/vuelos/buscar/?origen=&destino=&desde=&hasta=&pasajeros=&clase=&precio_min=&precio_max=   ✅ hecho
+                                 origen y/o destino (al menos uno), hasta opcional (sin límite de días);
                                  devuelve vuelos activos, con asientos_disponibles_<clase> >= pasajeros,
                                  precio_<clase> dentro del rango, que todavía no salieron, por fecha y hora;
                                  origen/destino anidados (codigo_iata, ciudad…)
-GET  /api/vuelos/{id}/           detalle (US05): el mismo vuelo de la búsqueda + avion {matricula, modelo};
+GET  /api/vuelos/{id}/           ✅ hecho — detalle (US05): el mismo vuelo de la búsqueda + avion {matricula, modelo};
                                  incluye cancelados (estado = cancelado) en vez de 404
 CRUD /api/vuelos/                (admin) — el alta con días + período genera N filas
 POST /api/vuelos/{id}/cancelar/  (admin) → notifica por email
@@ -117,6 +117,10 @@ GET  /api/reservas/mias/
 GET  /api/pasajes/{codigo}/pdf/  descarga ticket electrónico
 GET  /api/reportes/ocupacion/?vuelo=&desde=&hasta=   (admin)
 ```
+
+**Errores 400:** formato estándar de DRF, `{"parametro": ["mensaje"]}`, con mensajes en español (los mismos que muestra el front). Un parámetro vacío (`?hasta=`) cuenta como no enviado. El 404 es `{"detail": "..."}`.
+
+**Datos de ejemplo:** `python manage.py seed [--dias 60]` carga los aeropuertos, la flota y los vuelos de los próximos días. Es idempotente y no pisa vuelos existentes. Corre en `build.sh` hasta que exista el ABM de vuelos.
 
 ## Emails
 

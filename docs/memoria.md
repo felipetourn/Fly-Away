@@ -4,6 +4,14 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-02 — Backend de vuelos (rama `feat/backend-vuelos`)**
+- Modelo `usuarios` del DBML (login por email, `rol`), que reemplaza a `accounts`. **Para la US de login:** el modelo ya está; faltan `POST /auth/registro/`, `GET /auth/yo/` y conectar `auth.ts`/`sesion.tsx` (hoy mock).
+- App `vuelos`: aeropuertos, aviones y vuelos con los constraints del DBML; `GET /api/aeropuertos/`, `/api/vuelos/buscar/` y `/api/vuelos/{id}/`. El front ya no usa el mock de vuelos.
+- Búsqueda sin límite de días; en ida y vuelta, la ida y la vuelta aceptan fecha exacta o rango.
+- `python manage.py seed`: datos de ejemplo. Corre en `build.sh` (Render free no tiene shell).
+- **Deploy:** antes del primer deploy de esta rama, resetear Supabase (borrar todas las tablas: las de `accounts` chocan con la migración nueva).
+- **Local:** si `backend/.env` tiene `DATABASE_URL` de Supabase, correr tests/seed/runserver con `DATABASE_URL=` (SQLite) para no tocar la BD compartida.
+
 **2026-10-02 — Detalle de vuelo, US05 (rama `feat/detalle-vuelo`)**
 - Cada card de resultados tiene "Ver detalle" y "Elegir". El detalle es un diálogo (`<dialog>` nativo) con origen, destino, horarios, fecha, clases, precio por clase, disponibilidad y avión; se puede elegir el vuelo desde ahí.
 - Mock: `getVuelo(id)` (futuro `GET /vuelos/{id}/`), avión por ruta y números de vuelo únicos por ruta y fecha.
@@ -11,7 +19,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 **2026-10-02 — Interfaz de inicio (rama `feat/interfaz-inicio`)**
 - Pantalla `/` del pasajero: header con sesión, hero con carrusel de destinos, buscador y resultados.
 - Búsqueda según los criterios de la US: en **Solo ida** origen y/o destino y fecha o rango (≤ 14 días); en **Ida y vuelta**, flujo en dos pasos (ida → vuelta). Filtro de rango de precio sobre los resultados.
-- **Todo mockeado** en `frontend/src/lib/vuelos.ts` y `lib/auth.ts`, con la forma de la API. Conectar el back = reemplazar el cuerpo de `getAeropuertos`, `buscarVuelos` y `usuarioActual` por `api(...)`.
+- Vuelos ya conectados al backend (ver arriba); la sesión (`lib/auth.ts`) sigue mockeada.
 - Páginas `/reservas`, `/perfil`, `/login`, `/registro` vacías ("Próximamente"); `/login` tiene "Entrar (demo)".
 - Chequeos de lógica pura: `npm run check` (Node + assert, sin framework).
 
@@ -33,6 +41,11 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-10-02 | Sin límite de días en el rango de búsqueda; rango también en ida y vuelta | Pedido del equipo: elegir ida y vuelta en una fecha o entre dos |
+| 2026-10-02 | Errores 400 con el formato de DRF (`{"param": ["mensaje"]}`) en español | Estándar del framework; el front puede ubicar cada error en su campo |
+| 2026-10-02 | `seed` en `build.sh`, idempotente con `ignore_conflicts` | Render free no tiene shell; hasta que exista el ABM de vuelos no hay otra forma de cargar datos |
+| 2026-10-02 | `Usuario` sin `PermissionsMixin`; el admin de Django es solo para `administrador` | El DBML no tiene tablas de permisos; el rol define el acceso |
+| 2026-10-02 | API sin versionar (`/api/`, no `/api/v1/`) | Un solo cliente (nuestro front) que se despliega junto; agregar `v1` después es cambiar el prefijo y `VITE_API_URL` |
 | 2026-10-02 | Detalle de vuelo en un diálogo sobre los resultados, sin ruta propia | Solo se llega a un vuelo buscándolo; el diálogo no saca al pasajero del flujo de ida y vuelta |
 | 2026-10-02 | El detalle pide los datos de nuevo (`getVuelo`) al abrirse | Los asientos pueden cambiar desde la búsqueda y el detalle trae el avión |
 | 2026-10-02 | Mock: bloque de números de vuelo por ruta | Respeta el índice único (`numero_vuelo`, `fecha_operacion`) y permite reconstruir el vuelo desde su id |
@@ -64,9 +77,8 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Próximos pasos
 
-1. Cerrar los pendientes del modelo (arriba) e implementarlo en Django; resetear la BD de Supabase (hoy tiene las tablas provisorias de `accounts`).
-2. ABM de vuelos (admin), con generación de N filas a partir de días + período.
-3. Búsqueda de vuelos con disponibilidad.
-4. Compra: reservas + pasajes + pagos + emails.
-5. Reportes de ocupación.
-6. Notificaciones por cambio de horario / cancelación.
+1. Resetear la BD de Supabase antes del primer deploy de `feat/backend-vuelos`.
+2. ABM de vuelos (admin), con generación de N filas a partir de días + período. Al terminarlo, sacar `seed` de `build.sh`.
+3. Compra: cerrar los pendientes del modelo (arriba) y sumar reservas + pasajes + pagos + emails.
+4. Reportes de ocupación.
+5. Notificaciones por cambio de horario / cancelación.
