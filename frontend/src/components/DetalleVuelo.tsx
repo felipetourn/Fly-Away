@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { NOMBRE_CLASE, type Clase } from '../lib/busqueda'
 import { duracion, fechaCompleta, hora, precio } from '../lib/formato'
 import {
@@ -30,7 +30,19 @@ const BADGE: Record<EstadoClase, [texto: string, colores: string]> = {
   agotada: ['Agotada', 'bg-slate-100 text-slate-500'],
 }
 
-function Extremo({ etiqueta, horario, aeropuerto, derecha }: { etiqueta: string; horario: string; aeropuerto: Aeropuerto; derecha?: boolean }) {
+function Extremo({
+  etiqueta,
+  horario,
+  aeropuerto,
+  derecha,
+  children,
+}: {
+  etiqueta: string
+  horario: string
+  aeropuerto: Aeropuerto
+  derecha?: boolean
+  children?: ReactNode
+}) {
   return (
     <div className={derecha ? 'sm:text-right' : ''}>
       <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase">{etiqueta}</p>
@@ -39,6 +51,7 @@ function Extremo({ etiqueta, horario, aeropuerto, derecha }: { etiqueta: string;
         {aeropuerto.codigo_iata} · {aeropuerto.ciudad}
       </p>
       <p className="text-sm text-slate-500">{aeropuerto.nombre}</p>
+      {children}
     </div>
   )
 }
@@ -125,9 +138,18 @@ export default function DetalleVuelo({ vuelo, clase, pasajeros, onElegir, onCerr
 
       <div className="px-4 py-6 sm:px-6">
         <p className="mb-5 text-sm font-semibold text-slate-500">{fechaCompleta(v.fecha_operacion)}</p>
-        <div className="grid items-center gap-4 sm:grid-cols-[1fr_auto_1fr]">
-          <Extremo etiqueta="Origen" horario={v.hora_partida} aeropuerto={v.origen} />
-          <div className="text-center text-xs text-slate-400">
+        <div className="grid items-start gap-4 sm:grid-cols-[1fr_auto_1fr]">
+          <Extremo etiqueta="Origen" horario={v.hora_partida} aeropuerto={v.origen}>
+            <p className="mt-1 text-xs text-slate-400">
+              Avión:{' '}
+              {detalle ? (
+                <span className="font-semibold text-slate-500">{detalle.avion.modelo}</span>
+              ) : (
+                <span className="inline-block h-3 w-24 animate-pulse rounded bg-slate-200 align-middle" />
+              )}
+            </p>
+          </Extremo>
+          <div className="text-center text-xs text-slate-400 sm:self-center">
             {duracion(duracionDe(v))}
             <div className="relative mx-auto my-1 h-px w-28 bg-slate-300 sm:w-32">
               <span aria-hidden="true" className="absolute -top-2 left-1/2 -translate-x-1/2 bg-white px-1 text-naranja">
@@ -138,14 +160,6 @@ export default function DetalleVuelo({ vuelo, clase, pasajeros, onElegir, onCerr
           </div>
           <Extremo etiqueta="Destino" horario={v.hora_llegada} aeropuerto={v.destino} derecha />
         </div>
-        <p className="mt-5 text-sm text-slate-500">
-          Avión:{' '}
-          {detalle ? (
-            <span className="font-semibold text-slate-700">{detalle.avion.modelo}</span>
-          ) : (
-            <span className="inline-block h-4 w-32 animate-pulse rounded bg-slate-200 align-middle" />
-          )}
-        </p>
       </div>
 
       <div className="px-4 pb-6 sm:px-6">

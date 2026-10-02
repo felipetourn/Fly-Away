@@ -51,7 +51,7 @@ Tareas de la US y dónde quedan: definir la información (esta sección), crear 
 - **Cuerpo:**
   - Fecha completa (`fechaCompleta`).
   - Trayecto en 3 columnas (desde `sm`; apiladas debajo): origen (etiqueta "Origen", hora, `IATA · Ciudad`, nombre del aeropuerto) · duración + línea con ✈ + "Directo" · destino (igual, alineado a la derecha).
-  - "Avión: Airbus A320".
+  - "Avión: Airbus A320", en texto chico debajo del aeropuerto de origen. Origen y destino alinean arriba; la duración queda centrada.
   - **Tabla de clases** (`<caption>` accesible "Clases, precios y disponibilidad"): Clase · Precio por persona · Asientos · Estado.
     - Estado con badge: **Disponible** (verde), **Últimos asientos** (naranja, 1 a 5), **Agotada** (gris, 0).
     - La fila de la clase buscada va resaltada y marcada "(tu búsqueda)".
