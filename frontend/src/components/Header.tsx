@@ -15,7 +15,7 @@ export default function Header() {
     <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/90 backdrop-blur">
       <div className="flex h-20 items-center justify-between gap-3 px-4 md:px-8">
         <Link to="/" aria-label="Fly Away, inicio" className="shrink-0">
-          <img src="/logo.svg" alt="" className="h-9 sm:hidden" />
+          <img src="/logoMain.svg" alt="" className="h-9 sm:hidden" />
           <img src="/titulo.svg" alt="" className="hidden h-8 sm:block md:h-10" />
         </Link>
         <nav className="flex items-center gap-1 text-xs font-semibold sm:text-sm md:gap-2">
