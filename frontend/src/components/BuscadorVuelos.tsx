@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type FormEvent } from 'react'
 import {
   MAX_PASAJEROS,
   hoyISO,
@@ -8,6 +8,7 @@ import {
   type Filtros,
 } from '../lib/busqueda'
 import type { Aeropuerto } from '../lib/vuelos'
+import SelectorFechas from './SelectorFechas'
 
 interface Props {
   aeropuertos: Aeropuerto[]
@@ -32,44 +33,6 @@ function MensajeError({ id, texto }: { id: string; texto?: string }) {
     </p>
   ) : null
 }
-
-function CampoFecha(props: {
-  id: string
-  texto: ReactNode
-  valor: string
-  min: string
-  error?: string
-  onChange: (v: string) => void
-}) {
-  return (
-    <div>
-      <div className={caja}>
-        <label htmlFor={props.id} className={etiqueta}>
-          {props.texto}
-        </label>
-        <input
-          id={props.id}
-          type="date"
-          min={props.min}
-          value={props.valor}
-          onChange={(e) => props.onChange(e.target.value)}
-          aria-invalid={!!props.error}
-          aria-describedby={`error-${props.id}`}
-          className={control}
-        />
-      </div>
-      <MensajeError id={`error-${props.id}`} texto={props.error} />
-    </div>
-  )
-}
-
-/** "Hasta (opcional)"; `de` aclara a cuál fecha para lectores de pantalla. */
-const hastaOpcional = (de: string) => (
-  <>
-    Hasta <span className="sr-only">{de} </span>
-    <span className="font-normal">(opcional)</span>
-  </>
-)
 
 export default function BuscadorVuelos({ aeropuertos, inicial, erroresIniciales = {}, onBuscar }: Props) {
   const pasajerosIniciales = inicial?.pasajeros ?? 1
@@ -138,8 +101,8 @@ export default function BuscadorVuelos({ aeropuertos, inicial, erroresIniciales 
       <div
         className={`grid gap-2 lg:items-start ${
           soloIda
-            ? 'lg:grid-cols-[1fr_auto_1fr_2fr_1.3fr_auto]'
-            : 'lg:grid-cols-[1fr_auto_1fr_2fr_2fr_1.3fr_auto]'
+            ? 'lg:grid-cols-[1fr_auto_1fr_1.2fr_1.3fr_auto]'
+            : 'lg:grid-cols-[1fr_auto_1fr_1.2fr_1.2fr_1.3fr_auto]'
         }`}
       >
         <div>
@@ -196,43 +159,41 @@ export default function BuscadorVuelos({ aeropuertos, inicial, erroresIniciales 
           <MensajeError id="error-destino" texto={errores.destino} />
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <CampoFecha
+        <div>
+          <SelectorFechas
             id="ida"
-            texto={soloIda ? 'Desde' : 'Ida'}
-            valor={ida}
+            etiqueta={soloIda ? 'Fechas' : 'Ida'}
+            desde={ida}
+            hasta={hasta}
             min={hoy}
-            error={errores.ida}
-            onChange={setIda}
+            placeholder="Elegí la fecha o un rango"
+            invalido={!!(errores.ida || errores.hasta)}
+            idError="error-ida"
+            onChange={(d, h) => {
+              setIda(d)
+              setHasta(h)
+            }}
           />
-          <CampoFecha
-            id="hasta"
-            texto={hastaOpcional(soloIda ? '' : 'de la ida')}
-            valor={hasta}
-            min={ida || hoy}
-            error={errores.hasta}
-            onChange={setHasta}
-          />
+          <MensajeError id="error-ida" texto={errores.ida ?? errores.hasta} />
         </div>
 
         {!soloIda && (
-          <div className="grid grid-cols-2 gap-2">
-            <CampoFecha
+          <div>
+            <SelectorFechas
               id="vuelta"
-              texto="Vuelta"
-              valor={vuelta}
+              etiqueta="Vuelta"
+              desde={vuelta}
+              hasta={vueltaHasta}
               min={ida || hoy}
-              error={errores.vuelta}
-              onChange={setVuelta}
+              placeholder="Elegí la fecha o un rango"
+              invalido={!!(errores.vuelta || errores.vueltaHasta)}
+              idError="error-vuelta"
+              onChange={(d, h) => {
+                setVuelta(d)
+                setVueltaHasta(h)
+              }}
             />
-            <CampoFecha
-              id="vueltaHasta"
-              texto={hastaOpcional('de la vuelta')}
-              valor={vueltaHasta}
-              min={vuelta || ida || hoy}
-              error={errores.vueltaHasta}
-              onChange={setVueltaHasta}
-            />
+            <MensajeError id="error-vuelta" texto={errores.vuelta ?? errores.vueltaHasta} />
           </div>
         )}
 
