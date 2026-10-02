@@ -12,6 +12,13 @@ export function fechaCorta(iso: string): string {
   return mayuscula(aFecha(iso).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' }))
 }
 
+/** "Martes, 20 de octubre de 2026" */
+export function fechaCompleta(iso: string): string {
+  return mayuscula(
+    aFecha(iso).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+  )
+}
+
 /** "Del 20 de octubre al 25 de octubre" */
 export function rangoFechas(desde: string, hasta: string): string {
   const diaMes = (iso: string) => aFecha(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })

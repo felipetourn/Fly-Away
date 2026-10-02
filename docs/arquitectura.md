@@ -43,7 +43,7 @@ Fly Away/
     ├── vercel.json           rewrite SPA
     └── src/
         ├── lib/              api.ts (fetch + JWT), mocks con la forma de la API, lógica pura
-        ├── components/       Header, HeroCarrusel, BuscadorVuelos, CardVuelo, ListaVuelos
+        ├── components/       Header, HeroCarrusel, BuscadorVuelos, FiltroPrecio, CardVuelo, ListaVuelos, DetalleVuelo
         ├── pages/            pantallas
         └── App.tsx           rutas: / (pasajero), /mostrador, /admin
 ```
@@ -108,6 +108,8 @@ GET  /api/vuelos/buscar/?origen=&destino=&desde=&hasta=&pasajeros=&clase=&precio
                                  devuelve vuelos activos, con asientos_disponibles_<clase> >= pasajeros,
                                  precio_<clase> dentro del rango, que todavía no salieron, por fecha y hora;
                                  origen/destino anidados (codigo_iata, ciudad…)
+GET  /api/vuelos/{id}/           detalle (US05): el mismo vuelo de la búsqueda + avion {matricula, modelo};
+                                 incluye cancelados (estado = cancelado) en vez de 404
 CRUD /api/vuelos/                (admin) — el alta con días + período genera N filas
 POST /api/vuelos/{id}/cancelar/  (admin) → notifica por email
 POST /api/reservas/              compra + pago → emails con pasajes y factura

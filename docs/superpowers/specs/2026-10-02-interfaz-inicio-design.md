@@ -30,7 +30,7 @@ Referencia visual aprobada: mockup estático (Despegar / TurismoCity como inspir
 - Paleta del logo como tokens de Tailwind v4 (`@theme` en `src/index.css`):
   `marino #064D7D` · `cielo #068EC1` · `naranja #FF6F13` · `ambar #FF9F1B`. Fondo general `slate-50`.
 - Tipografía: **Montserrat**, archivos locales en `src/fonts/` (`woff2`, subset latin, pesos 400–800) declarados con `@font-face` en `src/index.css` (`font-display: swap`). Sin dependencias externas.
-- Logo del header: `public/titulo.svg`. Ícono de la pestaña: `public/logo.svg` (el avión).
+- Logo del header: `public/titulo.svg`. Ícono de la pestaña y logo del header en mobile: `public/logoMain.svg` (el avión). Logo del detalle de vuelo: `public/logoA.svg`.
 - Botón principal (Buscar): naranja. Acciones secundarias (Elegir, Registrarse, Aplicar): marino → cielo en hover.
 
 ## Rutas

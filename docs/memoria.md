@@ -4,6 +4,10 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-02 — Detalle de vuelo, US05 (rama `feat/detalle-vuelo`)**
+- Cada card de resultados tiene "Ver detalle" y "Elegir". El detalle es un diálogo (`<dialog>` nativo) con origen, destino, horarios, fecha, clases, precio por clase, disponibilidad y avión; se puede elegir el vuelo desde ahí.
+- Mock: `getVuelo(id)` (futuro `GET /vuelos/{id}/`), avión por ruta y números de vuelo únicos por ruta y fecha.
+
 **2026-10-02 — Interfaz de inicio (rama `feat/interfaz-inicio`)**
 - Pantalla `/` del pasajero: header con sesión, hero con carrusel de destinos, buscador y resultados.
 - Búsqueda según los criterios de la US: en **Solo ida** origen y/o destino y fecha o rango (≤ 14 días); en **Ida y vuelta**, flujo en dos pasos (ida → vuelta). Filtro de rango de precio sobre los resultados.
@@ -29,6 +33,9 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-10-02 | Detalle de vuelo en un diálogo sobre los resultados, sin ruta propia | Solo se llega a un vuelo buscándolo; el diálogo no saca al pasajero del flujo de ida y vuelta |
+| 2026-10-02 | El detalle pide los datos de nuevo (`getVuelo`) al abrirse | Los asientos pueden cambiar desde la búsqueda y el detalle trae el avión |
+| 2026-10-02 | Mock: bloque de números de vuelo por ruta | Respeta el índice único (`numero_vuelo`, `fecha_operacion`) y permite reconstruir el vuelo desde su id |
 | 2026-10-02 | Front de búsqueda con datos mock que respetan el contrato del back | Avanzar la UI sin bloquearse con el modelo; cambiar a la API toca solo `src/lib/` |
 | 2026-10-02 | Avatar con iniciales (sin foto) | `usuarios` no tiene campo de foto; evita subir archivos |
 | 2026-10-02 | Ida y vuelta = dos pasos (elegir ida, después vuelta) | Cada fila de `vuelos` es un tramo; coincide con el endpoint de búsqueda |

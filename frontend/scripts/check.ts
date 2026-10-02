@@ -3,13 +3,15 @@ process.env.TZ = 'America/Argentina/Buenos_Aires' // UTC−3: detecta fechas cor
 
 import assert from 'node:assert/strict'
 import { aParams, leerFiltros, validarBusqueda, type Filtros } from '../src/lib/busqueda.ts'
-import { duracion, fechaCorta, fechaLarga, hora, precio, rangoFechas } from '../src/lib/formato.ts'
+import { duracion, fechaCompleta, fechaCorta, fechaLarga, hora, precio, rangoFechas } from '../src/lib/formato.ts'
 import {
   asientosDe,
   buscarVuelos,
   duracionDe,
+  estadoClase,
   generarVuelos,
   getAeropuertos,
+  getVuelo,
   precioDe,
   vueltasPosibles,
   type ParamsBusqueda,
@@ -91,6 +93,7 @@ assert.equal(leerFiltros(new URLSearchParams('origen=BHI&ida=2026-13-45'))!.ida,
 assert.ok(fechaLarga('2026-10-26').startsWith('Lunes') && fechaLarga('2026-10-26').includes('26'), fechaLarga('2026-10-26'))
 assert.ok(fechaCorta('2026-10-26').startsWith('Lun') && fechaCorta('2026-10-26').includes('26'), fechaCorta('2026-10-26'))
 assert.equal(rangoFechas('2026-10-20', '2026-10-25'), 'Del 20 de octubre al 25 de octubre')
+assert.equal(fechaCompleta('2026-10-20'), 'Martes, 20 de octubre de 2026')
 assert.equal(hora('06:40:00'), '06:40')
 assert.equal(precio(175512), '$ 175.512')
 assert.equal(precio(149990.4), '$ 149.990')
@@ -170,5 +173,41 @@ const vueltas = [
 assert.deepEqual(vueltasPosibles(vueltas, ida).map((v) => v.id), ['b'])
 const otroDia = vueltas.map((v) => ({ ...v, fecha_operacion: '2026-11-15' }))
 assert.equal(vueltasPosibles(otroDia, ida).length, 2, 'otro día: todas sirven')
+
+// números de vuelo únicos por fecha (índice único numero_vuelo + fecha_operacion del modelo)
+for (const fecha of ['2026-10-20', '2026-11-14', '2026-12-24']) {
+  const delDia = aeropuertos.flatMap((o) => aeropuertos.flatMap((d) => generarVuelos(o.codigo_iata, d.codigo_iata, fecha)))
+  assert.ok(delDia.length > 50, 'hay muchos vuelos ese día')
+  assert.equal(new Set(delDia.map((v) => v.numero_vuelo)).size, delDia.length, `números únicos el ${fecha}`)
+}
+
+// getVuelo: el mismo vuelo que la búsqueda, con el avión
+const encontrados = (await buscarVuelos(p({ destino: '', hasta: '2026-10-22' }), ahora)).slice(0, 5)
+assert.ok(encontrados.length === 5)
+for (const v of encontrados) {
+  const detalle = await getVuelo(v.id)
+  assert.deepEqual(detalle, v, `getVuelo(${v.id}) = vuelo de la búsqueda`)
+  assert.ok(detalle.avion.modelo && detalle.avion.matricula.startsWith('LV-'), 'trae el avión')
+}
+
+// getVuelo: ids que no existen
+const rechaza = (id: string) => assert.rejects(getVuelo(id), /Vuelo no encontrado/, `rechaza ${id}`)
+await rechaza('cualquiera')
+await rechaza('FA999-2026-10-20') // antes del primer número
+await rechaza('FA9999-2026-10-20') // después del último bloque de rutas
+const conVuelos = dias.find((d) => generarVuelos('BHI', 'AEP', d).length > 0)!
+const primero = Number(generarVuelos('BHI', 'AEP', conVuelos)[0].numero_vuelo.slice(3))
+const incompleto = dias.find((d) => generarVuelos('BHI', 'AEP', d).length < 4)!
+await rechaza(`FA${primero + generarVuelos('BHI', 'AEP', incompleto).length}-${incompleto}`) // número de la ruta que ese día no existe
+
+// getVuelo: un cancelado se devuelve (el detalle informa la cancelación)
+const cancelado = generados.find((v) => v.estado === 'cancelado')!
+assert.equal((await getVuelo(cancelado.id)).estado, 'cancelado')
+
+// estadoClase
+assert.equal(estadoClase(0), 'agotada')
+assert.equal(estadoClase(1), 'ultimos')
+assert.equal(estadoClase(5), 'ultimos')
+assert.equal(estadoClase(6), 'disponible')
 
 console.log('vuelos: OK')
