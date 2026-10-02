@@ -128,6 +128,30 @@ GET  /api/reportes/ocupacion/?vuelo=&desde=&hasta=   (admin)
 - Local: `EMAIL_BACKEND=console` → se imprimen en la terminal de `runserver`.
 - Prod: SMTP o API HTTP del proveedor (ver pendiente en memoria.md).
 
+## Correr en local
+
+Requisitos: Python 3.11, Node 22.
+
+```bash
+# Backend
+cd backend
+python -m venv .venv
+.venv/Scripts/activate            # Windows  (Linux/Mac: source .venv/bin/activate)
+pip install -r requirements.txt
+cp .env.example .env              # completar SECRET_KEY; DATABASE_URL vacío = SQLite local
+python manage.py migrate
+python manage.py seed             # datos de ejemplo: aeropuertos, flota y vuelos
+python manage.py runserver        # http://localhost:8000
+
+# Frontend (otra terminal)
+cd frontend
+npm install
+cp .env.example .env.local
+npm run dev                       # http://localhost:5173
+```
+
+Si `backend/.env` tiene el `DATABASE_URL` de Supabase, los comandos de arriba trabajan sobre la base compartida. Para no tocarla, correrlos con `DATABASE_URL=` vacío (SQLite).
+
 ## Deploy
 
 ### Supabase (BD)
