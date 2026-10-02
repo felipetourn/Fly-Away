@@ -119,7 +119,7 @@ export default function DetalleVuelo({ vuelo, clase, pasajeros, onElegir, onCerr
     >
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-6">
         <div className="flex items-center gap-3">
-          <img src="/logoA.svg" alt="" className="h-10" />
+          <img src="/logoA.svg" alt="" className="h-8" />
           <h2 id={titulo} className="text-lg font-extrabold text-marino">
             <span className="sr-only">Vuelo </span>
             {v.numero_vuelo}
@@ -151,8 +151,8 @@ export default function DetalleVuelo({ vuelo, clase, pasajeros, onElegir, onCerr
           </Extremo>
           <div className="text-center text-xs text-slate-400 sm:self-center">
             {duracion(duracionDe(v))}
-            <div className="relative mx-auto my-1 h-px w-28 bg-slate-300 sm:w-32">
-              <span aria-hidden="true" className="absolute -top-2 left-1/2 -translate-x-1/2 bg-white px-1 text-naranja">
+            <div className="relative mx-auto my-2.5 h-px w-28 bg-slate-300 sm:w-32">
+              <span aria-hidden="true" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-1 text-xl leading-none text-naranja">
                 ✈
               </span>
             </div>

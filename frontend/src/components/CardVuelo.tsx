@@ -29,8 +29,8 @@ export default function CardVuelo({ vuelo, clase, onElegir, onVerDetalle }: Prop
         </div>
         <div className="flex-1 text-center text-xs text-slate-400">
           {duracion(duracionDe(vuelo))}
-          <div className="relative my-1 h-px bg-slate-300">
-            <span aria-hidden="true" className="absolute -top-2 left-1/2 -translate-x-1/2 bg-white px-1 text-naranja">
+          <div className="relative my-2.5 h-px bg-slate-300">
+            <span aria-hidden="true" className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white px-1 text-xl leading-none text-naranja">
               ✈
             </span>
           </div>
