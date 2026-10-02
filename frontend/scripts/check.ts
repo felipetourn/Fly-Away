@@ -52,6 +52,18 @@ assert.deepEqual(validarBusqueda({ ...soloIda, hasta: '2026-11-08' }, hoy), {}, 
 assert.ok(validarBusqueda({ ...soloIda, hasta: '2026-11-09' }, hoy).hasta, 'rango de 15 días')
 assert.ok(validarBusqueda({ ...soloIda, hasta: '2026-10-25' }, hoy).hasta, 'hasta antes que desde')
 
+// validarBusqueda: contra la lista de aeropuertos (si se pasa)
+const lista = [
+  { codigo_iata: 'AEP', ciudad: 'Buenos Aires' },
+  { codigo_iata: 'EZE', ciudad: 'Buenos Aires' },
+  { codigo_iata: 'BHI', ciudad: 'Bahía Blanca' },
+]
+assert.deepEqual(validarBusqueda(base, hoy, lista), {})
+assert.ok(validarBusqueda({ ...base, origen: 'ZZZ' }, hoy, lista).origen, 'origen desconocido')
+assert.ok(validarBusqueda({ ...soloIda, origen: '', destino: 'ZZZ' }, hoy, lista).destino, 'destino desconocido')
+assert.ok(validarBusqueda({ ...base, origen: 'AEP', destino: 'EZE' }, hoy, lista).destino, 'misma ciudad')
+assert.deepEqual(validarBusqueda({ ...base, origen: 'ZZZ' }, hoy), {}, 'sin lista no se valida contra aeropuertos')
+
 // validarBusqueda: precio
 assert.deepEqual(validarBusqueda({ ...base, precioMin: 100000, precioMax: 200000 }, hoy), {})
 assert.deepEqual(validarBusqueda({ ...base, precioMin: 100000 }, hoy), {}, 'solo mínimo')
@@ -69,8 +81,9 @@ assert.equal(leerFiltros(new URLSearchParams('ida=2026-10-26&vuelta=2026-10-31&h
 const basura = leerFiltros(new URLSearchParams('origen=bhi&destino=AEP&ida=mañana&vuelta=2026-13&pasajeros=50&clase=xx'))!
 assert.equal(basura.origen, 'BHI')
 assert.equal(basura.ida, '', 'fecha mal formada se descarta')
-assert.equal(basura.clase, 'economy', 'clase desconocida → economy')
+assert.ok(validarBusqueda(basura, hoy).clase, 'clase desconocida → error, no se cambia en silencio')
 assert.ok(validarBusqueda(basura, hoy).ida && validarBusqueda(basura, hoy).vuelta && validarBusqueda(basura, hoy).pasajeros)
+assert.equal(leerFiltros(new URLSearchParams('origen=BHI&ida=2026-10-26'))!.clase, 'economy', 'sin clase → economy')
 assert.equal(leerFiltros(new URLSearchParams('origen=BHI&ida=2027-02-30'))!.ida, '', 'fecha inexistente se descarta')
 assert.equal(leerFiltros(new URLSearchParams('origen=BHI&ida=2026-13-45'))!.ida, '', 'mes inexistente se descarta')
 

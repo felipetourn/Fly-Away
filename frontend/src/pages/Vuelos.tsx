@@ -11,7 +11,10 @@ import { getAeropuertos, precioDe, vueltasPosibles, type Aeropuerto, type Vuelo 
 
 function Pasos({ actual, total }: { actual: 1 | 2; total: 1 | 2 }) {
   const paso = (n: 1 | 2, texto: string) => (
-    <li className={`flex items-center gap-2 ${n <= actual ? 'text-marino' : 'text-slate-400'}`}>
+    <li
+      aria-current={n === actual ? 'step' : undefined}
+      className={`flex items-center gap-2 ${n <= actual ? 'text-marino' : 'text-slate-400'}`}
+    >
       <span
         className={`grid h-6 w-6 place-items-center rounded-full text-xs ${
           n <= actual ? 'bg-marino text-white' : 'bg-slate-200'
@@ -23,7 +26,7 @@ function Pasos({ actual, total }: { actual: 1 | 2; total: 1 | 2 }) {
     </li>
   )
   return (
-    <ol className="mb-6 flex items-center gap-3 text-sm font-semibold">
+    <ol aria-label="Pasos" className="mb-6 flex items-center gap-3 text-sm font-semibold">
       {paso(1, 'Vuelo de ida')}
       {total === 2 && <li className="h-px w-10 bg-slate-300" aria-hidden="true" />}
       {total === 2 && paso(2, 'Vuelo de vuelta')}
@@ -44,16 +47,27 @@ function LineaVuelo({ etiqueta, vuelo, clase }: { etiqueta: string; vuelo: Vuelo
 export default function Vuelos() {
   const [params, setParams] = useSearchParams()
   const [aeropuertos, setAeropuertos] = useState<Aeropuerto[]>([])
+  const [errorAeropuertos, setErrorAeropuertos] = useState(false)
+  const [intentoAeropuertos, setIntentoAeropuertos] = useState(0)
   // Vuelta elegida, atada a la búsqueda (e ida) en la que se eligió. Se limpia al cambiar de búsqueda o de ida.
   const [vuelta, setVuelta] = useState<{ busqueda: string; vuelo: Vuelo } | null>(null)
 
   useEffect(() => {
-    getAeropuertos().then(setAeropuertos)
-  }, [])
+    getAeropuertos().then(
+      (lista) => {
+        setAeropuertos(lista)
+        setErrorAeropuertos(false)
+      },
+      () => setErrorAeropuertos(true),
+    )
+  }, [intentoAeropuertos])
 
   const filtros = leerFiltros(params)
+  // Se valida (y se busca) recién con los aeropuertos cargados: así se detectan códigos desconocidos.
+  const listos = aeropuertos.length > 0
+  const erroresUrl = filtros && listos ? validarBusqueda(filtros, hoyISO(), aeropuertos) : {}
   // Solo se busca con filtros válidos: la URL puede venir editada o ser de otro día.
-  const f = filtros && Object.keys(validarBusqueda(filtros, hoyISO())).length === 0 ? filtros : null
+  const f = filtros && listos && Object.keys(erroresUrl).length === 0 ? filtros : null
   // Cambia con cada búsqueda (sin idaId): remonta el buscador con los valores de la URL.
   const claveFiltros = filtros ? aParams(filtros).toString() : ''
 
@@ -111,8 +125,21 @@ export default function Vuelos() {
   }
 
   let contenido = null
-  if (filtros && !f) {
-    contenido = <p className="text-slate-500">Revisá los datos de la búsqueda y volvé a buscar.</p>
+  if (errorAeropuertos) {
+    contenido = (
+      <div role="alert" className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">
+        <p className="font-semibold">No pudimos cargar los aeropuertos. Probá de nuevo.</p>
+        <button
+          type="button"
+          onClick={() => setIntentoAeropuertos((n) => n + 1)}
+          className="mt-3 rounded-xl bg-white px-4 py-2 text-sm font-bold ring-1 ring-red-200 hover:bg-red-100"
+        >
+          Reintentar
+        </button>
+      </div>
+    )
+  } else if (filtros && listos && !f) {
+    contenido = <p className="text-slate-500">Revisá los datos marcados en el buscador y volvé a buscar.</p>
   } else if (f) {
     const total = f.vuelta === null ? 1 : 2
     const detalle = `${f.pasajeros} ${f.pasajeros === 1 ? 'pasajero' : 'pasajeros'} · ${NOMBRE_CLASE[f.clase]}`
@@ -208,16 +235,23 @@ export default function Vuelos() {
     <>
       <HeroCarrusel />
       <section className="relative z-10 mx-auto -mt-20 max-w-[88rem] px-4">
-        <BuscadorVuelos key={claveFiltros} aeropuertos={aeropuertos} inicial={filtros} onBuscar={buscar} />
+        <BuscadorVuelos
+          key={`${claveFiltros}-${listos}`}
+          aeropuertos={aeropuertos}
+          inicial={filtros}
+          erroresIniciales={erroresUrl}
+          onBuscar={buscar}
+        />
       </section>
       <main className="mx-auto max-w-[88rem] px-4 py-10">
         {/* Visible aunque la URL sea inválida: así se puede corregir un rango de precio mal cargado. */}
         {filtros && (
           <FiltroPrecio
-            key={`${filtros.precioMin}-${filtros.precioMax}`}
+            key={`${filtros.precioMin}-${filtros.precioMax}-${listos}`}
             min={filtros.precioMin}
             max={filtros.precioMax}
             clase={filtros.clase}
+            errorInicial={erroresUrl.precio}
             onAplicar={filtrarPrecio}
           />
         )}

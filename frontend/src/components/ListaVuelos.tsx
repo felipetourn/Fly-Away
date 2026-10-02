@@ -26,15 +26,16 @@ export default function ListaVuelos({ titulo, subtitulo, estado, vuelos, clase, 
   const encontrados =
     estado === 'ok' ? ` · ${vuelos.length} ${vuelos.length === 1 ? 'vuelo encontrado' : 'vuelos encontrados'}` : ''
   return (
-    <section aria-live="polite">
+    <section>
       <h2 className="mb-1 text-2xl font-extrabold text-marino md:text-3xl">{titulo}</h2>
-      <p className="mb-6 text-slate-500">
+      {/* Solo el resumen se anuncia; no toda la grilla. */}
+      <p className="mb-6 text-slate-500" aria-live="polite">
         {subtitulo}
         {encontrados}
       </p>
 
       {estado === 'cargando' && (
-        <div className={grilla} aria-label="Buscando vuelos">
+        <div className={grilla} role="status" aria-label="Buscando vuelos">
           {[0, 1, 2].map((i) => (
             <div key={i} className="h-56 animate-pulse rounded-3xl bg-slate-200/70" />
           ))}
@@ -42,7 +43,7 @@ export default function ListaVuelos({ titulo, subtitulo, estado, vuelos, clase, 
       )}
 
       {estado === 'error' && (
-        <div className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">
+        <div role="alert" className="rounded-3xl border border-red-200 bg-red-50 p-6 text-red-700">
           <p className="font-semibold">No pudimos buscar vuelos. Probá de nuevo.</p>
           <button
             type="button"

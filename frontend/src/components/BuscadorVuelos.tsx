@@ -12,6 +12,8 @@ import type { Aeropuerto } from '../lib/vuelos'
 interface Props {
   aeropuertos: Aeropuerto[]
   inicial: Filtros | null
+  /** Errores de una URL inválida: se muestran hasta el primer envío. */
+  erroresIniciales?: ErroresBusqueda
   onBuscar: (f: Filtros) => void
 }
 
@@ -31,7 +33,7 @@ function MensajeError({ id, texto }: { id: string; texto?: string }) {
   ) : null
 }
 
-export default function BuscadorVuelos({ aeropuertos, inicial, onBuscar }: Props) {
+export default function BuscadorVuelos({ aeropuertos, inicial, erroresIniciales = {}, onBuscar }: Props) {
   const pasajerosIniciales = inicial?.pasajeros ?? 1
   const [soloIda, setSoloIda] = useState(inicial?.vuelta === null)
   const [origen, setOrigen] = useState(inicial?.origen ?? '')
@@ -44,8 +46,9 @@ export default function BuscadorVuelos({ aeropuertos, inicial, onBuscar }: Props
       ? pasajerosIniciales
       : 1,
   )
-  const [clase, setClase] = useState<Clase>(inicial?.clase ?? 'economy')
-  const [errores, setErrores] = useState<ErroresBusqueda>({})
+  const [clase, setClase] = useState<Clase>(inicial?.clase === 'primera' ? 'primera' : 'economy')
+  const [enviados, setEnviados] = useState<ErroresBusqueda | null>(null)
+  const errores = enviados ?? erroresIniciales
   const hoy = hoyISO()
 
   function enviar(e: FormEvent) {
@@ -62,8 +65,8 @@ export default function BuscadorVuelos({ aeropuertos, inicial, onBuscar }: Props
       precioMin: inicial?.precioMin ?? null,
       precioMax: inicial?.precioMax ?? null,
     }
-    const nuevos = validarBusqueda(filtros, hoy)
-    setErrores(nuevos)
+    const nuevos = validarBusqueda(filtros, hoy, aeropuertos.length ? aeropuertos : undefined)
+    setEnviados(nuevos)
     if (Object.keys(nuevos).length === 0) onBuscar(filtros)
   }
 
@@ -212,6 +215,8 @@ export default function BuscadorVuelos({ aeropuertos, inicial, onBuscar }: Props
             <div className="flex gap-2">
               <select
                 aria-label="Pasajeros"
+                aria-invalid={!!errores.pasajeros}
+                aria-describedby="error-pasajeros"
                 value={pasajeros}
                 onChange={(e) => setPasajeros(Number(e.target.value))}
                 className={control}
@@ -233,7 +238,7 @@ export default function BuscadorVuelos({ aeropuertos, inicial, onBuscar }: Props
               </select>
             </div>
           </div>
-          <MensajeError id="error-pasajeros" texto={errores.pasajeros} />
+          <MensajeError id="error-pasajeros" texto={errores.pasajeros ?? errores.clase} />
         </div>
 
         <button

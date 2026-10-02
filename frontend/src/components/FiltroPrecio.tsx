@@ -5,6 +5,8 @@ interface Props {
   min: number | null
   max: number | null
   clase: Clase
+  /** Error de un rango inválido que vino en la URL. */
+  errorInicial?: string
   onAplicar: (min: number | null, max: number | null) => void
 }
 
@@ -13,10 +15,10 @@ const campo =
   'flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2 focus-within:border-cielo'
 
 /** Rango de precio por persona. Lee `min`/`max` al montar: el que lo usa le pasa una `key` que cambia con ellos. */
-export default function FiltroPrecio({ min, max, clase, onAplicar }: Props) {
+export default function FiltroPrecio({ min, max, clase, errorInicial, onAplicar }: Props) {
   const [desde, setDesde] = useState(min === null ? '' : String(min))
   const [hasta, setHasta] = useState(max === null ? '' : String(max))
-  const [error, setError] = useState<string>()
+  const [error, setError] = useState(errorInicial)
 
   function aplicar(e: FormEvent) {
     e.preventDefault()
@@ -33,7 +35,7 @@ export default function FiltroPrecio({ min, max, clase, onAplicar }: Props) {
       noValidate
       className="mb-8 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm"
     >
-      <span className="font-semibold text-marino">Precio por persona · {NOMBRE_CLASE[clase]}</span>
+      <span className="font-semibold text-marino">Precio por persona · {NOMBRE_CLASE[clase] ?? ''}</span>
       <label className={campo}>
         <span className="text-slate-400">$</span>
         <input

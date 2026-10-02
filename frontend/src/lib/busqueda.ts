@@ -26,8 +26,14 @@ export interface Filtros {
 }
 
 export type ErroresBusqueda = Partial<
-  Record<'origen' | 'destino' | 'ida' | 'hasta' | 'vuelta' | 'pasajeros' | 'precio', string>
+  Record<'origen' | 'destino' | 'ida' | 'hasta' | 'vuelta' | 'pasajeros' | 'clase' | 'precio', string>
 >
+
+/** Lo mínimo de un aeropuerto que necesita la validación. */
+export interface AeropuertoConocido {
+  codigo_iata: string
+  ciudad: string
+}
 
 const FECHA = /^\d{4}-\d{2}-\d{2}$/
 
@@ -54,8 +60,11 @@ export function validarPrecio(min: number | null, max: number | null): string | 
   return undefined
 }
 
-/** Solo UX: el backend repite estas reglas. Las fechas ISO se comparan como texto. */
-export function validarBusqueda(f: Filtros, hoy: string): ErroresBusqueda {
+/**
+ * Solo UX: el backend repite estas reglas. Las fechas ISO se comparan como texto.
+ * Con `aeropuertos` también rechaza códigos desconocidos y origen y destino en la misma ciudad.
+ */
+export function validarBusqueda(f: Filtros, hoy: string, aeropuertos?: AeropuertoConocido[]): ErroresBusqueda {
   const e: ErroresBusqueda = {}
   if (f.vuelta === null) {
     if (!f.origen && !f.destino) e.origen = 'Elegí un origen, un destino o ambos'
@@ -64,6 +73,14 @@ export function validarBusqueda(f: Filtros, hoy: string): ErroresBusqueda {
     if (!f.destino) e.destino = 'Elegí un destino'
   }
   if (f.origen && f.destino === f.origen) e.destino = 'El destino tiene que ser distinto del origen'
+  if (aeropuertos) {
+    const ciudad = (iata: string) => aeropuertos.find((a) => a.codigo_iata === iata)?.ciudad
+    if (f.origen && !ciudad(f.origen)) e.origen = 'No conocemos ese aeropuerto'
+    if (f.destino && !ciudad(f.destino)) e.destino = 'No conocemos ese aeropuerto'
+    else if (!e.destino && f.origen && f.destino && ciudad(f.origen) === ciudad(f.destino)) {
+      e.destino = 'Origen y destino están en la misma ciudad'
+    }
+  }
   if (!f.ida) e.ida = 'Elegí la fecha'
   else if (f.ida < hoy) e.ida = 'La fecha no puede ser en el pasado'
   if (f.hasta && f.ida) {
@@ -74,6 +91,7 @@ export function validarBusqueda(f: Filtros, hoy: string): ErroresBusqueda {
     if (!f.vuelta) e.vuelta = 'Elegí la fecha de vuelta'
     else if (f.ida && f.vuelta < f.ida) e.vuelta = 'La vuelta no puede ser antes de la ida'
   }
+  if (f.clase !== 'economy' && f.clase !== 'primera') e.clase = 'Elegí Economy o Primera'
   if (!Number.isInteger(f.pasajeros) || f.pasajeros < 1 || f.pasajeros > MAX_PASAJEROS) {
     e.pasajeros = `Entre 1 y ${MAX_PASAJEROS} pasajeros`
   }
@@ -101,7 +119,8 @@ export function leerFiltros(p: URLSearchParams): Filtros | null {
     hasta: idaYVuelta ? '' : fecha('hasta'),
     vuelta: idaYVuelta ? fecha('vuelta') : null,
     pasajeros: Number(p.get('pasajeros') ?? 1),
-    clase: p.get('clase') === 'primera' ? 'primera' : 'economy',
+    // Un valor desconocido se conserva para que validarBusqueda lo marque (no se cambia en silencio).
+    clase: (p.get('clase') ?? 'economy') as Clase,
     precioMin: monto('precioMin'),
     precioMax: monto('precioMax'),
   }

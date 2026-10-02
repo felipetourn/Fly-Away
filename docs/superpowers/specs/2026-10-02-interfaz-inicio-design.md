@@ -112,10 +112,12 @@ Así el botón "atrás" del navegador y recargar la página funcionan. Las fecha
   - Fechas: `<input type="date">` nativo (`min` = hoy / = la primera fecha).
   - **Pasajeros y clase**: dos `<select>` en el mismo bloque: 1–9 pasajeros y Economy / Primera.
   - Botón **Buscar** (naranja).
-- Al cargar con query string, el formulario se completa con esos valores.
+- Al cargar con query string, el formulario se completa con esos valores. Si la URL es inválida, los errores se marcan en cada campo (y el de precio en `FiltroPrecio`) hasta el primer envío.
 - Validación (solo UX; el backend la repetirá), con mensaje bajo el campo:
   - ida y vuelta: origen y destino obligatorios; solo ida: al menos uno de los dos;
-  - si están los dos, distintos;
+  - si están los dos, distintos y de ciudades distintas (AEP/EZE no);
+  - códigos IATA que no están en la lista de aeropuertos → "No conocemos ese aeropuerto" (se valida recién con los aeropuertos cargados);
+  - `clase` desconocida en la URL → error (no se cambia en silencio);
   - ida / desde obligatoria y ≥ hoy;
   - hasta ≥ desde y rango de hasta **14 días** (contando ambos extremos);
   - vuelta obligatoria en "Ida y vuelta" y ≥ ida;
@@ -201,9 +203,12 @@ Mock:
 - `buscarVuelos(params, ahora = new Date())`: `ahora` se inyecta para poder probar "ya salió".
 - Sesión: `loginDemo()` guarda un token falso en `localStorage.access` (la clave que ya usa `api.ts`). `usuarioActual()` devuelve un pasajero de prueba (Felipe Tourn) si hay token y `null` si no. El header se actualiza al loguearse o desloguearse: `SesionProvider` (contexto de React en `lib/sesion.tsx`) expone `{ usuario, loginDemo, logout }` y envuelve la app en `main.tsx`.
 
+Si `getAeropuertos` falla: "No pudimos cargar los aeropuertos. Probá de nuevo." con Reintentar, y no se busca.
+
 ## Accesibilidad y responsive
 
 - Cada campo con `<label>`, foco visible, botón ⇄ con `aria-label="Invertir origen y destino"`, avatar con `aria-label="Mi perfil"`, montos con `aria-label`.
+- Se anuncia solo el resumen de resultados (`aria-live` en el subtítulo), la carga es `role="status"`, los errores `role="alert"`, el paso actual lleva `aria-current="step"` y cada control con error tiene `aria-invalid` + `aria-describedby`.
 - Contraste: texto sobre el hero siempre sobre el velo marino.
 - Responsive desde 360px: el buscador apila los campos, la fila de precio se acomoda y las cards van en una columna.
 
