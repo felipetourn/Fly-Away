@@ -9,7 +9,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 - App `vuelos`: aeropuertos, aviones y vuelos con los constraints del DBML; `GET /api/aeropuertos/`, `/api/vuelos/buscar/` y `/api/vuelos/{id}/`. El front ya no usa el mock de vuelos.
 - Búsqueda sin límite de días; en ida y vuelta, la ida y la vuelta aceptan fecha exacta o rango.
 - `python manage.py seed`: datos de ejemplo. Corre en `build.sh` (Render free no tiene shell).
-- **Deploy:** antes del primer deploy de esta rama, resetear Supabase (borrar todas las tablas: las de `accounts` chocan con la migración nueva).
+- **Supabase reseteada (2026-10-02)** y preparada para esta rama: `migrate` + `seed` aplicados (11 aeropuertos, 4 aviones, 13 124 vuelos); constraints y API verificados contra Postgres. Hasta el merge, el backend de `main` en Render no encuentra las tablas de `accounts` (admin/login caídos; el front usa mock, no se entera).
 - **Local:** si `backend/.env` tiene `DATABASE_URL` de Supabase, correr tests/seed/runserver con `DATABASE_URL=` (SQLite) para no tocar la BD compartida.
 
 **2026-10-02 — Detalle de vuelo, US05 (rama `feat/detalle-vuelo`)**
@@ -77,7 +77,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Próximos pasos
 
-1. Resetear la BD de Supabase antes del primer deploy de `feat/backend-vuelos`.
+1. Mergear `feat/backend-vuelos` a `main` (Supabase ya está lista) y crear el superusuario con `createsuperuser`.
 2. ABM de vuelos (admin), con generación de N filas a partir de días + período. Al terminarlo, sacar `seed` de `build.sh`.
 3. Compra: cerrar los pendientes del modelo (arriba) y sumar reservas + pasajes + pagos + emails.
 4. Reportes de ocupación.
