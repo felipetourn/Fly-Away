@@ -1,10 +1,12 @@
 import datetime as dt
 import uuid
 from decimal import Decimal
+from io import StringIO
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
+from django.core.management import call_command
 from django.db import IntegrityError, transaction
 from rest_framework.test import APITestCase
 
@@ -243,3 +245,36 @@ class ErroresBusquedaTests(Datos):
             'precio_min',
             'El mínimo no puede ser mayor que el máximo.',
         )
+
+
+class SeedTests(Datos):
+    def correr(self):
+        call_command('seed', dias=3, stdout=StringIO())
+
+    def test_carga_datos_de_ejemplo(self):
+        self.correr()
+        self.assertEqual(Aeropuerto.objects.count(), 11)
+        self.assertEqual(Avion.objects.count(), 4)
+        self.assertGreater(Vuelo.objects.count(), 0)
+        sistema = get_user_model().objects.get(email='sistema@flyaway.local')
+        self.assertEqual(sistema.rol, 'administrador')
+        self.assertFalse(sistema.has_usable_password())
+
+    def test_vuelos_coherentes(self):
+        self.correr()
+        vuelos = Vuelo.objects.select_related('aeropuerto_origen', 'aeropuerto_destino')
+        for v in vuelos:
+            self.assertNotEqual(v.aeropuerto_origen.ciudad, v.aeropuerto_destino.ciudad, v)
+            self.assertGreater(v.hora_llegada, v.hora_partida, v)
+            self.assertTrue(HOY <= v.fecha_operacion < HOY + dt.timedelta(days=3), v)
+
+    def test_idempotente_y_no_pisa_cambios(self):
+        self.correr()
+        cantidades = (Aeropuerto.objects.count(), Avion.objects.count(), Vuelo.objects.count())
+        v = Vuelo.objects.first()
+        v.asientos_disponibles_economy = 0
+        v.save()
+        self.correr()
+        self.assertEqual((Aeropuerto.objects.count(), Avion.objects.count(), Vuelo.objects.count()), cantidades)
+        v.refresh_from_db()
+        self.assertEqual(v.asientos_disponibles_economy, 0)
