@@ -1,6 +1,7 @@
 """Datos de ejemplo: aeropuertos, flota y vuelos de los próximos días. Idempotente.
 
 Existe porque todavía no hay ABM de vuelos. Sacarlo de build.sh cuando exista.
+Solo crea lo que falta: no pisa correcciones hechas desde el admin.
 """
 import datetime as dt
 import random
@@ -49,13 +50,13 @@ class Command(BaseCommand):
             sistema.save()
 
         aeropuertos = [
-            Aeropuerto.objects.update_or_create(
+            Aeropuerto.objects.get_or_create(
                 codigo_iata=iata, defaults={'ciudad': ciudad, 'nombre': nombre, 'pais': 'Argentina'}
             )[0]
             for iata, ciudad, nombre in AEROPUERTOS
         ]
         aviones = [
-            Avion.objects.update_or_create(
+            Avion.objects.get_or_create(
                 matricula=matricula,
                 defaults={'modelo': modelo, 'capacidad_economy': economy, 'capacidad_primera': primera},
             )[0]

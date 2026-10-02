@@ -278,3 +278,11 @@ class SeedTests(Datos):
         self.assertEqual((Aeropuerto.objects.count(), Avion.objects.count(), Vuelo.objects.count()), cantidades)
         v.refresh_from_db()
         self.assertEqual(v.asientos_disponibles_economy, 0)
+
+    def test_no_pisa_correcciones_del_admin(self):
+        self.correr()
+        Aeropuerto.objects.filter(codigo_iata='BHI').update(nombre='Corregido a mano')
+        Avion.objects.filter(matricula='LV-FAA').update(capacidad_economy=140)
+        self.correr()
+        self.assertEqual(Aeropuerto.objects.get(codigo_iata='BHI').nombre, 'Corregido a mano')
+        self.assertEqual(Avion.objects.get(matricula='LV-FAA').capacidad_economy, 140)
