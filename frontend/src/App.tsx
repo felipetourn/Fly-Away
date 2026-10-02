@@ -3,6 +3,7 @@ import Header from './components/Header'
 import Login from './pages/Login'
 import Perfil from './pages/Perfil'
 import Proximamente from './pages/Proximamente'
+import Vuelos from './pages/Vuelos'
 
 function LayoutPasajero() {
   return (
@@ -19,7 +20,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
       <Routes>
         <Route element={<LayoutPasajero />}>
-          <Route index element={<Proximamente titulo="Vuelos" />} />
+          <Route index element={<Vuelos />} />
           <Route path="reservas" element={<Proximamente titulo="Mis reservas" />} />
           <Route path="perfil" element={<Perfil />} />
           <Route path="login" element={<Login />} />
