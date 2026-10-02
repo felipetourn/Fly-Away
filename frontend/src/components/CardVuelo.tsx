@@ -1,0 +1,63 @@
+import { NOMBRE_CLASE, type Clase } from '../lib/busqueda'
+import { duracion, fechaCorta, hora, precio } from '../lib/formato'
+import { asientosDe, duracionDe, precioDe, type Vuelo } from '../lib/vuelos'
+
+interface Props {
+  vuelo: Vuelo
+  clase: Clase
+  onElegir: () => void
+}
+
+export default function CardVuelo({ vuelo, clase, onElegir }: Props) {
+  const quedan = asientosDe(vuelo, clase)
+  return (
+    <article className="group flex flex-col rounded-3xl border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:border-cielo hover:shadow-xl hover:shadow-marino/10">
+      <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+        <span className="flex items-center gap-2 text-sm font-semibold text-marino">
+          <img src="/titulo.svg" alt="Fly Away" className="h-3" />
+          {vuelo.numero_vuelo}
+        </span>
+        <span className="rounded-full bg-cielo/10 px-2.5 py-0.5 text-xs font-bold text-cielo">Directo</span>
+      </div>
+
+      <div className="flex items-center gap-3 px-5 py-5">
+        <div>
+          <p className="text-2xl font-extrabold">{hora(vuelo.hora_partida)}</p>
+          <p className="text-sm font-semibold text-slate-500">{vuelo.origen.codigo_iata}</p>
+        </div>
+        <div className="flex-1 text-center text-xs text-slate-400">
+          {duracion(duracionDe(vuelo))}
+          <div className="relative my-1 h-px bg-slate-300">
+            <span aria-hidden="true" className="absolute -top-2 left-1/2 -translate-x-1/2 bg-white px-1 text-naranja">
+              ✈
+            </span>
+          </div>
+          {fechaCorta(vuelo.fecha_operacion)}
+        </div>
+        <div className="text-right">
+          <p className="text-2xl font-extrabold">{hora(vuelo.hora_llegada)}</p>
+          <p className="text-sm font-semibold text-slate-500">{vuelo.destino.codigo_iata}</p>
+        </div>
+      </div>
+
+      <div className="mt-auto flex items-end justify-between rounded-b-3xl bg-slate-50 px-5 py-4">
+        <div>
+          <p className="text-xs text-slate-500">Por persona · {NOMBRE_CLASE[clase]}</p>
+          <p className="text-2xl font-extrabold text-marino">{precio(precioDe(vuelo, clase))}</p>
+          <p className={`text-xs font-semibold ${quedan <= 5 ? 'text-naranja' : 'text-slate-400'}`}>
+            {quedan <= 5
+              ? `¡Quedan ${quedan} ${quedan === 1 ? 'asiento' : 'asientos'}!`
+              : `${quedan} asientos disponibles`}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onElegir}
+          className="rounded-xl bg-marino px-4 py-2 text-sm font-bold text-white group-hover:bg-cielo hover:bg-cielo"
+        >
+          Elegir
+        </button>
+      </div>
+    </article>
+  )
+}
