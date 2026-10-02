@@ -48,7 +48,7 @@ function Extremo({
       <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase">{etiqueta}</p>
       <p className="text-4xl font-extrabold">{hora(horario)}</p>
       <p className="font-bold text-marino">
-        {aeropuerto.codigo_iata} · {aeropuerto.ciudad}
+        {aeropuerto.codigo_iata} - {aeropuerto.ciudad}
       </p>
       <p className="text-sm text-slate-500">{aeropuerto.nombre}</p>
       {children}

@@ -38,7 +38,7 @@ export default function ListaVuelos({
   // Vuelo cuyo detalle está abierto (null = diálogo cerrado).
   const [detalle, setDetalle] = useState<Vuelo | null>(null)
   const encontrados =
-    estado === 'ok' ? ` · ${vuelos.length} ${vuelos.length === 1 ? 'vuelo encontrado' : 'vuelos encontrados'}` : ''
+    estado === 'ok' ? `, ${vuelos.length} ${vuelos.length === 1 ? 'vuelo encontrado' : 'vuelos encontrados'}` : ''
   return (
     <section>
       <h2 className="mb-1 text-2xl font-extrabold text-marino md:text-3xl">{titulo}</h2>
