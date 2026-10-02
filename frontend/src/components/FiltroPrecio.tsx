@@ -35,7 +35,7 @@ export default function FiltroPrecio({ min, max, clase, errorInicial, onAplicar 
       noValidate
       className="mb-8 flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm"
     >
-      <span className="font-semibold text-marino">Precio por persona · {NOMBRE_CLASE[clase] ?? ''}</span>
+      <span className="font-semibold text-marino">Precio por persona - {NOMBRE_CLASE[clase] ?? ''}</span>
       <label className={campo}>
         <span className="text-slate-400">$</span>
         <input

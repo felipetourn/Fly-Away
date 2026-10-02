@@ -44,7 +44,7 @@ export default function CardVuelo({ vuelo, clase, onElegir, onVerDetalle }: Prop
 
       <div className="mt-auto flex flex-wrap items-end justify-between gap-3 rounded-b-3xl bg-slate-50 px-5 py-4">
         <div>
-          <p className="text-xs text-slate-500">Por persona · {NOMBRE_CLASE[clase]}</p>
+          <p className="text-xs text-slate-500">Por persona - {NOMBRE_CLASE[clase]}</p>
           <p className="text-2xl font-extrabold text-marino">{precio(precioDe(vuelo, clase))}</p>
           <p className={`text-xs font-semibold ${pocos ? 'text-naranja' : 'text-slate-400'}`}>
             {pocos ? `¡Quedan ${quedan} ${quedan === 1 ? 'asiento' : 'asientos'}!` : `${quedan} asientos disponibles`}
