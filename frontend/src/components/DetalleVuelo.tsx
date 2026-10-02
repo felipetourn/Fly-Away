@@ -119,7 +119,7 @@ export default function DetalleVuelo({ vuelo, clase, pasajeros, onElegir, onCerr
     >
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-4 sm:px-6">
         <div className="flex items-center gap-3">
-          <img src="/logoA.svg" alt="" className="h-8" />
+          <img src="/logoA.svg" alt="" className="h-10" />
           <h2 id={titulo} className="text-lg font-extrabold text-marino">
             <span className="sr-only">Vuelo </span>
             {v.numero_vuelo}
@@ -190,7 +190,7 @@ export default function DetalleVuelo({ vuelo, clase, pasajeros, onElegir, onCerr
                   Clase
                 </th>
                 <th scope="col" className="px-1.5 pb-1 font-semibold sm:px-3">
-                  Precio x persona
+                  Precio por persona
                 </th>
                 {/* En mobile no entra: la cantidad va debajo del estado. */}
                 <th scope="col" className="hidden px-1.5 pb-1 font-semibold sm:table-cell sm:px-3">

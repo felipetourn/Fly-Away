@@ -104,6 +104,7 @@ export default function ListaVuelos({
       )}
       {detalle && (
         <DetalleVuelo
+          key={detalle.id}
           vuelo={detalle}
           clase={clase}
           pasajeros={pasajeros}

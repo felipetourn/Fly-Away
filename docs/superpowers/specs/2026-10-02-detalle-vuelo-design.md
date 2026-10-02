@@ -47,7 +47,7 @@ Tareas de la US y dónde quedan: definir la información (esta sección), crear 
 ### Diálogo de detalle (`components/DetalleVuelo.tsx`, nuevo)
 - `<dialog>` nativo abierto con `showModal()`: fondo oscurecido (velo marino con blur), foco dentro del diálogo, **Esc** lo cierra. También cierran la ✕ y "Cerrar".
 - Ancho `min(44rem, 100% − 2rem)`, alto máximo 90vh con scroll interno, esquinas `rounded-3xl`.
-- **Cabecera:** `public/logoA.svg` (32px de alto), número de vuelo (`FA 1010`, extrabold marino), badge "Directo", botón ✕ (`aria-label="Cerrar"`).
+- **Cabecera:** `public/logoA.svg` (40px de alto), número de vuelo (`FA 1010`, extrabold marino), badge "Directo", botón ✕ (`aria-label="Cerrar"`).
 - **Cuerpo:**
   - Fecha completa (`fechaCompleta`).
   - Trayecto en 3 columnas (desde `sm`; apiladas debajo): origen (etiqueta "Origen", hora, `IATA · Ciudad`, nombre del aeropuerto) · duración + línea con ✈ + "Directo" · destino (igual, alineado a la derecha).
