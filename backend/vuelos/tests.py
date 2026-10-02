@@ -1,4 +1,5 @@
 import datetime as dt
+import uuid
 from decimal import Decimal
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
@@ -76,3 +77,45 @@ class ModeloVueloTests(Datos):
         self.vuelo(fecha=HOY + dt.timedelta(days=2))  # mismo número, otro día: vale
         with self.assertRaises(IntegrityError), transaction.atomic():
             self.vuelo()
+
+
+VUELO_CAMPOS = {
+    'id', 'numero_vuelo', 'origen', 'destino', 'fecha_operacion', 'hora_partida', 'hora_llegada',
+    'precio_economy', 'precio_primera', 'asientos_disponibles_economy', 'asientos_disponibles_primera', 'estado',
+}
+
+
+class AeropuertosTests(Datos):
+    def test_lista_ordenada_por_ciudad(self):
+        r = self.client.get('/api/aeropuertos/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual([a['codigo_iata'] for a in r.json()], ['BHI', 'AEP', 'EZE', 'COR'])
+        self.assertEqual(set(r.json()[0]), {'id', 'codigo_iata', 'nombre', 'ciudad', 'pais'})
+
+
+class DetalleTests(Datos):
+    def test_detalle_con_avion_y_forma_de_la_api(self):
+        v = self.vuelo()
+        r = self.client.get(f'/api/vuelos/{v.id}/')
+        self.assertEqual(r.status_code, 200)
+        d = r.json()
+        self.assertEqual(set(d), VUELO_CAMPOS | {'avion'})
+        self.assertEqual(d['id'], str(v.id))
+        self.assertEqual(d['avion'], {'matricula': 'LV-FAA', 'modelo': 'Airbus A320'})
+        self.assertEqual(d['origen']['codigo_iata'], 'BHI')
+        self.assertEqual(d['destino']['ciudad'], 'Buenos Aires')
+        self.assertEqual(d['precio_economy'], '100000.00')
+        self.assertEqual(d['hora_partida'], '15:00:00')
+        self.assertEqual(d['fecha_operacion'], str(HOY + dt.timedelta(days=1)))
+
+    def test_detalle_de_un_cancelado(self):
+        v = self.vuelo(estado=Vuelo.Estado.CANCELADO)
+        r = self.client.get(f'/api/vuelos/{v.id}/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['estado'], 'cancelado')
+
+    def test_404_en_json(self):
+        for id_ in (uuid.uuid4(), 'no-es-un-uuid'):
+            r = self.client.get(f'/api/vuelos/{id_}/')
+            self.assertEqual(r.status_code, 404, id_)
+            self.assertIn('detail', r.json())
