@@ -86,7 +86,7 @@ Devuelve los vuelos que cumplen **todas** estas condiciones (es la misma regla q
 5. `precio_<clase>` dentro de `[precio_min, precio_max]`.
 6. Que no hayan salido: si la fecha es hoy, `hora_partida` tiene que ser posterior a la hora actual de `America/Argentina/Buenos_Aires` (el `TIME_ZONE` del proyecto).
 
-Se ordenan por `fecha_operacion` y `hora_partida`. La consulta usa `select_related` para traer los aeropuertos sin hacer N+1 queries.
+Se ordenan por `fecha_operacion` y `hora_partida` (y `numero_vuelo` como desempate). La consulta usa `select_related` para traer los aeropuertos sin hacer N+1 queries.
 
 La validación la hace un `Serializer` de DRF sobre `request.query_params`.
 
@@ -97,7 +97,7 @@ Usamos el formato estándar de DRF: un objeto con el **nombre del parámetro** c
 ```json
 HTTP 400
 {
-  "origen": ["Indicá un origen, un destino o ambos."],
+  "desde": ["La fecha no puede ser en el pasado."],
   "pasajeros": ["Tienen que ser entre 1 y 9 pasajeros."]
 }
 ```
