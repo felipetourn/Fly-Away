@@ -1,6 +1,6 @@
 import uuid
 
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import generics
 from rest_framework.pagination import PageNumberPagination
@@ -14,11 +14,12 @@ from .serializers import (
     AltaVueloSerializer,
     AvionSerializer,
     BusquedaSerializer,
+    EdicionVueloSerializer,
     FiltrosListadoSerializer,
     VueloDetalleSerializer,
     VueloSerializer,
 )
-from .servicios import crear_vuelos, error_general
+from .servicios import crear_vuelos, error_general, exigir_modificable
 
 
 class AeropuertosView(generics.ListAPIView):
@@ -59,11 +60,48 @@ class BuscarVuelosView(APIView):
         return Response(VueloSerializer(vuelos, many=True).data)
 
 
-class VueloDetalleView(generics.RetrieveAPIView):
-    """Incluye cancelados: el detalle informa la cancelación. Un id que no es UUID da 404 (no 500)."""
+VUELOS_CON_RELACIONES = Vuelo.objects.select_related('avion', 'aeropuerto_origen', 'aeropuerto_destino')
 
-    queryset = Vuelo.objects.select_related('avion', 'aeropuerto_origen', 'aeropuerto_destino')
+
+class VueloDetalleView(generics.RetrieveAPIView):
+    """GET público (incluye cancelados: el detalle informa la cancelación). PATCH solo del administrador.
+
+    Un id que no es UUID da 404 (no 500).
+    """
+
     serializer_class = VueloDetalleSerializer
+
+    def get_queryset(self):
+        if self.request.method == 'PATCH':
+            return VUELOS_CON_RELACIONES.select_for_update(of=('self',))
+        return VUELOS_CON_RELACIONES
+
+    def get_permissions(self):
+        return [EsAdministrador()] if self.request.method == 'PATCH' else super().get_permissions()
+
+    @transaction.atomic
+    def patch(self, request, *args, **kwargs):
+        vuelo = self.get_object()
+        exigir_modificable(vuelo)
+        edicion = EdicionVueloSerializer(vuelo, data=request.data, partial=True)
+        edicion.is_valid(raise_exception=True)
+        edicion.save()
+        return Response(VueloDetalleSerializer(vuelo).data)
+
+
+class CancelarVueloView(generics.GenericAPIView):
+    """Cancela una instancia: cambia el estado, no borra la fila (US03)."""
+
+    permission_classes = [EsAdministrador]
+    queryset = VUELOS_CON_RELACIONES.select_for_update(of=('self',))
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        vuelo = self.get_object()
+        exigir_modificable(vuelo)
+        vuelo.estado = Vuelo.Estado.CANCELADO
+        vuelo.save(update_fields=['estado', 'actualizado_en'])
+        return Response(VueloDetalleSerializer(vuelo).data)
 
 
 class Paginacion(PageNumberPagination):
@@ -87,9 +125,7 @@ class VuelosView(generics.ListAPIView):
         filtros = FiltrosListadoSerializer(data={k: v for k, v in self.request.query_params.items() if v != ''})
         filtros.is_valid(raise_exception=True)
         f = filtros.validated_data
-        vuelos = Vuelo.objects.select_related('avion', 'aeropuerto_origen', 'aeropuerto_destino').order_by(
-            'fecha_operacion', 'hora_partida', 'numero_vuelo'
-        )
+        vuelos = VUELOS_CON_RELACIONES.order_by('fecha_operacion', 'hora_partida', 'numero_vuelo')
         q = f.get('q')
         if q:
             try:

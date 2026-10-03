@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from .models import Aeropuerto, Avion, Vuelo
-from .servicios import errores_de_ruta_y_horas, fechas_de_periodo
+from .servicios import choque_de_avion, errores_de_ruta_y_horas, fecha_llegada_de, fechas_de_periodo
 
 
 class AeropuertoSerializer(serializers.ModelSerializer):
@@ -196,3 +196,74 @@ class AltaVueloSerializer(serializers.Serializer):
                 f'Hay fechas repetidas entre períodos: {", ".join(map(str, repetidas))}.'
             )
         return datos
+
+
+CLASES = ('economy', 'primera')
+
+
+class EdicionVueloSerializer(serializers.Serializer):
+    """Cuerpo de PATCH /vuelos/<id>/ (siempre parcial). Lo que no se manda queda como está.
+
+    numero_vuelo, estado, asientos y fecha_llegada no son campos: si llegan, se ignoran.
+    """
+
+    fecha_operacion = serializers.DateField()
+    hora_partida = serializers.TimeField()
+    hora_llegada = serializers.TimeField()
+    origen = _aeropuerto()
+    destino = _aeropuerto()
+    avion = serializers.PrimaryKeyRelatedField(queryset=Avion.objects.all())
+    precio_economy = _precio()
+    precio_primera = _precio()
+
+    def _asientos(self, avion):
+        """Asientos disponibles por clase si el vuelo pasara a `avion`: capacidad nueva menos vendidos."""
+        vuelo = self.instance
+        return {
+            clase: getattr(avion, f'capacidad_{clase}')
+            - (getattr(vuelo.avion, f'capacidad_{clase}') - getattr(vuelo, f'asientos_disponibles_{clase}'))
+            for clase in CLASES
+        }
+
+    def validate(self, datos):
+        vuelo = self.instance
+        fecha = datos.get('fecha_operacion', vuelo.fecha_operacion)
+        partida = datos.get('hora_partida', vuelo.hora_partida)
+        llegada = datos.get('hora_llegada', vuelo.hora_llegada)
+        avion = datos.get('avion', vuelo.avion)
+        errores = errores_de_ruta_y_horas(
+            datos.get('origen', vuelo.aeropuerto_origen), datos.get('destino', vuelo.aeropuerto_destino), partida, llegada
+        )
+        ahora = timezone.localtime()
+        if (fecha, partida) <= (ahora.date(), ahora.time()):
+            errores['fecha_operacion'] = 'La partida tiene que ser en el futuro.'
+        elif fecha > ahora.date() + dt.timedelta(days=MAX_DIAS_ADELANTE):
+            errores['fecha_operacion'] = 'La fecha no puede pasar de un año desde hoy.'
+        elif Vuelo.objects.filter(numero_vuelo=vuelo.numero_vuelo, fecha_operacion=fecha).exclude(pk=vuelo.pk).exists():
+            errores['fecha_operacion'] = f'El {vuelo.numero_vuelo} ya tiene un vuelo ese día.'
+        if avion != vuelo.avion and min(self._asientos(avion).values()) < 0:
+            errores['avion'] = 'Ese avión no tiene lugar para los pasajes ya vendidos.'
+        if errores:
+            raise serializers.ValidationError(errores)
+        candidato = Vuelo(
+            avion=avion, fecha_operacion=fecha, fecha_llegada=fecha_llegada_de(fecha, partida, llegada),
+            hora_partida=partida, hora_llegada=llegada,
+        )
+        choque = choque_de_avion([candidato], excluir=vuelo.pk)
+        if choque:
+            raise serializers.ValidationError(choque)
+        return datos
+
+    def update(self, vuelo, datos):
+        avion = datos.get('avion', vuelo.avion)
+        if avion != vuelo.avion:
+            for clase, asientos in self._asientos(avion).items():
+                setattr(vuelo, f'asientos_disponibles_{clase}', asientos)
+            vuelo.avion = avion
+        vuelo.aeropuerto_origen = datos.get('origen', vuelo.aeropuerto_origen)
+        vuelo.aeropuerto_destino = datos.get('destino', vuelo.aeropuerto_destino)
+        for campo in ('fecha_operacion', 'hora_partida', 'hora_llegada', 'precio_economy', 'precio_primera'):
+            setattr(vuelo, campo, datos.get(campo, getattr(vuelo, campo)))
+        vuelo.fecha_llegada = fecha_llegada_de(vuelo.fecha_operacion, vuelo.hora_partida, vuelo.hora_llegada)
+        vuelo.save()
+        return vuelo

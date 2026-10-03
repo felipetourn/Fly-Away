@@ -576,3 +576,148 @@ class ListadoTests(AdminDatos):
         r = self.client.get('/api/aviones/')
         self.assertEqual([a['matricula'] for a in r.json()], ['LV-FAA', 'LV-FAB'])
         self.assertEqual(set(r.json()[0]), {'id', 'matricula', 'modelo', 'capacidad_economy', 'capacidad_primera'})
+
+
+class EdicionTests(AdminDatos):
+    def editar(self, vuelo, **cambios):
+        return self.client.patch(f'/api/vuelos/{vuelo.id}/', cambios, format='json')
+
+    def rechaza(self, vuelo, **cambios):
+        r = self.editar(vuelo, **cambios)
+        self.assertEqual(r.status_code, 400, r.content)
+        return r.json()
+
+    def test_solo_el_administrador_edita_y_el_detalle_sigue_publico(self):
+        v = self.vuelo()
+        self.solo_admin('patch', f'/api/vuelos/{v.id}/')
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get(f'/api/vuelos/{v.id}/').status_code, 200)
+
+    def test_edita_solo_esa_instancia(self):
+        v = self.vuelo('FA 1', fecha=MANANA)
+        otra = self.vuelo('FA 1', fecha=MANANA + dt.timedelta(days=1))
+        r = self.editar(
+            v, hora_partida='16:00', hora_llegada='17:30', precio_economy='90000.00', destino='COR',
+            fecha_operacion=str(MANANA + dt.timedelta(days=7)),
+        )
+        self.assertEqual(r.status_code, 200, r.content)
+        d = r.json()
+        self.assertEqual(set(d), VUELO_CAMPOS | {'avion'})
+        self.assertEqual((d['id'], d['numero_vuelo']), (str(v.id), 'FA 1'))
+        self.assertEqual((d['hora_partida'], d['hora_llegada'], d['precio_economy']), ('16:00:00', '17:30:00', '90000.00'))
+        self.assertEqual(d['destino']['codigo_iata'], 'COR')
+        self.assertEqual(d['fecha_operacion'], d['fecha_llegada'])
+        v.refresh_from_db()
+        self.assertEqual(v.fecha_operacion, MANANA + dt.timedelta(days=7))
+        otra.refresh_from_db()
+        self.assertEqual((otra.hora_partida, otra.precio_economy), (dt.time(15), Decimal('100000.00')))
+        self.assertEqual(otra.aeropuerto_destino, self.aep)
+
+    def test_cruza_medianoche(self):
+        v = self.vuelo()
+        self.assertEqual(self.editar(v, hora_partida='23:30', hora_llegada='00:40').status_code, 200)
+        v.refresh_from_db()
+        self.assertEqual(v.fecha_llegada, v.fecha_operacion + dt.timedelta(days=1))
+
+    def test_cambio_de_avion_recalcula_asientos(self):
+        v = self.vuelo(asientos_disponibles_economy=140, asientos_disponibles_primera=10)  # vendidos: 10 y 2
+        self.assertEqual(self.editar(v, avion=str(self.avion2.id)).status_code, 200)
+        v.refresh_from_db()
+        self.assertEqual((v.avion, v.asientos_disponibles_economy, v.asientos_disponibles_primera), (self.avion2, 86, 6))
+
+    def test_cambio_de_avion_sin_lugar_para_lo_vendido(self):
+        v = self.vuelo('FA 2')  # disponibles 30 y 5 sobre 150 y 12: vendidos 120 y 7; el otro avión tiene 96 y 8
+        self.assertEqual(
+            self.rechaza(v, avion=str(self.avion2.id)),
+            {'avion': ['Ese avión no tiene lugar para los pasajes ya vendidos.']},
+        )
+
+    def test_cuerpo_vacio_y_campos_no_editables(self):
+        v = self.vuelo()
+        self.assertEqual(self.editar(v).status_code, 200)
+        r = self.editar(v, numero_vuelo='FA 9', estado='cancelado', asientos_disponibles_economy=1, fecha_llegada='2030-01-01')
+        self.assertEqual(r.status_code, 200)
+        v.refresh_from_db()
+        self.assertEqual((v.numero_vuelo, v.estado, v.asientos_disponibles_economy), ('FA 1000', 'activo', 30))
+        self.assertEqual(v.fecha_llegada, v.fecha_operacion)
+
+    def test_validaciones(self):
+        v = self.vuelo('FA 1', fecha=MANANA)
+        self.vuelo('FA 1', fecha=MANANA + dt.timedelta(days=1))
+        self.assertEqual(self.rechaza(v, destino='BHI'), {'destino': ['El destino tiene que ser distinto del origen.']})
+        self.assertEqual(
+            self.rechaza(v, hora_llegada='15:00'),
+            {'hora_llegada': ['La llegada no puede ser a la misma hora que la partida.']},
+        )
+        self.assertEqual(
+            self.rechaza(v, fecha_operacion=str(HOY), hora_partida='11:00'),
+            {'fecha_operacion': ['La partida tiene que ser en el futuro.']},
+        )
+        self.assertEqual(
+            self.rechaza(v, fecha_operacion=str(HOY + dt.timedelta(days=366))),
+            {'fecha_operacion': ['La fecha no puede pasar de un año desde hoy.']},
+        )
+        self.assertEqual(
+            self.rechaza(v, fecha_operacion=str(MANANA + dt.timedelta(days=1))),
+            {'fecha_operacion': ['El FA 1 ya tiene un vuelo ese día.']},
+        )
+        self.assertIn('precio_economy', self.rechaza(v, precio_economy='0'))
+        self.assertIn('avion', self.rechaza(v, avion='no-es-un-uuid'))
+        self.assertIn('origen', self.rechaza(v, origen='ZZZ'))
+
+    def test_avion_ocupado_por_otro_vuelo(self):
+        v = self.vuelo('FA 1', fecha=MANANA, partida='15:00')
+        self.vuelo('FA 2', fecha=MANANA, partida='18:00')
+        self.assertEqual(
+            self.rechaza(v, hora_partida='17:30', hora_llegada='18:30'),
+            {'non_field_errors': ['LV-FAA ya está asignado al FA 2 el 2026-10-21 de 18:00 a 19:00.']},
+        )
+        self.assertEqual(self.editar(v, hora_partida='15:30', hora_llegada='16:30').status_code, 200, 'no choca consigo mismo')
+
+    def test_no_edita_cancelados_ni_los_que_ya_salieron(self):
+        cancelado = self.vuelo('FA 1', estado=Vuelo.Estado.CANCELADO)
+        salio = self.vuelo('FA 2', fecha=HOY, partida='11:00')
+        self.assertEqual(self.rechaza(cancelado, precio_economy='1.00'), {'non_field_errors': ['El vuelo ya está cancelado.']})
+        self.assertEqual(self.rechaza(salio, precio_economy='1.00'), {'non_field_errors': ['El vuelo ya salió.']})
+
+    def test_404(self):
+        for id_ in (uuid.uuid4(), 'no-es-un-uuid'):
+            self.assertEqual(self.client.patch(f'/api/vuelos/{id_}/', {}, format='json').status_code, 404, id_)
+
+
+class CancelacionTests(AdminDatos):
+    def cancelar(self, id_):
+        return self.client.post(f'/api/vuelos/{id_}/cancelar/')
+
+    def test_solo_el_administrador(self):
+        self.solo_admin('post', f'/api/vuelos/{self.vuelo().id}/cancelar/')
+
+    def test_cancela_solo_esa_instancia_y_conserva_la_fila(self):
+        v = self.vuelo('FA 1', fecha=MANANA)
+        otra = self.vuelo('FA 1', fecha=MANANA + dt.timedelta(days=1))
+        r = self.cancelar(v.id)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual((r.json()['id'], r.json()['estado']), (str(v.id), 'cancelado'))
+        v.refresh_from_db()
+        otra.refresh_from_db()
+        self.assertEqual((v.estado, otra.estado), ('cancelado', 'activo'))
+        self.assertEqual(Vuelo.objects.count(), 2, 'no se borra nada')
+        self.assertEqual((v.precio_economy, v.asientos_disponibles_economy), (Decimal('100000.00'), 30))
+        buscar = lambda fecha: self.client.get('/api/vuelos/buscar/', {'origen': 'BHI', 'desde': str(fecha)}).json()
+        self.assertEqual(buscar(MANANA), [], 'el cancelado no se ofrece')
+        self.assertEqual(len(buscar(MANANA + dt.timedelta(days=1))), 1)
+        self.assertEqual(self.client.get(f'/api/vuelos/{v.id}/').json()['estado'], 'cancelado')
+
+    def test_no_cancela_cancelados_ni_los_que_ya_salieron(self):
+        cancelado = self.vuelo('FA 1', estado=Vuelo.Estado.CANCELADO)
+        salio = self.vuelo('FA 2', fecha=HOY, partida='11:00')
+        r = self.cancelar(cancelado.id)
+        self.assertEqual((r.status_code, r.json()), (400, {'non_field_errors': ['El vuelo ya está cancelado.']}))
+        r = self.cancelar(salio.id)
+        self.assertEqual((r.status_code, r.json()), (400, {'non_field_errors': ['El vuelo ya salió.']}))
+        salio.refresh_from_db()
+        self.assertEqual(salio.estado, 'activo')
+
+    def test_404(self):
+        for id_ in (uuid.uuid4(), 'no-es-un-uuid'):
+            self.assertEqual(self.cancelar(id_).status_code, 404, id_)
