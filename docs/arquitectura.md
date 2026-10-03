@@ -97,11 +97,11 @@ Traducción a Django (al implementar):
 ## API (propuesta)
 
 ```
-POST /api/auth/token/            login → {access, refresh}        ✅ hecho
-POST /api/auth/token/refresh/                                      ✅ hecho
+POST /api/auth/token/            login por email → {access, refresh} ✅
+POST /api/auth/token/refresh/                                      ✅
+POST /api/auth/registro/         alta pública de pasajero            ✅
+GET  /api/auth/yo/               usuario autenticado (JWT)            ✅
 GET  /api/health/                                                  ✅ hecho
-POST /api/auth/registro/         alta de pasajero
-GET  /api/auth/yo/               usuario logueado {id, email, nombre, apellido, rol} (header del front)
 GET  /api/aeropuertos/                                             ✅ hecho
 GET  /api/vuelos/buscar/?origen=&destino=&desde=&hasta=&pasajeros=&clase=&precio_min=&precio_max=   ✅ hecho
                                  origen y/o destino (al menos uno), hasta opcional (sin límite de días);
@@ -117,6 +117,8 @@ GET  /api/reservas/mias/
 GET  /api/pasajes/{codigo}/pdf/  descarga ticket electrónico
 GET  /api/reportes/ocupacion/?vuelo=&desde=&hasta=   (admin)
 ```
+
+El registro público siempre asigna el rol `pasajero` y valida la contraseña con los validadores de Django. Las cuentas de administrador y empleado se provisionan desde Django Admin por un administrador; las contraseñas se ingresan como texto en el formulario y se guardan hasheadas. Solo los usuarios activos con rol `administrador` son staff y acceden a Django Admin; empleados y pasajeros no acceden. El frontend renueva el access token con el refresh al recibir un 401 y descarta la sesión si la renovación falla. Las rutas `/admin/*` (React) y `/mostrador/*` exigen administrador y empleado, respectivamente; las búsquedas públicas de vuelos siguen abiertas. Cualquier nueva operación de negocio exclusiva por rol debe validar el permiso también en su endpoint de backend.
 
 **Errores 400:** formato estándar de DRF, `{"parametro": ["mensaje"]}`, con mensajes en español (los mismos que muestra el front). Un parámetro vacío (`?hasta=`) cuenta como no enviado. El 404 es `{"detail": "..."}`.
 
