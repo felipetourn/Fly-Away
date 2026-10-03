@@ -1,5 +1,6 @@
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
+import { EsqueletoPagina } from './components/Esqueleto'
 import Header from './components/Header'
 import type { Usuario } from './lib/auth'
 import { useSesion } from './lib/sesion'
@@ -13,7 +14,7 @@ import Vuelos from './pages/Vuelos'
 
 function RutaProtegida({ roles, children }: { roles: Usuario['rol'][]; children: ReactNode }) {
   const { usuario, cargando } = useSesion()
-  if (cargando) return <main className="p-8" aria-busy="true">Cargando sesión…</main>
+  if (cargando) return <EsqueletoPagina />
   if (!usuario) return <Navigate to="/login" replace />
   if (!roles.includes(usuario.rol)) return <Navigate to="/" replace />
   return children

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { Esqueleto } from '../components/Esqueleto'
 import { POR_PAGINA, cancelarVuelo, listarVuelos, paginasVisibles, yaSalio, type FiltrosAdmin, type Pagina } from '../lib/adminVuelos'
 import { fechaCorta, hora, precio } from '../lib/formato'
 import { getAeropuertos, llegaAlDiaSiguiente, type Aeropuerto, type VueloDetalle } from '../lib/vuelos'
@@ -99,8 +100,8 @@ export default function AdminVuelos() {
   const clave = params.toString()
   const filtros = leerFiltros(params)
   const [aeropuertos, setAeropuertos] = useState<Aeropuerto[]>([])
-  const [resultado, setResultado] = useState<{ clave: string; pagina: Pagina<VueloDetalle> | null; error: string }>({
-    clave: '',
+  const [resultado, setResultado] = useState<{ clave: string | null; pagina: Pagina<VueloDetalle> | null; error: string }>({
+    clave: null, // null y no '': la primera carga sin filtros también muestra el esqueleto
     pagina: null,
     error: '',
   })
@@ -213,7 +214,24 @@ export default function AdminVuelos() {
       </form>
 
       {error && !cargando && <p role="alert" className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
-      {cargando && <p role="status" className="mt-6 text-sm text-slate-500">Cargando vuelos…</p>}
+      {cargando && (
+        <div role="status" aria-label="Cargando vuelos" className="mt-6">
+          <Esqueleto className="h-4 w-40" />
+          <div className="mt-2 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            <div className="border-b border-slate-200 px-3 py-3">
+              <Esqueleto className="h-4 w-full" />
+            </div>
+            {Array.from({ length: 8 }, (_, i) => (
+              <div key={i} className="flex items-center gap-4 border-b border-slate-100 px-3 py-3 last:border-0">
+                <Esqueleto className="h-4 w-64 max-w-[40%]" />
+                <Esqueleto className="h-4 w-20" />
+                <Esqueleto className="h-4 flex-1" />
+                <Esqueleto className="h-8 w-20" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {pagina && !cargando && (
         <>

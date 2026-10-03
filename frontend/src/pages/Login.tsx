@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { EsqueletoPagina } from '../components/Esqueleto'
 import { ApiError } from '../lib/api'
 import { useSesion } from '../lib/sesion'
 
@@ -12,7 +13,7 @@ export default function Login() {
   const [error, setError] = useState('')
   const [enviando, setEnviando] = useState(false)
 
-  if (cargando) return <main className="mx-auto max-w-md px-4 py-16" aria-busy="true">Cargando sesión…</main>
+  if (cargando) return <EsqueletoPagina angosta />
   if (usuario) return <Navigate to="/" replace />
 
   const enviar = async (event: FormEvent<HTMLFormElement>) => {
