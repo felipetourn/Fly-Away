@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import Header from './components/Header'
 import type { Usuario } from './lib/auth'
 import { useSesion } from './lib/sesion'
+import AdminVueloForm from './pages/AdminVueloForm'
 import AdminVuelos from './pages/AdminVuelos'
 import Login from './pages/Login'
 import Perfil from './pages/Perfil'
@@ -41,6 +42,8 @@ export default function App() {
           <Route path="empleado/reservas" element={<RutaProtegida roles={['empleado_mostrador']}><Proximamente titulo="Reservas" /></RutaProtegida>} />
           <Route path="admin/reservas" element={<RutaProtegida roles={['administrador']}><Proximamente titulo="Reservas" /></RutaProtegida>} />
           <Route path="admin/vuelos" element={<RutaProtegida roles={['administrador']}><AdminVuelos /></RutaProtegida>} />
+          <Route path="admin/vuelos/nuevo" element={<RutaProtegida roles={['administrador']}><AdminVueloForm /></RutaProtegida>} />
+          <Route path="admin/vuelos/:id" element={<RutaProtegida roles={['administrador']}><AdminVueloForm /></RutaProtegida>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
