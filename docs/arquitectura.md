@@ -37,14 +37,14 @@ Fly Away/
 │   ├── manage.py
 │   ├── config/               settings, urls, wsgi
 │   ├── usuarios/             modelo Usuario (tabla usuarios, login por email, rol)
-│   └── vuelos/               aeropuertos, aviones, vuelos; API de búsqueda/detalle; comando seed
+│   └── vuelos/               aeropuertos, aviones, vuelos; búsqueda, detalle y ABM del administrador; comando seed
 └── frontend/
     ├── .env.local / .env.example
     ├── vercel.json           rewrite SPA
     └── src/
         ├── lib/              api.ts (fetch + JWT), llamadas a la API, lógica pura (sesión todavía mock)
         ├── components/       Header, HeroCarrusel, BuscadorVuelos, FiltroPrecio, CardVuelo, ListaVuelos, DetalleVuelo
-        ├── pages/            pantallas
+        ├── pages/            pantallas (AdminVuelos y AdminVueloForm: ABM de vuelos)
         └── App.tsx           rutas: / (todos), /empleado/*, /admin/* (por rol)
 ```
 
@@ -77,7 +77,9 @@ notificaciones  usuario + vuelo (cambio de horario / cancelación)
 
 Ideas clave del modelo:
 
-- **Sin tabla de recurrencia.** El admin define días de semana + período en el front; el backend genera **una fila en `vuelos` por fecha**. Cada fila es independiente: modificar o cancelar una no afecta a las demás.
+- **Sin tabla de recurrencia.** El admin define en el alta uno o más períodos (desde, hasta, días de la semana, avión y precios); el backend genera **una fila en `vuelos` por fecha**, todas con el mismo `numero_vuelo` (lo asigna el backend) y cada una con su `id`. Cada fila es independiente: modificar o cancelar una no afecta a las demás.
+- **Llegada:** `fecha_llegada` la calcula el backend; es el día siguiente a `fecha_operacion` cuando `hora_llegada` es menor que `hora_partida`.
+- **Avión libre:** un avión no puede tener dos vuelos activos con horarios superpuestos. Se valida en el alta y en la edición; no contempla rotación ni la ubicación del avión.
 - **Capacidad:** al generar un vuelo, `asientos_disponibles_*` se inicializa con la `capacidad_*` del avión. Cada compra descuenta.
 - **Validaciones de compra** (backend, dentro de `transaction.atomic()` + `select_for_update()` sobre el vuelo):
   1. 1 ≤ `cantidad_pasajes` ≤ 9
@@ -112,8 +114,13 @@ GET  /api/vuelos/buscar/?origen=&destino=&desde=&hasta=&pasajeros=&clase=&precio
                                  origen/destino anidados (codigo_iata, ciudad…)
 GET  /api/vuelos/{id}/           ✅ hecho — detalle (US05): el mismo vuelo de la búsqueda + avion {matricula, modelo};
                                  incluye cancelados (estado = cancelado) en vez de 404
-CRUD /api/vuelos/                (admin) — el alta con días + período genera N filas
-POST /api/vuelos/{id}/cancelar/  (admin) → notifica por email
+GET  /api/vuelos/                (admin) ✅ listado paginado (50): q (id o número), origen, destino, desde, hasta, estado;
+                                 sin desde ni q, desde hoy
+POST /api/vuelos/                (admin) ✅ alta: origen, destino, horas y periodos[{desde, hasta, dias, avion, precios}]
+                                 → 201 {numero_vuelo, cantidad}; genera una fila por fecha, todo o nada
+PATCH /api/vuelos/{id}/          (admin) ✅ edita una instancia activa que no salió (fecha, horas, ruta, avión, precios)
+POST /api/vuelos/{id}/cancelar/  (admin) ✅ estado = cancelado; la fila se conserva. Falta notificar por email (US16)
+GET  /api/aviones/               (admin) ✅ catálogo para el formulario
 POST /api/reservas/              compra + pago → emails con pasajes y factura
 GET  /api/reservas/mias/
 GET  /api/pasajes/{codigo}/pdf/  descarga ticket electrónico
@@ -122,9 +129,9 @@ GET  /api/reportes/ocupacion/?vuelo=&desde=&hasta=   (admin)
 
 El registro público siempre asigna el rol `pasajero` y valida la contraseña con los validadores de Django. Las cuentas de administrador y empleado se provisionan desde Django Admin por un administrador; las contraseñas se ingresan como texto en el formulario y se guardan hasheadas. Solo los usuarios activos con rol `administrador` son staff y acceden a Django Admin; empleados y pasajeros no acceden. El frontend renueva el access token con el refresh al recibir un 401 y descarta la sesión si la renovación falla. Las rutas `/admin/*` (React) y `/empleado/*` exigen administrador y empleado, respectivamente (cualquier otro rol vuelve a `/`); las búsquedas públicas de vuelos siguen abiertas. Cualquier nueva operación de negocio exclusiva por rol debe validar el permiso también en su endpoint de backend.
 
-**Errores 400:** formato estándar de DRF, `{"parametro": ["mensaje"]}`, con mensajes en español (los mismos que muestra el front). Un parámetro vacío (`?hasta=`) cuenta como no enviado. El 404 es `{"detail": "..."}`.
+**Errores 400:** formato estándar de DRF, `{"parametro": ["mensaje"]}`, con mensajes en español (los mismos que muestra el front). Los errores de un período del alta llegan en `periodos` indexados por posición (`{"periodos": {"0": {"desde": ["mensaje"]}}}`); los que no son de un campo, en `non_field_errors`. Un parámetro vacío (`?hasta=`) cuenta como no enviado. El 404 es `{"detail": "..."}`.
 
-**Datos de ejemplo:** `python manage.py seed [--dias 60]` carga los aeropuertos, la flota y los vuelos de los próximos días. Es idempotente y no pisa vuelos existentes. Corre en `build.sh` hasta que exista el ABM de vuelos.
+**Catálogo y datos de ejemplo:** `python manage.py seed` carga los aeropuertos, la flota (10 aviones) y el usuario `sistema`; corre en `build.sh` porque no tienen ABM. `python manage.py seed --vuelos [--dias 60]` agrega vuelos de ejemplo sobre los primeros 4 aviones, para desarrollo local. Es idempotente y no pisa lo existente.
 
 ## Emails
 
@@ -144,7 +151,7 @@ python -m venv .venv
 pip install -r requirements.txt
 cp .env.example .env              # completar SECRET_KEY; DATABASE_URL vacío = SQLite local
 python manage.py migrate
-python manage.py seed             # datos de ejemplo: aeropuertos, flota y vuelos
+python manage.py seed             # catálogo; con --vuelos, también vuelos de ejemplo
 python manage.py runserver        # http://localhost:8000
 
 # Frontend (otra terminal)
