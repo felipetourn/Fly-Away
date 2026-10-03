@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { EsqueletoPagina } from '../components/Esqueleto'
 import { useSesion } from '../lib/sesion'
 
 export default function Registro() {
@@ -13,7 +14,7 @@ export default function Registro() {
   const [error, setError] = useState('')
   const [enviando, setEnviando] = useState(false)
 
-  if (cargando) return <main className="mx-auto max-w-md px-4 py-16" aria-busy="true">Cargando sesión…</main>
+  if (cargando) return <EsqueletoPagina angosta />
   if (usuario) return <Navigate to="/" replace />
 
   const enviar = async (event: FormEvent<HTMLFormElement>) => {

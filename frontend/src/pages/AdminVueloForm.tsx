@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Esqueleto } from '../components/Esqueleto'
 import {
   DIAS,
   crearVuelos,
@@ -121,7 +122,21 @@ export default function AdminVueloForm() {
       </main>
     )
   }
-  if (cargando) return <main className="mx-auto max-w-[88rem] px-4 py-8" aria-busy="true">Cargando…</main>
+  if (cargando) {
+    return (
+      <main role="status" aria-label="Cargando" aria-busy="true" className="mx-auto max-w-[88rem] px-4 py-8">
+        <Esqueleto className="h-4 w-32" />
+        <Esqueleto className="mt-3 h-9 w-72 max-w-full" />
+        {[0, 1].map((i) => (
+          <div key={i} className="mt-6 grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((j) => (
+              <Esqueleto key={j} className="h-16" />
+            ))}
+          </div>
+        ))}
+      </main>
+    )
+  }
 
   const opcionesAeropuerto = aeropuertos.map((a) => (
     <option key={a.id} value={a.codigo_iata}>
