@@ -201,3 +201,13 @@ assert.deepEqual(paginasVisibles(4, 20), [1, 2, 3, 4, 5, null, 20], 'un hueco de
 assert.deepEqual(paginasVisibles(20, 20), [1, null, 19, 20])
 
 console.log('adminVuelos: OK')
+
+// api: una respuesta que no es JSON (500 de Django, página de Render) no se vuelca en pantalla
+const SIN_SERVIDOR = 'No pudimos conectar con el servidor. Probá de nuevo en unos minutos.'
+assert.equal(new ApiError(500, '<!DOCTYPE html><html><title>ProgrammingError</title></html>').message, SIN_SERVIDOR)
+assert.equal(new ApiError(502, '').message, SIN_SERVIDOR)
+assert.equal(new ApiError(400, { origen: ['No conocemos el aeropuerto "ZZZ".'] }).message, 'No conocemos el aeropuerto "ZZZ".')
+assert.equal(new ApiError(404, { detail: 'No encontrado.' }).message, 'No encontrado.')
+assert.equal(new ApiError(500, {}).message, 'Error 500')
+
+console.log('api: OK')

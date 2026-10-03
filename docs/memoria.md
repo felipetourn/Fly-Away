@@ -4,6 +4,14 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-03 - Ajustes de interfaz tras probar el ABM (PR #7 y rama `fix/errores-no-json`)**
+- Formulario de vuelo al ancho del listado (88rem), con los cuatro campos de cada card en una línea. Listado con paginación centrada: flechas y números (`paginasVisibles` en `lib/adminVuelos.ts`).
+- Inicio: el calendario abre hacia arriba cuando abajo no entra (`abreHaciaArriba` en `lib/busqueda.ts`; el alto del calendario está estimado en 380 px en `SelectorFechas`).
+- Toda la app: `scrollbar-gutter: stable` (el contenido no salta cuando aparece la barra) y footer con los nombres del equipo, en el layout de `App.tsx`.
+- Perfil: muestra el ID del usuario.
+- `lib/api.ts`: si el backend responde algo que no es JSON (500 de Django, página de Render), `ApiError` lleva un mensaje fijo en lugar del HTML crudo.
+- **Supabase:** migraciones `0002` y `0003` aplicadas por el deploy del PR #6. Se borraron los 6 389 vuelos de ejemplo posteriores al 2026-11-02; quedan 6 960, hasta esa fecha, sobre LV-FAA a LV-FAD. Del 2026-11-03 en adelante no hay vuelos: se cargan desde `/admin/vuelos`. Los aviones LV-FAE a LV-FAJ están libres.
+
 **2026-10-03 - ABM de vuelos, US01, US02 y US03 (rama `feat/abm-vuelos`)**
 - `/admin/vuelos`: listado con filtros y paginación, alta con períodos de recurrencia, edición de una instancia (lápiz) y cancelación con confirmación (tacho). Spec y plan en `docs/superpowers/`.
 - Backend: `GET/POST /api/vuelos/`, `PATCH /api/vuelos/{id}/`, `POST /api/vuelos/{id}/cancelar/`, `GET /api/aviones/`, todos solo para el rol administrador. Reglas en `vuelos/servicios.py`.
@@ -66,6 +74,8 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-10-03 | El lápiz queda habilitado en vuelos cancelados o que ya salieron y abre el formulario en solo lectura | Permite consultar cualquier instancia; el tacho sí se deshabilita |
+| 2026-10-03 | Una respuesta del backend que no es JSON se muestra como "No pudimos conectar con el servidor" | La API siempre responde JSON; un texto es una página de error que no hay que volcar en pantalla |
 | 2026-10-03 | El backend asigna `numero_vuelo` (uno por alta, `FA ` + correlativo) y no se edita | El identificador de cada instancia es su `id`; evita choques con el índice único. Un alta nueva siempre recibe un número nuevo |
 | 2026-10-03 | Un avión y un par de precios por período de recurrencia | Cubre "el o los aviones" y temporadas sin cambiar el esquema: cada fila sigue teniendo un solo avión |
 | 2026-10-03 | `fecha_llegada` en `vuelos`, calculada por el backend | Soporta vuelos que cruzan medianoche sin ambigüedad en duración, vueltas posibles y avión libre |
@@ -106,7 +116,6 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 - [ ] **Ida y vuelta:** son 2 reservas; si se pagan juntas, `pagos` hoy apunta a una sola reserva. Si el alcance es solo ida, no aplica.
 - [ ] **Ida y vuelta en la compra:** el front ya permite elegir ida + vuelta; al implementar la compra definir si son 2 reservas con un pago cada una o un pago para ambas (`pagos.reserva_id` hoy apunta a una sola).
 - [ ] ¿El empleado de mostrador puede cancelar/modificar reservas?
-- [ ] **Supabase tras mergear `feat/abm-vuelos`:** borrar los vuelos de ejemplo posteriores a hoy + 30 días (ocupan LV-FAA a LV-FAD) con el comando del plan (Task 11), previa confirmación.
 - [ ] **Extender un vuelo existente:** un alta nueva siempre recibe un número nuevo. Si hace falta sumar fechas a un número ya usado, agregar un campo opcional al alta.
 
 ## Próximos pasos
