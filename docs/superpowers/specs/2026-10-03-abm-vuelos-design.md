@@ -33,7 +33,7 @@ El administrador gestiona los vuelos desde `/admin/vuelos`: crea vuelos con recu
 
 - El admin no la escribe. El backend la calcula: si `hora_llegada` es menor que `hora_partida`, el vuelo llega al día siguiente (`fecha_operacion + 1`); si es mayor, llega el mismo día. Horas iguales se rechazan: un vuelo dura menos de 24 horas.
 - Constraint nuevo en la base: la llegada es posterior a la partida, es decir `fecha_llegada > fecha_operacion`, o `fecha_llegada = fecha_operacion` y `hora_llegada > hora_partida`.
-- Migración en tres pasos dentro de un mismo archivo: agregar la columna aceptando nulos, completar las filas existentes con `fecha_llegada = fecha_operacion` (todos los vuelos actuales llegan el mismo día), y pasarla a obligatoria junto con el constraint.
+- Migración en dos archivos: el primero agrega la columna aceptando nulos y completa las filas existentes con `fecha_llegada = fecha_operacion` (todos los vuelos actuales llegan el mismo día); el segundo la pasa a obligatoria y agrega el constraint. Van separados para no mezclar datos y cambios de esquema en una misma transacción de Postgres.
 
 Lo que hay que tocar para no romper nada:
 
@@ -116,11 +116,11 @@ Un avión está ocupado si tiene otro vuelo `activo` cuyo intervalo (fecha y hor
 
 ## API
 
-Todo lo nuevo exige rol `administrador`: 401 sin sesión, 403 con otro rol. Errores 400 con el formato de DRF y mensajes en español; los de un período llegan como `periodos[i].campo`.
+Todo lo nuevo exige rol `administrador`: 401 sin sesión, 403 con otro rol. Errores 400 con el formato de DRF y mensajes en español; los de un período llegan en `periodos[i].campo` y los que no son de un campo (avión ocupado, fechas repetidas, vuelo cancelado o que ya salió) en `non_field_errors`.
 
 | Endpoint | Descripción |
 |---|---|
-| `GET /api/vuelos/` | Listado paginado (50 por página, `{count, next, previous, results}`), ordenado por fecha y hora. Filtros: `q` (id exacto o parte del número), `origen`, `destino`, `desde`, `hasta`, `estado`. Sin `desde`, lista desde hoy. Cada vuelo incluye el avión. |
+| `GET /api/vuelos/` | Listado paginado (50 por página, `{count, next, previous, results}`), ordenado por fecha y hora. Filtros: `q` (id exacto o parte del número), `origen`, `destino`, `desde`, `hasta`, `estado`. Sin `desde` ni `q`, lista desde hoy (con `q` busca en todas las fechas, para poder llegar a un vuelo por su ID). Cada vuelo incluye el avión. |
 | `POST /api/vuelos/` | Alta con períodos. Responde 201 con `{numero_vuelo, cantidad}`. |
 | `GET /api/vuelos/{id}/` | Ya existe y sigue público. El avión anidado suma `id`, `capacidad_economy` y `capacidad_primera`. |
 | `PATCH /api/vuelos/{id}/` | Edita una instancia. Responde el vuelo actualizado. |
@@ -145,8 +145,9 @@ Los botones de lápiz y tacho llevan `aria-label` ("Editar vuelo {id}", "Cancela
 - Los vuelos de ejemplo salen de `build.sh`: con el ABM los carga el administrador. Además no pasan por la validación de avión libre (hay miles de vuelos sobre 4 aviones), así que casi cualquier alta nueva chocaría con ellos.
 - Aeropuertos, aviones y el usuario `sistema` se siguen cargando en cada deploy: no tienen ABM y sin ellos el formulario no tiene qué ofrecer.
 - Implementación: `seed` carga solo el catálogo; `seed --vuelos` agrega los vuelos de ejemplo, para desarrollo local.
+- La flota pasa de 4 a 10 aviones. Los vuelos de ejemplo usan solo los 4 primeros (LV-FAA a LV-FAD); los 6 nuevos quedan libres para las altas del administrador.
 
-**A confirmar:** los 13 124 vuelos de ejemplo que ya están en Supabase ocupan los 4 aviones casi todo el día. Propuesta: borrarlos al mergear (no hay reservas que dependan de ellos) y, si hace falta para la demo, sumar aviones a la flota desde Django Admin.
+**Supabase, después del merge:** se borran los vuelos de ejemplo (creados por `sistema@flyaway.local`) con fecha posterior a hoy + 30 días, para que la programación futura quede en manos del administrador y la búsqueda siga teniendo datos para la demo. Es un paso manual y destructivo sobre la base compartida: se ejecuta solo con confirmación explícita en el momento.
 
 ## Pruebas
 
