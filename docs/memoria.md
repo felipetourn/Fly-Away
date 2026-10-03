@@ -4,12 +4,19 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-02 — US22, autenticación de usuarios**
+- Backend: login por email con SimpleJWT, registro público exclusivo para pasajeros con validación de contraseña, endpoint autenticado `GET /api/auth/yo/` y cuentas de administrador/empleado gestionables desde Django Admin con contraseña hasheada.
+- Frontend: formularios reales de inicio de sesión y registro; recuperación de sesión consultando `/api/auth/yo/`; navegación por rol y guardas para perfil, reservas, administración y mostrador. Empleado no puede abrir administración; pasajero no puede abrir mostrador ni administración. El cierre de sesión elimina ambos tokens.
+- Django Admin queda restringido a usuarios activos con rol administrador. Empleados y pasajeros no pueden ingresar; desde allí se crean cuentas de administrador y empleado.
+- Pruebas backend cubren creación/autenticación de los tres roles, hash, registro, rol no elevable desde el registro, email duplicado, contraseña débil, credenciales inexistentes/incorrectas sin revelar cuál falló, perfil protegido, usuario inactivo y acceso al admin por rol.
+- Límite actual: las áreas de mostrador y administración del frontend siguen siendo placeholders y la búsqueda de vuelos es pública; las nuevas operaciones de negocio deben exigir autenticación y permiso del rol en el backend. Las guardas de frontend solo resuelven navegación, no son una barrera de seguridad.
+
 **2026-10-02 — Calendario de rango y logo de la card (rama `fix/logo-card-y-calendario`)**
 - El buscador tiene una caja por tramo: "Fechas" en solo ida; "Ida" y "Vuelta" en ida y vuelta. Cada caja abre un calendario (`SelectorFechas`, con react-day-picker): primer clic = inicio, segundo = fin, el mismo día = un solo día. La lógica de búsqueda, la URL y el backend no cambian.
 - La card de resultados usa `logoA`, como el detalle.
 
 **2026-10-02 — Backend de vuelos (rama `feat/backend-vuelos`)**
-- Modelo `usuarios` del DBML (login por email, `rol`), que reemplaza a `accounts`. **Para la US de login:** el modelo ya está; faltan `POST /auth/registro/`, `GET /auth/yo/` y conectar `auth.ts`/`sesion.tsx` (hoy mock).
+- Modelo `usuarios` del DBML (login por email, `rol`), que reemplaza a `accounts`.
 - App `vuelos`: aeropuertos, aviones y vuelos con los constraints del DBML; `GET /api/aeropuertos/`, `/api/vuelos/buscar/` y `/api/vuelos/{id}/`. El front ya no usa el mock de vuelos.
 - Búsqueda sin límite de días; en ida y vuelta, la ida y la vuelta aceptan fecha exacta o rango.
 - `python manage.py seed`: datos de ejemplo. Corre en `build.sh` (Render free no tiene shell).
@@ -23,8 +30,8 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 **2026-10-02 — Interfaz de inicio (rama `feat/interfaz-inicio`)**
 - Pantalla `/` del pasajero: header con sesión, hero con carrusel de destinos, buscador y resultados.
 - Búsqueda según los criterios de la US: en **Solo ida** origen y/o destino y fecha o rango (≤ 14 días); en **Ida y vuelta**, flujo en dos pasos (ida → vuelta). Filtro de rango de precio sobre los resultados.
-- Vuelos ya conectados al backend (ver arriba); la sesión (`lib/auth.ts`) sigue mockeada.
-- Páginas `/reservas`, `/perfil`, `/login`, `/registro` vacías ("Próximamente"); `/login` tiene "Entrar (demo)".
+- Vuelos ya conectados al backend (ver arriba).
+- Las áreas `/reservas`, `/mostrador` y `/admin` siguen como placeholders, detrás de las guardas de autenticación y rol.
 - Chequeos de lógica pura: `npm run check` (Node + assert, sin framework).
 
 **2026-09-26 — Deploy funcionando** (front → back → BD verificado con `/api/health/`)

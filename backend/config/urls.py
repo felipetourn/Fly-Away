@@ -8,5 +8,6 @@ urlpatterns = [
     path('api/health/', lambda r: JsonResponse({'status': 'ok'})),
     path('api/auth/token/', TokenObtainPairView.as_view()),
     path('api/auth/token/refresh/', TokenRefreshView.as_view()),
+    path('api/auth/', include('usuarios.urls')),
     path('api/', include('vuelos.urls')),
 ]
