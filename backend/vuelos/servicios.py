@@ -104,8 +104,10 @@ def crear_vuelos(datos, usuario):
 
     `datos` es el `validated_data` de AltaVueloSerializer (cada período trae sus `fechas`).
     """
-    # Lock sobre los aviones: el chequeo de avión libre y el alta son una sola operación.
-    list(Avion.objects.select_for_update().filter(pk__in={p['avion'].pk for p in datos['periodos']}))
+    # Lock sobre toda la flota, en orden fijo: las altas van de a una, así el número correlativo
+    # y el chequeo de avión libre no compiten con otra alta ni con una edición.
+    # ponytail: lock global; pasar a una secuencia para el número y lock por avión si hay muchas altas a la vez.
+    list(Avion.objects.select_for_update().order_by('pk'))
     numero = siguiente_numero()
     vuelos = [
         Vuelo(

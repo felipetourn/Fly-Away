@@ -337,8 +337,16 @@ class MigracionFechaLlegadaTests(TransactionTestCase):
             precio_economy=1, precio_primera=2, asientos_disponibles_economy=10, asientos_disponibles_primera=2,
             creado_por=admin,
         )
+        # Una fila cargada a mano que llega "antes" de salir: cruzaba medianoche.
+        apps.get_model('vuelos', 'Vuelo').objects.create(
+            numero_vuelo='FA 2', avion=avion, aeropuerto_origen=bhi, aeropuerto_destino=aep,
+            fecha_operacion=HOY, hora_partida=dt.time(23), hora_llegada=dt.time(1),
+            precio_economy=1, precio_primera=2, asientos_disponibles_economy=10, asientos_disponibles_primera=2,
+            creado_por=admin,
+        )
         apps = self.migrar(ultima)
-        self.assertEqual(apps.get_model('vuelos', 'Vuelo').objects.get().fecha_llegada, HOY)
+        llegadas = dict(apps.get_model('vuelos', 'Vuelo').objects.values_list('numero_vuelo', 'fecha_llegada'))
+        self.assertEqual(llegadas, {'FA 1': HOY, 'FA 2': HOY + dt.timedelta(days=1)})
 
 
 class AdminDatos(Datos):
@@ -673,6 +681,15 @@ class EdicionTests(AdminDatos):
             {'non_field_errors': ['LV-FAA ya está asignado al FA 2 el 2026-10-21 de 18:00 a 19:00.']},
         )
         self.assertEqual(self.editar(v, hora_partida='15:30', hora_llegada='16:30').status_code, 200, 'no choca consigo mismo')
+
+    def test_un_choque_previo_no_impide_editar_otros_datos(self):
+        # Los vuelos de ejemplo no validaron avión libre: pueden estar pisados desde antes.
+        v = self.vuelo('FA 1', fecha=MANANA, partida='15:00')
+        self.vuelo('FA 2', fecha=MANANA, partida='15:30')
+        self.assertEqual(self.editar(v).status_code, 200)
+        sin_cambios = dict(fecha_operacion=str(MANANA), hora_partida='15:00', hora_llegada='16:00', avion=str(self.avion.id))
+        self.assertEqual(self.editar(v, precio_economy='90000.00', **sin_cambios).status_code, 200, 'el formulario manda todo')
+        self.assertIn('non_field_errors', self.rechaza(v, hora_llegada='16:10'), 'si cambia el horario, se valida')
 
     def test_no_edita_cancelados_ni_los_que_ya_salieron(self):
         cancelado = self.vuelo('FA 1', estado=Vuelo.Estado.CANCELADO)

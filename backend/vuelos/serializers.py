@@ -245,13 +245,17 @@ class EdicionVueloSerializer(serializers.Serializer):
             errores['avion'] = 'Ese avión no tiene lugar para los pasajes ya vendidos.'
         if errores:
             raise serializers.ValidationError(errores)
-        candidato = Vuelo(
-            avion=avion, fecha_operacion=fecha, fecha_llegada=fecha_llegada_de(fecha, partida, llegada),
-            hora_partida=partida, hora_llegada=llegada,
-        )
-        choque = choque_de_avion([candidato], excluir=vuelo.pk)
-        if choque:
-            raise serializers.ValidationError(choque)
+        # Solo si cambia lo que ocupa al avión: un vuelo de ejemplo ya pisado tiene que poder cambiar de precio.
+        if (avion, fecha, partida, llegada) != (vuelo.avion, vuelo.fecha_operacion, vuelo.hora_partida, vuelo.hora_llegada):
+            # Mismo lock que el alta: el chequeo y el guardado son una sola operación (la vista abre la transacción).
+            Avion.objects.select_for_update().get(pk=avion.pk)
+            candidato = Vuelo(
+                avion=avion, fecha_operacion=fecha, fecha_llegada=fecha_llegada_de(fecha, partida, llegada),
+                hora_partida=partida, hora_llegada=llegada,
+            )
+            choque = choque_de_avion([candidato], excluir=vuelo.pk)
+            if choque:
+                raise serializers.ValidationError(choque)
         return datos
 
     def update(self, vuelo, datos):
