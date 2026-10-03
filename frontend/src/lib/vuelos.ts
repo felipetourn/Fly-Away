@@ -39,8 +39,11 @@ export interface ParamsBusqueda {
 }
 
 export interface Avion {
+  id: string
   matricula: string
   modelo: string
+  capacidad_economy: number
+  capacidad_primera: number
 }
 
 /** Respuesta de GET /vuelos/<id>/: el vuelo de la búsqueda más el avión. */

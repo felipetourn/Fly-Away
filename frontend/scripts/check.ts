@@ -4,6 +4,8 @@ process.env.TZ = 'America/Argentina/Buenos_Aires' // UTC−3: detecta fechas cor
 import assert from 'node:assert/strict'
 import { aParams, elegirDia, leerFiltros, validarBusqueda, type Filtros } from '../src/lib/busqueda.ts'
 import { duracion, fechaCompleta, fechaCorta, fechaLarga, hora, precio, rangoCorto, rangoFechas } from '../src/lib/formato.ts'
+import { errorDePeriodo, erroresDe, fechasDePeriodo, primero, queryListado, yaSalio } from '../src/lib/adminVuelos.ts'
+import { ApiError } from '../src/lib/api.ts'
 import { duracionDe, estadoClase, llegaAlDiaSiguiente, queryBusqueda, vueltasPosibles, type ParamsBusqueda, type Vuelo } from '../src/lib/vuelos.ts'
 
 const hoy = '2026-10-02'
@@ -150,3 +152,38 @@ assert.equal(estadoClase(5), 'ultimos')
 assert.equal(estadoClase(6), 'disponible')
 
 console.log('vuelos: OK')
+
+// adminVuelos: fechas de un período (0 = lunes ... 6 = domingo, como el backend)
+assert.deepEqual(
+  fechasDePeriodo('2026-10-21', '2026-11-03', [0, 2]),
+  ['2026-10-21', '2026-10-26', '2026-10-28', '2026-11-02'],
+  'lunes y miércoles',
+)
+assert.deepEqual(fechasDePeriodo('2026-10-25', '2026-10-25', [6]), ['2026-10-25'], 'domingo = 6')
+assert.deepEqual(fechasDePeriodo('2026-10-21', '2026-10-21', [0]), [], 'ningún día cae en el rango')
+assert.deepEqual(fechasDePeriodo('', '2026-10-21', [0]), [], 'sin fecha')
+assert.deepEqual(fechasDePeriodo('2026-10-22', '2026-10-21', [0, 1, 2, 3, 4, 5, 6]), [], 'rango al revés')
+assert.equal(fechasDePeriodo('2026-01-01', '2026-12-31', [0, 1, 2, 3, 4, 5, 6]).length, 365)
+
+const filtrosAdmin = { q: '', origen: '', destino: '', desde: '', hasta: '', estado: '', page: 1 }
+assert.equal(queryListado(filtrosAdmin).toString(), '', 'sin filtros')
+assert.equal(
+  queryListado({ ...filtrosAdmin, q: 'FA 1432', origen: 'BHI', estado: 'cancelado', page: 3 }).toString(),
+  'q=FA+1432&origen=BHI&estado=cancelado&page=3',
+)
+
+const partida = { fecha_operacion: '2026-10-21', hora_partida: '15:00:00' }
+assert.equal(yaSalio(partida, new Date('2026-10-21T14:59:00')), false)
+assert.equal(yaSalio(partida, new Date('2026-10-21T15:00:00')), true)
+
+const e400 = new ApiError(400, { origen: ['No conocemos el aeropuerto "ZZZ".'], periodos: { 1: { desde: ['x'] } } })
+assert.equal(primero(erroresDe(e400).origen), 'No conocemos el aeropuerto "ZZZ".')
+assert.equal(primero(erroresDe(e400).destino), '')
+assert.equal(errorDePeriodo(erroresDe(e400), 1, 'desde'), 'x', 'DRF indexa los errores de la lista por posición')
+assert.equal(errorDePeriodo(erroresDe(e400), 0, 'desde'), '')
+assert.equal(errorDePeriodo({ periodos: [{}, { hasta: ['y'] }] }, 1, 'hasta'), 'y', 'también como arreglo')
+assert.equal(errorDePeriodo({ periodos: ['Esta lista no puede estar vacía.'] }, 0, 'desde'), '')
+assert.deepEqual(erroresDe(new ApiError(500, 'boom')), {})
+assert.deepEqual(erroresDe(new Error('red')), {})
+
+console.log('adminVuelos: OK')
