@@ -64,6 +64,9 @@ export function elegirDia(r: RangoEnCurso, dia: string): RangoEnCurso {
 }
 
 /** Error del rango de precio, o undefined si está bien. */
+/** El calendario abre hacia arriba solo si abajo no entra y arriba hay más lugar (medidas en px). */
+export const abreHaciaArriba = (abajo: number, arriba: number, alto: number) => abajo < alto && arriba > abajo
+
 export function validarPrecio(min: number | null, max: number | null): string | undefined {
   const mal = (n: number | null) => n !== null && (!Number.isFinite(n) || n < 0)
   if (mal(min) || mal(max)) return 'Ingresá montos válidos'

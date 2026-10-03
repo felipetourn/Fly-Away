@@ -2,7 +2,7 @@
 process.env.TZ = 'America/Argentina/Buenos_Aires' // UTC−3: detecta fechas corridas un día
 
 import assert from 'node:assert/strict'
-import { aParams, elegirDia, leerFiltros, validarBusqueda, type Filtros } from '../src/lib/busqueda.ts'
+import { aParams, abreHaciaArriba, elegirDia, leerFiltros, validarBusqueda, type Filtros } from '../src/lib/busqueda.ts'
 import { duracion, fechaCompleta, fechaCorta, fechaLarga, hora, precio, rangoCorto, rangoFechas } from '../src/lib/formato.ts'
 import { errorDePeriodo, erroresDe, fechasDePeriodo, paginasVisibles, primero, queryListado, yaSalio } from '../src/lib/adminVuelos.ts'
 import { ApiError } from '../src/lib/api.ts'
@@ -93,6 +93,11 @@ assert.deepEqual(elegirDia(inicio, '2026-10-26'), { desde: '2026-10-26', hasta: 
 assert.deepEqual(elegirDia(inicio, '2026-10-20'), { desde: '2026-10-20', hasta: '', abierto: true }, 'día anterior = nuevo inicio')
 const cerrado = { desde: '2026-10-26', hasta: '2026-10-28', abierto: false }
 assert.deepEqual(elegirDia(cerrado, '2026-11-02'), { desde: '2026-11-02', hasta: '', abierto: true }, 'con rango cerrado empieza otro')
+
+// abreHaciaArriba: el calendario se da vuelta solo si abajo no entra y arriba hay más lugar
+assert.equal(abreHaciaArriba(500, 300, 380), false, 'entra abajo')
+assert.equal(abreHaciaArriba(200, 450, 380), true, 'no entra abajo y arriba hay más lugar')
+assert.equal(abreHaciaArriba(200, 120, 380), false, 'no entra en ningún lado: abajo, donde hay más lugar')
 
 // formato
 assert.equal(rangoCorto('', ''), '')

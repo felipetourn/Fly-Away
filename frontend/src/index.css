@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Reserva el lugar de la barra de scroll: el contenido no salta cuando aparece. */
+html {
+  scrollbar-gutter: stable;
+}
+
 /* Montserrat local (subset latin: alcanza para el español) */
 @font-face {
   font-family: "Montserrat";
