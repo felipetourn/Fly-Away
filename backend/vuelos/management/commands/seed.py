@@ -87,6 +87,7 @@ class Command(BaseCommand):
                             aeropuerto_origen=origen,
                             aeropuerto_destino=destino,
                             fecha_operacion=fecha,
+                            fecha_llegada=fecha,
                             hora_partida=dt.time(partida // 60, partida % 60),
                             hora_llegada=dt.time(llegada // 60, llegada % 60),
                             precio_economy=economy,

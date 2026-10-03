@@ -7,7 +7,9 @@ from zoneinfo import ZoneInfo
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, connection, transaction
+from django.db.migrations.executor import MigrationExecutor
+from django.test import TransactionTestCase
 from rest_framework.test import APITestCase
 
 from .models import Aeropuerto, Avion, Vuelo
@@ -40,15 +42,18 @@ class Datos(APITestCase):
         self.addCleanup(reloj.stop)
 
     def vuelo(self, numero='FA 1000', origen=None, destino=None, fecha=None, partida='15:00', **cambios):
+        fecha = fecha or HOY + dt.timedelta(days=1)
         sale = dt.time.fromisoformat(partida)
+        llega = dt.datetime.combine(fecha, sale) + dt.timedelta(hours=1)  # dura 1 h; puede cruzar medianoche
         datos = dict(
             numero_vuelo=numero,
             avion=self.avion,
             aeropuerto_origen=origen or self.bhi,
             aeropuerto_destino=destino or self.aep,
-            fecha_operacion=fecha or HOY + dt.timedelta(days=1),
+            fecha_operacion=fecha,
+            fecha_llegada=llega.date(),
             hora_partida=sale,
-            hora_llegada=(dt.datetime.combine(HOY, sale) + dt.timedelta(hours=1)).time(),
+            hora_llegada=llega.time(),
             precio_economy=Decimal('100000.00'),
             precio_primera=Decimal('220000.00'),
             asientos_disponibles_economy=30,
@@ -80,9 +85,17 @@ class ModeloVueloTests(Datos):
         with self.assertRaises(IntegrityError), transaction.atomic():
             self.vuelo()
 
+    def test_la_llegada_es_posterior_a_la_partida(self):
+        nocturno = self.vuelo(partida='23:30')  # llega 00:30 del día siguiente
+        self.assertEqual(nocturno.fecha_llegada, nocturno.fecha_operacion + dt.timedelta(days=1))
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            self.vuelo('FA 2', hora_llegada=dt.time(14, 0))  # mismo día, llega antes de salir
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            self.vuelo('FA 3', fecha_llegada=HOY)  # llega el día anterior
+
 
 VUELO_CAMPOS = {
-    'id', 'numero_vuelo', 'origen', 'destino', 'fecha_operacion', 'hora_partida', 'hora_llegada',
+    'id', 'numero_vuelo', 'origen', 'destino', 'fecha_operacion', 'fecha_llegada', 'hora_partida', 'hora_llegada',
     'precio_economy', 'precio_primera', 'asientos_disponibles_economy', 'asientos_disponibles_primera', 'estado',
 }
 
@@ -109,6 +122,7 @@ class DetalleTests(Datos):
         self.assertEqual(d['precio_economy'], '100000.00')
         self.assertEqual(d['hora_partida'], '15:00:00')
         self.assertEqual(d['fecha_operacion'], str(HOY + dt.timedelta(days=1)))
+        self.assertEqual(d['fecha_llegada'], str(HOY + dt.timedelta(days=1)))
 
     def test_detalle_de_un_cancelado(self):
         v = self.vuelo(estado=Vuelo.Estado.CANCELADO)
@@ -183,7 +197,7 @@ class BuscarTests(Datos):
         # 23:30 en Buenos Aires = 02:30 UTC del día siguiente.
         noche = dt.datetime(2026, 10, 20, 23, 30, tzinfo=BA)
         self.vuelo('FA 1', fecha=HOY, partida='22:00')
-        self.vuelo('FA 2', fecha=HOY, partida='23:45', hora_llegada=dt.time(23, 59))
+        self.vuelo('FA 2', fecha=HOY, partida='23:45')
         with patch('django.utils.timezone.now', return_value=noche):
             self.assertEqual(self.buscar(origen='BHI'), ['FA 2'])
 
@@ -286,3 +300,32 @@ class SeedTests(Datos):
         self.correr()
         self.assertEqual(Aeropuerto.objects.get(codigo_iata='BHI').nombre, 'Corregido a mano')
         self.assertEqual(Avion.objects.get(matricula='LV-FAA').capacidad_economy, 140)
+
+
+class MigracionFechaLlegadaTests(TransactionTestCase):
+    def migrar(self, destino):
+        ejecutor = MigrationExecutor(connection)
+        ejecutor.migrate(destino)
+        return MigrationExecutor(connection).loader.project_state(destino).apps
+
+    def test_completa_las_filas_existentes(self):
+        ultima = MigrationExecutor(connection).loader.graph.leaf_nodes('vuelos')
+        self.addCleanup(self.migrar, ultima)  # si falla a mitad de camino, la base vuelve al esquema actual
+        apps = self.migrar([('vuelos', '0001_initial')])
+        admin = apps.get_model('usuarios', 'Usuario').objects.create(
+            email='a@mail.com', password='x', nombre='A', apellido='B', rol='administrador'
+        )
+        Aeropuerto_ = apps.get_model('vuelos', 'Aeropuerto')
+        bhi = Aeropuerto_.objects.create(codigo_iata='BHI', nombre='x', ciudad='Bahía Blanca', pais='Argentina')
+        aep = Aeropuerto_.objects.create(codigo_iata='AEP', nombre='x', ciudad='Buenos Aires', pais='Argentina')
+        avion = apps.get_model('vuelos', 'Avion').objects.create(
+            matricula='LV-FAA', modelo='x', capacidad_economy=10, capacidad_primera=2
+        )
+        apps.get_model('vuelos', 'Vuelo').objects.create(
+            numero_vuelo='FA 1', avion=avion, aeropuerto_origen=bhi, aeropuerto_destino=aep,
+            fecha_operacion=HOY, hora_partida=dt.time(10), hora_llegada=dt.time(11),
+            precio_economy=1, precio_primera=2, asientos_disponibles_economy=10, asientos_disponibles_primera=2,
+            creado_por=admin,
+        )
+        apps = self.migrar(ultima)
+        self.assertEqual(apps.get_model('vuelos', 'Vuelo').objects.get().fecha_llegada, HOY)

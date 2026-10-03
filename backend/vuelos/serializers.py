@@ -25,8 +25,8 @@ class VueloSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vuelo
         fields = [
-            'id', 'numero_vuelo', 'origen', 'destino', 'fecha_operacion', 'hora_partida', 'hora_llegada',
-            'precio_economy', 'precio_primera', 'asientos_disponibles_economy', 'asientos_disponibles_primera',
+            'id', 'numero_vuelo', 'origen', 'destino', 'fecha_operacion', 'fecha_llegada', 'hora_partida',
+            'hora_llegada', 'precio_economy', 'precio_primera', 'asientos_disponibles_economy', 'asientos_disponibles_primera',
             'estado',
         ]
 
