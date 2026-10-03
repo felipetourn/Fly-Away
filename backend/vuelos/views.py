@@ -1,10 +1,25 @@
+import uuid
+
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework import generics
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Aeropuerto, Vuelo
-from .serializers import AeropuertoSerializer, BusquedaSerializer, VueloDetalleSerializer, VueloSerializer
+from .models import Aeropuerto, Avion, Vuelo
+from .permissions import EsAdministrador
+from .serializers import (
+    AeropuertoSerializer,
+    AltaVueloSerializer,
+    AvionSerializer,
+    BusquedaSerializer,
+    EdicionVueloSerializer,
+    FiltrosListadoSerializer,
+    VueloDetalleSerializer,
+    VueloSerializer,
+)
+from .servicios import crear_vuelos, error_general, exigir_modificable
 
 
 class AeropuertosView(generics.ListAPIView):
@@ -45,8 +60,98 @@ class BuscarVuelosView(APIView):
         return Response(VueloSerializer(vuelos, many=True).data)
 
 
-class VueloDetalleView(generics.RetrieveAPIView):
-    """Incluye cancelados: el detalle informa la cancelación. Un id que no es UUID da 404 (no 500)."""
+VUELOS_CON_RELACIONES = Vuelo.objects.select_related('avion', 'aeropuerto_origen', 'aeropuerto_destino')
 
-    queryset = Vuelo.objects.select_related('avion', 'aeropuerto_origen', 'aeropuerto_destino')
+
+class VueloDetalleView(generics.RetrieveAPIView):
+    """GET público (incluye cancelados: el detalle informa la cancelación). PATCH solo del administrador.
+
+    Un id que no es UUID da 404 (no 500).
+    """
+
     serializer_class = VueloDetalleSerializer
+
+    def get_queryset(self):
+        if self.request.method == 'PATCH':
+            return VUELOS_CON_RELACIONES.select_for_update(of=('self',))
+        return VUELOS_CON_RELACIONES
+
+    def get_permissions(self):
+        return [EsAdministrador()] if self.request.method == 'PATCH' else super().get_permissions()
+
+    @transaction.atomic
+    def patch(self, request, *args, **kwargs):
+        vuelo = self.get_object()
+        exigir_modificable(vuelo)
+        edicion = EdicionVueloSerializer(vuelo, data=request.data, partial=True)
+        edicion.is_valid(raise_exception=True)
+        edicion.save()
+        return Response(VueloDetalleSerializer(vuelo).data)
+
+
+class CancelarVueloView(generics.GenericAPIView):
+    """Cancela una instancia: cambia el estado, no borra la fila (US03)."""
+
+    permission_classes = [EsAdministrador]
+    queryset = VUELOS_CON_RELACIONES.select_for_update(of=('self',))
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        vuelo = self.get_object()
+        exigir_modificable(vuelo)
+        vuelo.estado = Vuelo.Estado.CANCELADO
+        vuelo.save(update_fields=['estado', 'actualizado_en'])
+        return Response(VueloDetalleSerializer(vuelo).data)
+
+
+class Paginacion(PageNumberPagination):
+    page_size = 50
+
+
+class AvionesView(generics.ListAPIView):
+    permission_classes = [EsAdministrador]
+    queryset = Avion.objects.order_by('matricula')
+    serializer_class = AvionSerializer
+
+
+class VuelosView(generics.ListAPIView):
+    """ABM de vuelos del administrador: listado paginado con filtros y alta con recurrencia."""
+
+    permission_classes = [EsAdministrador]
+    serializer_class = VueloDetalleSerializer
+    pagination_class = Paginacion
+
+    def get_queryset(self):
+        filtros = FiltrosListadoSerializer(data={k: v for k, v in self.request.query_params.items() if v != ''})
+        filtros.is_valid(raise_exception=True)
+        f = filtros.validated_data
+        vuelos = VUELOS_CON_RELACIONES.order_by('fecha_operacion', 'hora_partida', 'numero_vuelo')
+        q = f.get('q')
+        if q:
+            try:
+                vuelos = vuelos.filter(pk=uuid.UUID(q))
+            except ValueError:
+                vuelos = vuelos.filter(numero_vuelo__icontains=q)
+        # Sin `desde` ni `q`, desde hoy; con `q` se busca en todas las fechas (un id puede ser de un vuelo pasado).
+        desde = f.get('desde') or (None if q else timezone.localdate())
+        if desde:
+            vuelos = vuelos.filter(fecha_operacion__gte=desde)
+        if 'hasta' in f:
+            vuelos = vuelos.filter(fecha_operacion__lte=f['hasta'])
+        if 'estado' in f:
+            vuelos = vuelos.filter(estado=f['estado'])
+        if 'origen' in f:
+            vuelos = vuelos.filter(aeropuerto_origen__codigo_iata=f['origen'].upper())
+        if 'destino' in f:
+            vuelos = vuelos.filter(aeropuerto_destino__codigo_iata=f['destino'].upper())
+        return vuelos
+
+    def post(self, request):
+        alta = AltaVueloSerializer(data=request.data)
+        alta.is_valid(raise_exception=True)
+        try:
+            numero, cantidad = crear_vuelos(alta.validated_data, request.user)
+        except IntegrityError:
+            # Dos altas a la vez tomaron el mismo número: el índice único frena a la segunda.
+            raise error_general('No se pudo asignar el número de vuelo. Probá de nuevo.')
+        return Response({'numero_vuelo': numero, 'cantidad': cantidad}, status=201)

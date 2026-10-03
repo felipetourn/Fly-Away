@@ -16,6 +16,7 @@ export interface Vuelo {
   origen: Aeropuerto
   destino: Aeropuerto
   fecha_operacion: string // YYYY-MM-DD
+  fecha_llegada: string // la del día siguiente si el vuelo cruza medianoche
   hora_partida: string // HH:MM:SS
   hora_llegada: string
   precio_economy: string // decimal: DRF lo serializa como string
@@ -38,8 +39,11 @@ export interface ParamsBusqueda {
 }
 
 export interface Avion {
+  id: string
   matricula: string
   modelo: string
+  capacidad_economy: number
+  capacidad_primera: number
 }
 
 /** Respuesta de GET /vuelos/<id>/: el vuelo de la búsqueda más el avión. */
@@ -84,12 +88,15 @@ export const precioDe = (v: Vuelo, clase: Clase) => Number(clase === 'economy' ?
 export const asientosDe = (v: Vuelo, clase: Clase) =>
   clase === 'economy' ? v.asientos_disponibles_economy : v.asientos_disponibles_primera
 
+export const llegaAlDiaSiguiente = (v: Vuelo) => v.fecha_llegada > v.fecha_operacion
+
 /** Duración en minutos. */
-export const duracionDe = (v: Vuelo) => aMinutos(v.hora_llegada) - aMinutos(v.hora_partida)
+export const duracionDe = (v: Vuelo) =>
+  aMinutos(v.hora_llegada) - aMinutos(v.hora_partida) + (llegaAlDiaSiguiente(v) ? 24 * 60 : 0)
 
 /** Solo sirven las vueltas que salen después de que aterriza la ida (la vuelta puede ser un rango que se superpone). */
 export function vueltasPosibles(vueltas: Vuelo[], ida: Vuelo): Vuelo[] {
-  const aterriza = ida.fecha_operacion + ida.hora_llegada
+  const aterriza = ida.fecha_llegada + ida.hora_llegada
   return vueltas.filter((v) => v.fecha_operacion + v.hora_partida > aterriza)
 }
 

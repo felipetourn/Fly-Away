@@ -7,7 +7,7 @@ import ListaVuelos from '../components/ListaVuelos'
 import { NOMBRE_CLASE, aParams, hoyISO, leerFiltros, validarBusqueda, type Clase, type Filtros } from '../lib/busqueda'
 import { fechaCorta, fechaLarga, hora, precio, rangoFechas } from '../lib/formato'
 import { useVuelos } from '../lib/useVuelos'
-import { getAeropuertos, precioDe, vueltasPosibles, type Aeropuerto, type Vuelo } from '../lib/vuelos'
+import { getAeropuertos, llegaAlDiaSiguiente, precioDe, vueltasPosibles, type Aeropuerto, type Vuelo } from '../lib/vuelos'
 
 function Pasos({ actual, total }: { actual: 1 | 2; total: 1 | 2 }) {
   const paso = (n: 1 | 2, texto: string) => (
@@ -38,7 +38,7 @@ function LineaVuelo({ etiqueta, vuelo, clase }: { etiqueta: string; vuelo: Vuelo
   return (
     <p className="text-slate-700">
       <span className="font-bold text-marino">{etiqueta}</span> - {vuelo.numero_vuelo},{' '}
-      {fechaCorta(vuelo.fecha_operacion)}, {hora(vuelo.hora_partida)} → {hora(vuelo.hora_llegada)},{' '}
+      {fechaCorta(vuelo.fecha_operacion)}, {hora(vuelo.hora_partida)} → {hora(vuelo.hora_llegada)}{llegaAlDiaSiguiente(vuelo) ? ' (+1)' : ''},{' '}
       {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}, {precio(precioDe(vuelo, clase))} por persona
     </p>
   )

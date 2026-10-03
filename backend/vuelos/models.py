@@ -48,6 +48,7 @@ class Vuelo(models.Model):
     aeropuerto_origen = models.ForeignKey(Aeropuerto, on_delete=models.PROTECT, related_name='vuelos_salida')
     aeropuerto_destino = models.ForeignKey(Aeropuerto, on_delete=models.PROTECT, related_name='vuelos_llegada')
     fecha_operacion = models.DateField()
+    fecha_llegada = models.DateField()
     hora_partida = models.TimeField()
     hora_llegada = models.TimeField()
     precio_economy = models.DecimalField(max_digits=10, decimal_places=2)
@@ -69,6 +70,11 @@ class Vuelo(models.Model):
             ),
             models.CheckConstraint(condition=Q(asientos_disponibles_economy__gte=0), name='vuelo_asientos_economy_no_negativos'),
             models.CheckConstraint(condition=Q(asientos_disponibles_primera__gte=0), name='vuelo_asientos_primera_no_negativos'),
+            models.CheckConstraint(
+                condition=Q(fecha_llegada__gt=F('fecha_operacion'))
+                | Q(fecha_llegada=F('fecha_operacion'), hora_llegada__gt=F('hora_partida')),
+                name='vuelo_llegada_posterior_a_partida',
+            ),
         ]
 
     def __str__(self):

@@ -56,6 +56,7 @@ Table vuelos {
   aeropuerto_origen_id uuid [not null, ref: > aeropuertos.id]
   aeropuerto_destino_id uuid [not null, ref: > aeropuertos.id]
   fecha_operacion date [not null]
+  fecha_llegada date [not null, note: 'La calcula el backend: fecha_operacion, o el día siguiente si hora_llegada < hora_partida']
   hora_partida time [not null]
   hora_llegada time [not null]
   precio_economy decimal(10,2) [not null]
@@ -86,6 +87,7 @@ Table vuelos {
     CHECK (aeropuerto_origen_id <> aeropuerto_destino_id)
     CHECK (asientos_disponibles_economy >= 0)
     CHECK (asientos_disponibles_primera >= 0)
+    CHECK (fecha_llegada > fecha_operacion OR (fecha_llegada = fecha_operacion AND hora_llegada > hora_partida))
   '''
 }
 

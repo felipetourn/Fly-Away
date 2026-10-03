@@ -1,8 +1,10 @@
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import Header from './components/Header'
-import { inicioPorRol, type Usuario } from './lib/auth'
+import type { Usuario } from './lib/auth'
 import { useSesion } from './lib/sesion'
+import AdminVueloForm from './pages/AdminVueloForm'
+import AdminVuelos from './pages/AdminVuelos'
 import Login from './pages/Login'
 import Perfil from './pages/Perfil'
 import Proximamente from './pages/Proximamente'
@@ -13,11 +15,11 @@ function RutaProtegida({ roles, children }: { roles: Usuario['rol'][]; children:
   const { usuario, cargando } = useSesion()
   if (cargando) return <main className="p-8" aria-busy="true">Cargando sesión…</main>
   if (!usuario) return <Navigate to="/login" replace />
-  if (!roles.includes(usuario.rol)) return <Navigate to={inicioPorRol(usuario.rol)} replace />
+  if (!roles.includes(usuario.rol)) return <Navigate to="/" replace />
   return children
 }
 
-function LayoutPasajero() {
+function Layout() {
   return (
     <>
       <Header />
@@ -26,20 +28,24 @@ function LayoutPasajero() {
   )
 }
 
-// Una ruta raíz por tipo de usuario (misma UI, distintas funcionalidades).
+// Mismo layout para todos; el header muestra las opciones del rol (MENU en lib/auth).
 export default function App() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
       <Routes>
-        <Route element={<LayoutPasajero />}>
+        <Route element={<Layout />}>
           <Route index element={<Vuelos />} />
           <Route path="reservas" element={<RutaProtegida roles={['pasajero']}><Proximamente titulo="Mis reservas" /></RutaProtegida>} />
           <Route path="perfil" element={<RutaProtegida roles={['pasajero', 'empleado_mostrador', 'administrador']}><Perfil /></RutaProtegida>} />
           <Route path="login" element={<Login />} />
           <Route path="registro" element={<Registro />} />
+          <Route path="empleado/reservas" element={<RutaProtegida roles={['empleado_mostrador']}><Proximamente titulo="Reservas" /></RutaProtegida>} />
+          <Route path="admin/reservas" element={<RutaProtegida roles={['administrador']}><Proximamente titulo="Reservas" /></RutaProtegida>} />
+          <Route path="admin/vuelos" element={<RutaProtegida roles={['administrador']}><AdminVuelos /></RutaProtegida>} />
+          <Route path="admin/vuelos/nuevo" element={<RutaProtegida roles={['administrador']}><AdminVueloForm /></RutaProtegida>} />
+          <Route path="admin/vuelos/:id" element={<RutaProtegida roles={['administrador']}><AdminVueloForm /></RutaProtegida>} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
-        <Route path="/mostrador/*" element={<RutaProtegida roles={['empleado_mostrador']}><h1 className="p-8 text-2xl">Mostrador</h1></RutaProtegida>} />
-        <Route path="/admin/*" element={<RutaProtegida roles={['administrador']}><h1 className="p-8 text-2xl">Administración</h1></RutaProtegida>} />
       </Routes>
     </div>
   )

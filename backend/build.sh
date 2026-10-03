@@ -4,5 +4,5 @@ set -o errexit
 pip install -r requirements.txt
 python manage.py collectstatic --no-input
 python manage.py migrate
-# Datos de ejemplo hasta que exista el ABM de vuelos (idempotente). Sacar cuando exista.
+# Catálogo (aeropuertos, flota): no tiene ABM. Los vuelos los carga el administrador.
 python manage.py seed

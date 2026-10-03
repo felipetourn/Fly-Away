@@ -4,6 +4,20 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-03 - ABM de vuelos, US01, US02 y US03 (rama `feat/abm-vuelos`)**
+- `/admin/vuelos`: listado con filtros y paginación, alta con períodos de recurrencia, edición de una instancia (lápiz) y cancelación con confirmación (tacho). Spec y plan en `docs/superpowers/`.
+- Backend: `GET/POST /api/vuelos/`, `PATCH /api/vuelos/{id}/`, `POST /api/vuelos/{id}/cancelar/`, `GET /api/aviones/`, todos solo para el rol administrador. Reglas en `vuelos/servicios.py`.
+- `vuelos.fecha_llegada` nuevo (vuelos que cruzan medianoche). Las filas existentes quedaron con `fecha_llegada = fecha_operacion`.
+- `seed` carga el catálogo y la flota de 10; los vuelos de ejemplo solo con `--vuelos` y ya no corren en `build.sh`.
+- Límite actual: cancelar o cambiar el horario no avisa a los pasajeros (US15, US16); no hay reservas todavía.
+
+**2026-10-03 — Revisión de la US22 (rama `feature/autenticacion`)**
+- Corregido: las llamadas de autenticación del front duplicaban el prefijo (`/api/api/auth/...`) porque `VITE_API_URL` ya termina en `/api`; ahora usan `/auth/...` como el resto de `lib/`.
+- El área del empleado pasa de `/mostrador` a `/empleado`. El rol sigue siendo `empleado_mostrador`.
+- Un solo layout con header para los tres roles. Tras iniciar sesión todos llegan a `/`; cambian las opciones del header (`MENU` en `src/lib/auth.ts`): pasajero Vuelos y Reservas; empleado Vuelos y Reservas (`/empleado/reservas`); administrador Vuelos, Reservas (`/admin/reservas`) y Gestión de vuelos (`/admin/vuelos`). Las pantallas nuevas son placeholders; el ABM de vuelos va en `/admin/vuelos`.
+- Header con fondo opaco (antes era semitransparente y dejaba ver el hero al hacer scroll).
+- Cuentas de prueba creadas en Supabase, una por rol: `admin@gmail.com`, `empleado@gmail.com`, `pepe@gmail.com`. Las contraseñas no se documentan acá; crear los emails siempre en minúsculas (el login distingue mayúsculas).
+
 **2026-10-02 — US22, autenticación de usuarios**
 - Backend: login por email con SimpleJWT, registro público exclusivo para pasajeros con validación de contraseña, endpoint autenticado `GET /api/auth/yo/` y cuentas de administrador/empleado gestionables desde Django Admin con contraseña hasheada.
 - Frontend: formularios reales de inicio de sesión y registro; recuperación de sesión consultando `/api/auth/yo/`; navegación por rol y guardas para perfil, reservas, administración y mostrador. Empleado no puede abrir administración; pasajero no puede abrir mostrador ni administración. El cierre de sesión elimina ambos tokens.
@@ -52,6 +66,12 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-10-03 | El backend asigna `numero_vuelo` (uno por alta, `FA ` + correlativo) y no se edita | El identificador de cada instancia es su `id`; evita choques con el índice único. Un alta nueva siempre recibe un número nuevo |
+| 2026-10-03 | Un avión y un par de precios por período de recurrencia | Cubre "el o los aviones" y temporadas sin cambiar el esquema: cada fila sigue teniendo un solo avión |
+| 2026-10-03 | `fecha_llegada` en `vuelos`, calculada por el backend | Soporta vuelos que cruzan medianoche sin ambigüedad en duración, vueltas posibles y avión libre |
+| 2026-10-03 | Se valida que el avión esté libre (sin vuelos activos superpuestos) | Evita programar dos vuelos con el mismo avión; rotación y ubicación quedan fuera |
+| 2026-10-03 | Cancelar cambia `estado`; no hay borrado | La US03 pide conservar el historial |
+| 2026-10-03 | Misma interfaz para los tres roles: inicio en `/` y header con opciones según el rol, en vez de un panel separado por rol | Menos layouts que mantener; se ve claro que el rol cambia las opciones. Si el ABM queda apretado, `/admin` puede pasar a un layout de panel sin tocar las pantallas |
 | 2026-10-02 | `react-day-picker` para elegir el rango en un mismo calendario | `<input type="date">` no elige rangos; la librería trae accesibilidad (teclado, lectores) y español resueltos |
 | 2026-10-02 | Sin límite de días en el rango de búsqueda; rango también en ida y vuelta | Pedido del equipo: elegir ida y vuelta en una fecha o entre dos |
 | 2026-10-02 | Errores 400 con el formato de DRF (`{"param": ["mensaje"]}`) en español | Estándar del framework; el front puede ubicar cada error en su campo |
@@ -86,11 +106,12 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 - [ ] **Ida y vuelta:** son 2 reservas; si se pagan juntas, `pagos` hoy apunta a una sola reserva. Si el alcance es solo ida, no aplica.
 - [ ] **Ida y vuelta en la compra:** el front ya permite elegir ida + vuelta; al implementar la compra definir si son 2 reservas con un pago cada una o un pago para ambas (`pagos.reserva_id` hoy apunta a una sola).
 - [ ] ¿El empleado de mostrador puede cancelar/modificar reservas?
+- [ ] **Supabase tras mergear `feat/abm-vuelos`:** borrar los vuelos de ejemplo posteriores a hoy + 30 días (ocupan LV-FAA a LV-FAD) con el comando del plan (Task 11), previa confirmación.
+- [ ] **Extender un vuelo existente:** un alta nueva siempre recibe un número nuevo. Si hace falta sumar fechas a un número ya usado, agregar un campo opcional al alta.
 
 ## Próximos pasos
 
 1. Mergear `feat/backend-vuelos` a `main` (Supabase ya está lista) y crear el superusuario con `createsuperuser`.
-2. ABM de vuelos (admin), con generación de N filas a partir de días + período. Al terminarlo, sacar `seed` de `build.sh`.
-3. Compra: cerrar los pendientes del modelo (arriba) y sumar reservas + pasajes + pagos + emails.
-4. Reportes de ocupación.
-5. Notificaciones por cambio de horario / cancelación.
+2. Compra: cerrar los pendientes del modelo (arriba) y sumar reservas + pasajes + pagos + emails.
+3. Reportes de ocupación.
+4. Notificaciones por cambio de horario / cancelación (el ABM ya cancela y edita; falta avisar).

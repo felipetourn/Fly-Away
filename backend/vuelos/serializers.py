@@ -1,7 +1,12 @@
+import datetime as dt
+from collections import Counter
+from decimal import Decimal
+
 from django.utils import timezone
 from rest_framework import serializers
 
 from .models import Aeropuerto, Avion, Vuelo
+from .servicios import choque_de_avion, errores_de_ruta_y_horas, fecha_llegada_de, fechas_de_periodo
 
 
 class AeropuertoSerializer(serializers.ModelSerializer):
@@ -13,7 +18,7 @@ class AeropuertoSerializer(serializers.ModelSerializer):
 class AvionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Avion
-        fields = ['matricula', 'modelo']
+        fields = ['id', 'matricula', 'modelo', 'capacidad_economy', 'capacidad_primera']
 
 
 class VueloSerializer(serializers.ModelSerializer):
@@ -25,8 +30,8 @@ class VueloSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vuelo
         fields = [
-            'id', 'numero_vuelo', 'origen', 'destino', 'fecha_operacion', 'hora_partida', 'hora_llegada',
-            'precio_economy', 'precio_primera', 'asientos_disponibles_economy', 'asientos_disponibles_primera',
+            'id', 'numero_vuelo', 'origen', 'destino', 'fecha_operacion', 'fecha_llegada', 'hora_partida',
+            'hora_llegada', 'precio_economy', 'precio_primera', 'asientos_disponibles_economy', 'asientos_disponibles_primera',
             'estado',
         ]
 
@@ -109,3 +114,160 @@ class BusquedaSerializer(serializers.Serializer):
         if errores:
             raise serializers.ValidationError(errores)
         return datos
+
+
+class FiltrosListadoSerializer(serializers.Serializer):
+    """Parámetros de GET /vuelos/ (listado del administrador). Todos opcionales."""
+
+    q = serializers.CharField(required=False)
+    origen = serializers.CharField(required=False)
+    destino = serializers.CharField(required=False)
+    desde = serializers.DateField(required=False, error_messages=_errores(FECHA_INVALIDA, 'invalid'))
+    hasta = serializers.DateField(required=False, error_messages=_errores(FECHA_INVALIDA, 'invalid'))
+    estado = serializers.ChoiceField(choices=Vuelo.Estado.choices, required=False)
+
+
+def _aeropuerto():
+    return serializers.SlugRelatedField(
+        slug_field='codigo_iata',
+        queryset=Aeropuerto.objects.all(),
+        error_messages={'does_not_exist': 'No conocemos el aeropuerto "{value}".'},
+    )
+
+
+def _precio():
+    return serializers.DecimalField(
+        max_digits=10, decimal_places=2, min_value=Decimal('0.01'),
+        error_messages={'min_value': 'El precio tiene que ser mayor a cero.'},
+    )
+
+
+MAX_DIAS_ADELANTE = 365
+
+
+class PeriodoSerializer(serializers.Serializer):
+    desde = serializers.DateField()
+    hasta = serializers.DateField()
+    dias = serializers.ListField(child=serializers.IntegerField(min_value=0, max_value=6), allow_empty=False)
+    avion = serializers.PrimaryKeyRelatedField(queryset=Avion.objects.all())
+    precio_economy = _precio()
+    precio_primera = _precio()
+
+    def validate(self, periodo):
+        hoy = timezone.localdate()
+        errores = {}
+        if periodo['desde'] < hoy:
+            errores['desde'] = 'La fecha no puede ser en el pasado.'
+        if periodo['hasta'] < periodo['desde']:
+            errores['hasta'] = '"Hasta" no puede ser antes de "Desde".'
+        elif periodo['hasta'] > hoy + dt.timedelta(days=MAX_DIAS_ADELANTE):
+            errores['hasta'] = 'El período no puede pasar de un año desde hoy.'
+        else:
+            periodo['fechas'] = fechas_de_periodo(periodo['desde'], periodo['hasta'], periodo['dias'])
+            if not periodo['fechas']:
+                errores['dias'] = 'Ningún día del rango cae en los días elegidos.'
+        if errores:
+            raise serializers.ValidationError(errores)
+        return periodo
+
+
+class AltaVueloSerializer(serializers.Serializer):
+    """Cuerpo de POST /vuelos/. Lo común al alta y sus períodos; cada período sale con sus `fechas`."""
+
+    origen = _aeropuerto()
+    destino = _aeropuerto()
+    hora_partida = serializers.TimeField()
+    hora_llegada = serializers.TimeField()
+    periodos = PeriodoSerializer(many=True, allow_empty=False)
+
+    def validate(self, datos):
+        errores = errores_de_ruta_y_horas(
+            datos['origen'], datos['destino'], datos['hora_partida'], datos['hora_llegada']
+        )
+        veces = Counter(fecha for periodo in datos['periodos'] for fecha in periodo['fechas'])
+        ahora = timezone.localtime()
+        if ahora.date() in veces and datos['hora_partida'] <= ahora.time():
+            errores['hora_partida'] = 'Ese horario ya pasó para hoy.'
+        if errores:
+            raise serializers.ValidationError(errores)
+        repetidas = sorted(fecha for fecha, n in veces.items() if n > 1)
+        if repetidas:
+            raise serializers.ValidationError(
+                f'Hay fechas repetidas entre períodos: {", ".join(map(str, repetidas))}.'
+            )
+        return datos
+
+
+CLASES = ('economy', 'primera')
+
+
+class EdicionVueloSerializer(serializers.Serializer):
+    """Cuerpo de PATCH /vuelos/<id>/ (siempre parcial). Lo que no se manda queda como está.
+
+    numero_vuelo, estado, asientos y fecha_llegada no son campos: si llegan, se ignoran.
+    """
+
+    fecha_operacion = serializers.DateField()
+    hora_partida = serializers.TimeField()
+    hora_llegada = serializers.TimeField()
+    origen = _aeropuerto()
+    destino = _aeropuerto()
+    avion = serializers.PrimaryKeyRelatedField(queryset=Avion.objects.all())
+    precio_economy = _precio()
+    precio_primera = _precio()
+
+    def _asientos(self, avion):
+        """Asientos disponibles por clase si el vuelo pasara a `avion`: capacidad nueva menos vendidos."""
+        vuelo = self.instance
+        return {
+            clase: getattr(avion, f'capacidad_{clase}')
+            - (getattr(vuelo.avion, f'capacidad_{clase}') - getattr(vuelo, f'asientos_disponibles_{clase}'))
+            for clase in CLASES
+        }
+
+    def validate(self, datos):
+        vuelo = self.instance
+        fecha = datos.get('fecha_operacion', vuelo.fecha_operacion)
+        partida = datos.get('hora_partida', vuelo.hora_partida)
+        llegada = datos.get('hora_llegada', vuelo.hora_llegada)
+        avion = datos.get('avion', vuelo.avion)
+        errores = errores_de_ruta_y_horas(
+            datos.get('origen', vuelo.aeropuerto_origen), datos.get('destino', vuelo.aeropuerto_destino), partida, llegada
+        )
+        ahora = timezone.localtime()
+        if (fecha, partida) <= (ahora.date(), ahora.time()):
+            errores['fecha_operacion'] = 'La partida tiene que ser en el futuro.'
+        elif fecha > ahora.date() + dt.timedelta(days=MAX_DIAS_ADELANTE):
+            errores['fecha_operacion'] = 'La fecha no puede pasar de un año desde hoy.'
+        elif Vuelo.objects.filter(numero_vuelo=vuelo.numero_vuelo, fecha_operacion=fecha).exclude(pk=vuelo.pk).exists():
+            errores['fecha_operacion'] = f'El {vuelo.numero_vuelo} ya tiene un vuelo ese día.'
+        if avion != vuelo.avion and min(self._asientos(avion).values()) < 0:
+            errores['avion'] = 'Ese avión no tiene lugar para los pasajes ya vendidos.'
+        if errores:
+            raise serializers.ValidationError(errores)
+        # Solo si cambia lo que ocupa al avión: un vuelo de ejemplo ya pisado tiene que poder cambiar de precio.
+        if (avion, fecha, partida, llegada) != (vuelo.avion, vuelo.fecha_operacion, vuelo.hora_partida, vuelo.hora_llegada):
+            # Mismo lock que el alta: el chequeo y el guardado son una sola operación (la vista abre la transacción).
+            Avion.objects.select_for_update().get(pk=avion.pk)
+            candidato = Vuelo(
+                avion=avion, fecha_operacion=fecha, fecha_llegada=fecha_llegada_de(fecha, partida, llegada),
+                hora_partida=partida, hora_llegada=llegada,
+            )
+            choque = choque_de_avion([candidato], excluir=vuelo.pk)
+            if choque:
+                raise serializers.ValidationError(choque)
+        return datos
+
+    def update(self, vuelo, datos):
+        avion = datos.get('avion', vuelo.avion)
+        if avion != vuelo.avion:
+            for clase, asientos in self._asientos(avion).items():
+                setattr(vuelo, f'asientos_disponibles_{clase}', asientos)
+            vuelo.avion = avion
+        vuelo.aeropuerto_origen = datos.get('origen', vuelo.aeropuerto_origen)
+        vuelo.aeropuerto_destino = datos.get('destino', vuelo.aeropuerto_destino)
+        for campo in ('fecha_operacion', 'hora_partida', 'hora_llegada', 'precio_economy', 'precio_primera'):
+            setattr(vuelo, campo, datos.get(campo, getattr(vuelo, campo)))
+        vuelo.fecha_llegada = fecha_llegada_de(vuelo.fecha_operacion, vuelo.hora_partida, vuelo.hora_llegada)
+        vuelo.save()
+        return vuelo

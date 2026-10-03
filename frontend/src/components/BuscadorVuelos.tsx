@@ -166,7 +166,7 @@ export default function BuscadorVuelos({ aeropuertos, inicial, erroresIniciales 
             desde={ida}
             hasta={hasta}
             min={hoy}
-            placeholder="Elegí la fecha o un rango"
+            placeholder="Elegí la fecha"
             invalido={!!(errores.ida || errores.hasta)}
             idError="error-ida"
             onChange={(d, h) => {
@@ -185,7 +185,7 @@ export default function BuscadorVuelos({ aeropuertos, inicial, erroresIniciales 
               desde={vuelta}
               hasta={vueltaHasta}
               min={ida || hoy}
-              placeholder="Elegí la fecha o un rango"
+              placeholder="Elegí la fecha"
               invalido={!!(errores.vuelta || errores.vueltaHasta)}
               idError="error-vuelta"
               onChange={(d, h) => {
