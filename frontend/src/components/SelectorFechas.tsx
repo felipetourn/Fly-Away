@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { DayPicker } from 'react-day-picker'
 import { es } from 'react-day-picker/locale'
 import 'react-day-picker/style.css'
-import { elegirDia } from '../lib/busqueda'
+import { abreHaciaArriba, elegirDia } from '../lib/busqueda'
 import { rangoCorto } from '../lib/formato'
 
 interface Props {
@@ -23,12 +23,15 @@ interface Props {
 // Hora local, no UTC (ver formato.ts).
 const aFecha = (iso: string) => new Date(`${iso}T00:00:00`)
 const aISO = (d: Date) => d.toLocaleDateString('sv-SE')
+// ponytail: alto aproximado del calendario (6 semanas + ayuda); medirlo con un ref si cambian sus estilos.
+const ALTO_CALENDARIO = 380
 
 /** Caja con un calendario desplegable: primer clic = inicio del rango, segundo clic = fin. */
 export default function SelectorFechas(p: Props) {
   const [abierto, setAbierto] = useState(false)
   // true entre el primer y el segundo clic.
   const [esperandoFin, setEsperandoFin] = useState(false)
+  const [arriba, setArriba] = useState(false)
   const raiz = useRef<HTMLDivElement>(null)
   const boton = useRef<HTMLButtonElement>(null)
 
@@ -75,6 +78,10 @@ export default function SelectorFechas(p: Props) {
           id={p.id}
           type="button"
           onClick={() => {
+            // Sin lugar abajo, el calendario abre hacia arriba: no se corta ni hace crecer la página.
+            const caja = raiz.current?.getBoundingClientRect()
+            const header = document.querySelector('header')?.getBoundingClientRect().bottom ?? 0
+            if (caja) setArriba(abreHaciaArriba(window.innerHeight - caja.bottom, caja.top - header, ALTO_CALENDARIO))
             setEsperandoFin(false)
             setAbierto((a) => !a)
           }}
@@ -93,7 +100,7 @@ export default function SelectorFechas(p: Props) {
         <div
           role="dialog"
           aria-label={`${p.etiqueta}: elegí el día de inicio y el de fin`}
-          className="absolute left-0 top-full z-50 mt-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl shadow-marino/20"
+          className={`absolute left-0 z-50 rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl shadow-marino/20 ${arriba ? 'bottom-full mb-2' : 'top-full mt-2'}`}
         >
           <DayPicker
             mode="range"

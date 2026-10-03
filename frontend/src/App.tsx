@@ -23,7 +23,12 @@ function Layout() {
   return (
     <>
       <Header />
-      <Outlet />
+      <div className="flex-1">
+        <Outlet />
+      </div>
+      <footer className="border-t border-slate-200 bg-white px-4 py-6 text-center text-sm text-slate-500">
+        Antonio Sevenants - Felipe Tourn
+      </footer>
     </>
   )
 }
@@ -31,7 +36,7 @@ function Layout() {
 // Mismo layout para todos; el header muestra las opciones del rol (MENU en lib/auth).
 export default function App() {
   return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+    <div className="flex min-h-screen flex-col bg-slate-50 font-sans text-slate-900">
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Vuelos />} />

@@ -2,9 +2,9 @@
 process.env.TZ = 'America/Argentina/Buenos_Aires' // UTC−3: detecta fechas corridas un día
 
 import assert from 'node:assert/strict'
-import { aParams, elegirDia, leerFiltros, validarBusqueda, type Filtros } from '../src/lib/busqueda.ts'
+import { aParams, abreHaciaArriba, elegirDia, leerFiltros, validarBusqueda, type Filtros } from '../src/lib/busqueda.ts'
 import { duracion, fechaCompleta, fechaCorta, fechaLarga, hora, precio, rangoCorto, rangoFechas } from '../src/lib/formato.ts'
-import { errorDePeriodo, erroresDe, fechasDePeriodo, primero, queryListado, yaSalio } from '../src/lib/adminVuelos.ts'
+import { errorDePeriodo, erroresDe, fechasDePeriodo, paginasVisibles, primero, queryListado, yaSalio } from '../src/lib/adminVuelos.ts'
 import { ApiError } from '../src/lib/api.ts'
 import { duracionDe, estadoClase, llegaAlDiaSiguiente, queryBusqueda, vueltasPosibles, type ParamsBusqueda, type Vuelo } from '../src/lib/vuelos.ts'
 
@@ -93,6 +93,11 @@ assert.deepEqual(elegirDia(inicio, '2026-10-26'), { desde: '2026-10-26', hasta: 
 assert.deepEqual(elegirDia(inicio, '2026-10-20'), { desde: '2026-10-20', hasta: '', abierto: true }, 'día anterior = nuevo inicio')
 const cerrado = { desde: '2026-10-26', hasta: '2026-10-28', abierto: false }
 assert.deepEqual(elegirDia(cerrado, '2026-11-02'), { desde: '2026-11-02', hasta: '', abierto: true }, 'con rango cerrado empieza otro')
+
+// abreHaciaArriba: el calendario se da vuelta solo si abajo no entra y arriba hay más lugar
+assert.equal(abreHaciaArriba(500, 300, 380), false, 'entra abajo')
+assert.equal(abreHaciaArriba(200, 450, 380), true, 'no entra abajo y arriba hay más lugar')
+assert.equal(abreHaciaArriba(200, 120, 380), false, 'no entra en ningún lado: abajo, donde hay más lugar')
 
 // formato
 assert.equal(rangoCorto('', ''), '')
@@ -185,5 +190,14 @@ assert.equal(errorDePeriodo({ periodos: [{}, { hasta: ['y'] }] }, 1, 'hasta'), '
 assert.equal(errorDePeriodo({ periodos: ['Esta lista no puede estar vacía.'] }, 0, 'desde'), '')
 assert.deepEqual(erroresDe(new ApiError(500, 'boom')), {})
 assert.deepEqual(erroresDe(new Error('red')), {})
+
+// paginasVisibles: primera, última y las vecinas de la actual; null = puntos suspensivos
+assert.deepEqual(paginasVisibles(1, 1), [1])
+assert.deepEqual(paginasVisibles(1, 0), [1], 'sin resultados igual hay una página')
+assert.deepEqual(paginasVisibles(3, 5), [1, 2, 3, 4, 5])
+assert.deepEqual(paginasVisibles(1, 20), [1, 2, null, 20])
+assert.deepEqual(paginasVisibles(10, 20), [1, null, 9, 10, 11, null, 20])
+assert.deepEqual(paginasVisibles(4, 20), [1, 2, 3, 4, 5, null, 20], 'un hueco de una sola página muestra el número')
+assert.deepEqual(paginasVisibles(20, 20), [1, null, 19, 20])
 
 console.log('adminVuelos: OK')
