@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import Header from './components/Header'
 import type { Usuario } from './lib/auth'
 import { useSesion } from './lib/sesion'
+import AdminVuelos from './pages/AdminVuelos'
 import Login from './pages/Login'
 import Perfil from './pages/Perfil'
 import Proximamente from './pages/Proximamente'
@@ -39,7 +40,7 @@ export default function App() {
           <Route path="registro" element={<Registro />} />
           <Route path="empleado/reservas" element={<RutaProtegida roles={['empleado_mostrador']}><Proximamente titulo="Reservas" /></RutaProtegida>} />
           <Route path="admin/reservas" element={<RutaProtegida roles={['administrador']}><Proximamente titulo="Reservas" /></RutaProtegida>} />
-          <Route path="admin/vuelos" element={<RutaProtegida roles={['administrador']}><Proximamente titulo="Gestión de vuelos" /></RutaProtegida>} />
+          <Route path="admin/vuelos" element={<RutaProtegida roles={['administrador']}><AdminVuelos /></RutaProtegida>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
