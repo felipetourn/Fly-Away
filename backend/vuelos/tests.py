@@ -262,13 +262,22 @@ class ErroresBusquedaTests(Datos):
 
 
 class SeedTests(Datos):
-    def correr(self):
-        call_command('seed', dias=3, stdout=StringIO())
+    def correr(self, vuelos=True):
+        call_command('seed', dias=3, vuelos=vuelos, stdout=StringIO())
+
+    def test_sin_vuelos_carga_solo_el_catalogo(self):
+        self.correr(vuelos=False)
+        self.assertEqual((Aeropuerto.objects.count(), Avion.objects.count(), Vuelo.objects.count()), (11, 10, 0))
+
+    def test_los_vuelos_de_ejemplo_usan_los_primeros_cuatro_aviones(self):
+        self.correr()
+        usados = set(Vuelo.objects.values_list('avion__matricula', flat=True))
+        self.assertLessEqual(usados, {'LV-FAA', 'LV-FAB', 'LV-FAC', 'LV-FAD'})
 
     def test_carga_datos_de_ejemplo(self):
         self.correr()
         self.assertEqual(Aeropuerto.objects.count(), 11)
-        self.assertEqual(Avion.objects.count(), 4)
+        self.assertEqual(Avion.objects.count(), 10)
         self.assertGreater(Vuelo.objects.count(), 0)
         sistema = get_user_model().objects.get(email='sistema@flyaway.local')
         self.assertEqual(sistema.rol, 'administrador')

@@ -1,6 +1,7 @@
-"""Datos de ejemplo: aeropuertos, flota y vuelos de los próximos días. Idempotente.
+"""Catálogo (aeropuertos, flota, usuario sistema) y, con --vuelos, vuelos de ejemplo. Idempotente.
 
-Existe porque todavía no hay ABM de vuelos. Sacarlo de build.sh cuando exista.
+El catálogo corre en build.sh porque aeropuertos y aviones no tienen ABM.
+Los vuelos los carga el administrador; --vuelos queda para desarrollo local.
 Solo crea lo que falta: no pisa correcciones hechas desde el admin.
 """
 import datetime as dt
@@ -31,16 +32,24 @@ FLOTA = [
     ('LV-FAB', 'Boeing 737-800', 162, 12),
     ('LV-FAC', 'Embraer E190', 96, 8),
     ('LV-FAD', 'Airbus A330-200', 250, 24),
+    ('LV-FAE', 'Airbus A320', 150, 12),
+    ('LV-FAF', 'Boeing 737-800', 162, 12),
+    ('LV-FAG', 'Embraer E190', 96, 8),
+    ('LV-FAH', 'Airbus A321', 190, 16),
+    ('LV-FAI', 'Boeing 737 MAX 8', 170, 12),
+    ('LV-FAJ', 'Embraer E195-E2', 120, 12),
 ]
+AVIONES_DE_EJEMPLO = 4  # los vuelos de ejemplo no validan avión libre: el resto de la flota queda sin ocupar
 
 
 class Command(BaseCommand):
-    help = 'Carga aeropuertos, flota y vuelos de ejemplo (no pisa lo que ya existe).'
+    help = 'Carga aeropuertos y flota; con --vuelos, también vuelos de ejemplo (no pisa lo que ya existe).'
 
     def add_arguments(self, parser):
+        parser.add_argument('--vuelos', action='store_true', help='Agrega vuelos de ejemplo (desarrollo local).')
         parser.add_argument('--dias', type=int, default=60, help='Días hacia adelante con vuelos (default 60).')
 
-    def handle(self, *args, dias, **opciones):
+    def handle(self, *args, dias, vuelos, **opciones):
         sistema, creado = get_user_model().objects.get_or_create(
             email='sistema@flyaway.local',
             defaults={'nombre': 'Sistema', 'apellido': 'Fly Away', 'rol': 'administrador'},
@@ -63,8 +72,15 @@ class Command(BaseCommand):
             for matricula, modelo, economy, primera in FLOTA
         ]
 
+        if vuelos:
+            self.cargar_vuelos(sistema, aeropuertos, aviones[:AVIONES_DE_EJEMPLO], dias)
+        self.stdout.write(self.style.SUCCESS(
+            f'Seed listo: {len(aeropuertos)} aeropuertos, {len(aviones)} aviones, {Vuelo.objects.count()} vuelos.'
+        ))
+
+    def cargar_vuelos(self, sistema, aeropuertos, aviones, dias):
         hoy = timezone.localdate()
-        vuelos = []
+        nuevos = []
         for i, origen in enumerate(aeropuertos):
             for j, destino in enumerate(aeropuertos):
                 if origen.ciudad == destino.ciudad:
@@ -81,7 +97,7 @@ class Command(BaseCommand):
                         partida = (6 + k * 4) * 60 + r.randrange(8) * 15  # 06:00 a 19:45: llega antes de medianoche
                         llegada = partida + duracion
                         economy = round((40000 + duracion * 900 + r.random() * 40000) / 10) * 10
-                        vuelos.append(Vuelo(
+                        nuevos.append(Vuelo(
                             numero_vuelo=f'FA {primer_numero + k}',
                             avion=avion,
                             aeropuerto_origen=origen,
@@ -98,7 +114,4 @@ class Command(BaseCommand):
                             creado_por=sistema,
                         ))
         # El índice único (numero_vuelo, fecha_operacion) descarta los que ya existen sin pisarlos.
-        Vuelo.objects.bulk_create(vuelos, batch_size=1000, ignore_conflicts=True)
-        self.stdout.write(self.style.SUCCESS(
-            f'Seed listo: {len(aeropuertos)} aeropuertos, {len(aviones)} aviones, {Vuelo.objects.count()} vuelos.'
-        ))
+        Vuelo.objects.bulk_create(nuevos, batch_size=1000, ignore_conflicts=True)
