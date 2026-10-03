@@ -35,6 +35,7 @@ export default function Perfil() {
           </p>
         )}
         <p className="mt-3 break-all text-slate-500">{usuario.email}</p>
+        <p className="mt-1 font-mono text-xs break-all text-slate-400">ID - {usuario.id}</p>
         <button
           type="button"
           onClick={() => {
