@@ -13,7 +13,8 @@ export class ApiError extends Error {
 }
 
 function mensajeError(data: unknown, status: number): string {
-  if (typeof data === 'string') return data || `Error ${status}`
+  // La API siempre responde JSON: un texto es la página de error de Django o del hosting, no un mensaje para mostrar.
+  if (typeof data === 'string') return 'No pudimos conectar con el servidor. Probá de nuevo en unos minutos.'
   if (data && typeof data === 'object') {
     const errores = Object.values(data).flatMap((valor) =>
       Array.isArray(valor) ? valor : [valor],
@@ -85,7 +86,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     try {
       data = JSON.parse(body)
     } catch {
-      // Respuestas no JSON, como las de un proxy, se muestran como texto.
+      // Respuestas no JSON (página de error de Django o del hosting): ApiError muestra un mensaje fijo.
     }
     throw new ApiError(res.status, data)
   }

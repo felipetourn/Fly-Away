@@ -131,7 +131,7 @@ Todo lo nuevo exige rol `administrador`: 401 sin sesión, 403 con otro rol. Erro
 
 Rutas, todas detrás de la guarda de rol `administrador`:
 
-- **`/admin/vuelos` - listado.** Tabla con ID, número, fecha, ruta, partida, llegada, avión, precios y estado. Arriba, los filtros (incluido el campo para buscar por ID o número) y el botón "Nuevo vuelo". Cada fila tiene un botón con lápiz (editar) y uno con tacho (cancelar). Los vuelos cancelados o que ya salieron muestran los botones deshabilitados. Paginación al pie.
+- **`/admin/vuelos` - listado.** Tabla con ID, número, fecha, ruta, partida, llegada, avión, precios y estado. Arriba, los filtros (incluido el campo para buscar por ID o número) y el botón "Nuevo vuelo". Cada fila tiene un botón con lápiz (editar) y uno con tacho (cancelar). En los vuelos cancelados o que ya salieron el tacho queda deshabilitado y el lápiz abre el formulario en solo lectura. Paginación centrada al pie, con flechas y números.
 - **`/admin/vuelos/nuevo` - formulario de alta.** Datos comunes y la lista de períodos, que se agregan y quitan. Días de la semana como casillas; fechas y horas con los inputs nativos. Si la llegada es anterior a la partida, muestra "llega al día siguiente". Antes de guardar muestra cuántos vuelos se van a generar. Al guardar vuelve al listado filtrado por el número asignado.
 - **`/admin/vuelos/:id` - formulario de edición.** El mismo formulario, cargado con los datos del vuelo: una sola fecha en lugar de períodos, y el número y el ID en solo lectura. Al guardar vuelve al listado.
 - **Cancelar.** El tacho abre un `<dialog>` nativo: "¿Cancelar el vuelo {id}?", con número, fecha y ruta debajo, y los botones "Cancelar vuelo" y "Volver". Al confirmar, la fila queda marcada como cancelada.

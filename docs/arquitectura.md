@@ -56,7 +56,7 @@ Fly Away/
 | `empleado_mostrador` | Vuelos, Reservas (`/empleado/reservas`) | vender pasajes a un pasajero en mostrador, consultar reservas |
 | `administrador` | Vuelos, Reservas (`/admin/reservas`), Gestión de vuelos (`/admin/vuelos`) | ABM de vuelos, cancelar, reportes de ocupación |
 
-Todos los roles comparten layout y header y, al iniciar sesión, llegan a `/` (búsqueda de vuelos); el header muestra las opciones del rol (`MENU` en `src/lib/auth.ts`).
+Todos los roles comparten layout, header y footer y, al iniciar sesión, llegan a `/` (búsqueda de vuelos); el header muestra las opciones del rol (`MENU` en `src/lib/auth.ts`).
 
 El Django admin (`/admin/` del backend) queda como herramienta interna, no como la interfaz de administradores.
 
@@ -129,7 +129,7 @@ GET  /api/reportes/ocupacion/?vuelo=&desde=&hasta=   (admin)
 
 El registro público siempre asigna el rol `pasajero` y valida la contraseña con los validadores de Django. Las cuentas de administrador y empleado se provisionan desde Django Admin por un administrador; las contraseñas se ingresan como texto en el formulario y se guardan hasheadas. Solo los usuarios activos con rol `administrador` son staff y acceden a Django Admin; empleados y pasajeros no acceden. El frontend renueva el access token con el refresh al recibir un 401 y descarta la sesión si la renovación falla. Las rutas `/admin/*` (React) y `/empleado/*` exigen administrador y empleado, respectivamente (cualquier otro rol vuelve a `/`); las búsquedas públicas de vuelos siguen abiertas. Cualquier nueva operación de negocio exclusiva por rol debe validar el permiso también en su endpoint de backend.
 
-**Errores 400:** formato estándar de DRF, `{"parametro": ["mensaje"]}`, con mensajes en español (los mismos que muestra el front). Los errores de un período del alta llegan en `periodos` indexados por posición (`{"periodos": {"0": {"desde": ["mensaje"]}}}`); los que no son de un campo, en `non_field_errors`. Un parámetro vacío (`?hasta=`) cuenta como no enviado. El 404 es `{"detail": "..."}`.
+**Errores 400:** formato estándar de DRF, `{"parametro": ["mensaje"]}`, con mensajes en español (los mismos que muestra el front). Los errores de un período del alta llegan en `periodos` indexados por posición (`{"periodos": {"0": {"desde": ["mensaje"]}}}`); los que no son de un campo, en `non_field_errors`. Un parámetro vacío (`?hasta=`) cuenta como no enviado. El 404 es `{"detail": "..."}`. Si la respuesta no es JSON (error 500, hosting caído), el front muestra un mensaje fijo (`ApiError` en `src/lib/api.ts`).
 
 **Catálogo y datos de ejemplo:** `python manage.py seed` carga los aeropuertos, la flota (10 aviones) y el usuario `sistema`; corre en `build.sh` porque no tienen ABM. `python manage.py seed --vuelos [--dias 60]` agrega vuelos de ejemplo sobre los primeros 4 aviones, para desarrollo local. Es idempotente y no pisa lo existente.
 
