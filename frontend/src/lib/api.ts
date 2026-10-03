@@ -32,7 +32,7 @@ function renovarAccessToken(): Promise<string | null> {
       const refresh = localStorage.getItem(CLAVE_REFRESH)
       if (!refresh) return null
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/token/refresh/`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/token/refresh/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refresh }),

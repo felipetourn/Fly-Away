@@ -31,7 +31,7 @@ export function SesionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const token = localStorage.getItem(CLAVE_TOKEN)
     if (!token) return
-    api<Usuario>('/api/auth/yo/')
+    api<Usuario>('/auth/yo/')
       .then(setUsuario)
       .catch(() => {
         localStorage.removeItem(CLAVE_TOKEN)
@@ -41,14 +41,14 @@ export function SesionProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const login = async (email: string, password: string) => {
-    const tokens = await api<Tokens>('/api/auth/token/', {
+    const tokens = await api<Tokens>('/auth/token/', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     })
     localStorage.setItem(CLAVE_TOKEN, tokens.access)
     localStorage.setItem(CLAVE_REFRESH, tokens.refresh)
     try {
-      const actual = await api<Usuario>('/api/auth/yo/')
+      const actual = await api<Usuario>('/auth/yo/')
       setUsuario(actual)
       return actual
     } catch (error) {
@@ -59,7 +59,7 @@ export function SesionProvider({ children }: { children: ReactNode }) {
   }
 
   const registrarse = async (datos: DatosRegistro) => {
-    await api<Usuario>('/api/auth/registro/', {
+    await api<Usuario>('/auth/registro/', {
       method: 'POST',
       body: JSON.stringify(datos),
     })
