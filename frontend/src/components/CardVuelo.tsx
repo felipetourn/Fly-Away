@@ -1,6 +1,6 @@
 import { NOMBRE_CLASE, type Clase } from '../lib/busqueda'
 import { duracion, fechaCorta, hora, precio } from '../lib/formato'
-import { asientosDe, duracionDe, estadoClase, precioDe, type Vuelo } from '../lib/vuelos'
+import { asientosDe, duracionDe, estadoClase, llegaAlDiaSiguiente, precioDe, type Vuelo } from '../lib/vuelos'
 
 interface Props {
   vuelo: Vuelo
@@ -37,7 +37,12 @@ export default function CardVuelo({ vuelo, clase, onElegir, onVerDetalle }: Prop
           {fechaCorta(vuelo.fecha_operacion)}
         </div>
         <div className="text-right">
-          <p className="text-2xl font-extrabold">{hora(vuelo.hora_llegada)}</p>
+          <p className="text-2xl font-extrabold">
+            {hora(vuelo.hora_llegada)}
+            {llegaAlDiaSiguiente(vuelo) && (
+              <sup className="ml-0.5 text-xs font-bold text-naranja" title="Llega al día siguiente">+1</sup>
+            )}
+          </p>
           <p className="text-sm font-semibold text-slate-500">{vuelo.destino.codigo_iata}</p>
         </div>
       </div>

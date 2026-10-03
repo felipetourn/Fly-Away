@@ -6,6 +6,7 @@ import {
   duracionDe,
   estadoClase,
   getVuelo,
+  llegaAlDiaSiguiente,
   precioDe,
   type Aeropuerto,
   type EstadoClase,
@@ -158,7 +159,9 @@ export default function DetalleVuelo({ vuelo, clase, pasajeros, onElegir, onCerr
             </div>
             Directo
           </div>
-          <Extremo etiqueta="Destino" horario={v.hora_llegada} aeropuerto={v.destino} derecha />
+          <Extremo etiqueta="Destino" horario={v.hora_llegada} aeropuerto={v.destino} derecha>
+            {llegaAlDiaSiguiente(v) && <p className="mt-1 text-xs font-semibold text-naranja">Llega al día siguiente</p>}
+          </Extremo>
         </div>
       </div>
 

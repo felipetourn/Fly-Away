@@ -4,7 +4,7 @@ process.env.TZ = 'America/Argentina/Buenos_Aires' // UTC−3: detecta fechas cor
 import assert from 'node:assert/strict'
 import { aParams, elegirDia, leerFiltros, validarBusqueda, type Filtros } from '../src/lib/busqueda.ts'
 import { duracion, fechaCompleta, fechaCorta, fechaLarga, hora, precio, rangoCorto, rangoFechas } from '../src/lib/formato.ts'
-import { duracionDe, estadoClase, queryBusqueda, vueltasPosibles, type ParamsBusqueda, type Vuelo } from '../src/lib/vuelos.ts'
+import { duracionDe, estadoClase, llegaAlDiaSiguiente, queryBusqueda, vueltasPosibles, type ParamsBusqueda, type Vuelo } from '../src/lib/vuelos.ts'
 
 const hoy = '2026-10-02'
 const base: Filtros = {
@@ -126,10 +126,13 @@ assert.equal(
   'precio 0 se manda',
 )
 
-assert.equal(duracionDe({ hora_partida: '06:40:00', hora_llegada: '08:05:00' } as Vuelo), 85)
+assert.equal(duracionDe({ fecha_operacion: '2026-11-14', fecha_llegada: '2026-11-14', hora_partida: '06:40:00', hora_llegada: '08:05:00' } as Vuelo), 85)
+const nocturno = { fecha_operacion: '2026-11-14', fecha_llegada: '2026-11-15', hora_partida: '23:00:00', hora_llegada: '01:30:00' } as Vuelo
+assert.equal(duracionDe(nocturno), 150, 'cruza medianoche')
+assert.equal(llegaAlDiaSiguiente(nocturno), true)
 
 // vueltasPosibles: solo las que salen después de que aterriza la ida (la vuelta puede ser un rango superpuesto)
-const ida = { fecha_operacion: '2026-11-14', hora_llegada: '12:00:00' } as Vuelo
+const ida = { fecha_operacion: '2026-11-14', fecha_llegada: '2026-11-14', hora_llegada: '12:00:00' } as Vuelo
 const vueltas = [
   { id: 'diaAnterior', fecha_operacion: '2026-11-13', hora_partida: '18:00:00' },
   { id: 'aLaManana', fecha_operacion: '2026-11-14', hora_partida: '09:00:00' },
@@ -138,6 +141,7 @@ const vueltas = [
   { id: 'otroDia', fecha_operacion: '2026-11-15', hora_partida: '06:00:00' },
 ] as Vuelo[]
 assert.deepEqual(vueltasPosibles(vueltas, ida).map((v) => v.id), ['aLaTarde', 'otroDia'])
+assert.deepEqual(vueltasPosibles(vueltas, nocturno).map((v) => v.id), ['otroDia'], 'la ida aterriza el 15 a la 01:30')
 
 // estadoClase
 assert.equal(estadoClase(0), 'agotada')
