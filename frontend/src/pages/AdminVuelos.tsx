@@ -156,7 +156,7 @@ export default function AdminVuelos() {
   ))
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-8">
+    <main className="mx-auto max-w-[88rem] px-4 py-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-extrabold text-marino">Gestión de vuelos</h1>
         <Link to="/admin/vuelos/nuevo" className="rounded-xl bg-marino px-5 py-2.5 font-bold text-white hover:bg-cielo">
