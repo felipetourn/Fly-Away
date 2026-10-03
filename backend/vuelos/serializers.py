@@ -18,7 +18,7 @@ class AeropuertoSerializer(serializers.ModelSerializer):
 class AvionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Avion
-        fields = ['matricula', 'modelo']
+        fields = ['id', 'matricula', 'modelo', 'capacidad_economy', 'capacidad_primera']
 
 
 class VueloSerializer(serializers.ModelSerializer):
@@ -114,6 +114,17 @@ class BusquedaSerializer(serializers.Serializer):
         if errores:
             raise serializers.ValidationError(errores)
         return datos
+
+
+class FiltrosListadoSerializer(serializers.Serializer):
+    """Parámetros de GET /vuelos/ (listado del administrador). Todos opcionales."""
+
+    q = serializers.CharField(required=False)
+    origen = serializers.CharField(required=False)
+    destino = serializers.CharField(required=False)
+    desde = serializers.DateField(required=False, error_messages=_errores(FECHA_INVALIDA, 'invalid'))
+    hasta = serializers.DateField(required=False, error_messages=_errores(FECHA_INVALIDA, 'invalid'))
+    estado = serializers.ChoiceField(choices=Vuelo.Estado.choices, required=False)
 
 
 def _aeropuerto():

@@ -1,15 +1,20 @@
+import uuid
+
 from django.db import IntegrityError
 from django.utils import timezone
 from rest_framework import generics
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Aeropuerto, Vuelo
+from .models import Aeropuerto, Avion, Vuelo
 from .permissions import EsAdministrador
 from .serializers import (
     AeropuertoSerializer,
     AltaVueloSerializer,
+    AvionSerializer,
     BusquedaSerializer,
+    FiltrosListadoSerializer,
     VueloDetalleSerializer,
     VueloSerializer,
 )
@@ -61,10 +66,49 @@ class VueloDetalleView(generics.RetrieveAPIView):
     serializer_class = VueloDetalleSerializer
 
 
-class VuelosView(generics.GenericAPIView):
-    """ABM de vuelos del administrador: alta con recurrencia (el listado se suma en el GET)."""
+class Paginacion(PageNumberPagination):
+    page_size = 50
+
+
+class AvionesView(generics.ListAPIView):
+    permission_classes = [EsAdministrador]
+    queryset = Avion.objects.order_by('matricula')
+    serializer_class = AvionSerializer
+
+
+class VuelosView(generics.ListAPIView):
+    """ABM de vuelos del administrador: listado paginado con filtros y alta con recurrencia."""
 
     permission_classes = [EsAdministrador]
+    serializer_class = VueloDetalleSerializer
+    pagination_class = Paginacion
+
+    def get_queryset(self):
+        filtros = FiltrosListadoSerializer(data={k: v for k, v in self.request.query_params.items() if v != ''})
+        filtros.is_valid(raise_exception=True)
+        f = filtros.validated_data
+        vuelos = Vuelo.objects.select_related('avion', 'aeropuerto_origen', 'aeropuerto_destino').order_by(
+            'fecha_operacion', 'hora_partida', 'numero_vuelo'
+        )
+        q = f.get('q')
+        if q:
+            try:
+                vuelos = vuelos.filter(pk=uuid.UUID(q))
+            except ValueError:
+                vuelos = vuelos.filter(numero_vuelo__icontains=q)
+        # Sin `desde` ni `q`, desde hoy; con `q` se busca en todas las fechas (un id puede ser de un vuelo pasado).
+        desde = f.get('desde') or (None if q else timezone.localdate())
+        if desde:
+            vuelos = vuelos.filter(fecha_operacion__gte=desde)
+        if 'hasta' in f:
+            vuelos = vuelos.filter(fecha_operacion__lte=f['hasta'])
+        if 'estado' in f:
+            vuelos = vuelos.filter(estado=f['estado'])
+        if 'origen' in f:
+            vuelos = vuelos.filter(aeropuerto_origen__codigo_iata=f['origen'].upper())
+        if 'destino' in f:
+            vuelos = vuelos.filter(aeropuerto_destino__codigo_iata=f['destino'].upper())
+        return vuelos
 
     def post(self, request):
         alta = AltaVueloSerializer(data=request.data)

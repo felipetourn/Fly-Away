@@ -117,7 +117,10 @@ class DetalleTests(Datos):
         d = r.json()
         self.assertEqual(set(d), VUELO_CAMPOS | {'avion'})
         self.assertEqual(d['id'], str(v.id))
-        self.assertEqual(d['avion'], {'matricula': 'LV-FAA', 'modelo': 'Airbus A320'})
+        self.assertEqual(d['avion'], {
+            'id': str(self.avion.id), 'matricula': 'LV-FAA', 'modelo': 'Airbus A320',
+            'capacidad_economy': 150, 'capacidad_primera': 12,
+        })
         self.assertEqual(d['origen']['codigo_iata'], 'BHI')
         self.assertEqual(d['destino']['ciudad'], 'Buenos Aires')
         self.assertEqual(d['precio_economy'], '100000.00')
@@ -517,3 +520,59 @@ class AltaTests(AdminDatos):
         with patch('vuelos.servicios.siguiente_numero', return_value='FA 1'):
             errores = self.rechaza(self.datos(), vuelos_antes=1)
         self.assertEqual(errores, {'non_field_errors': ['No se pudo asignar el número de vuelo. Probá de nuevo.']})
+
+
+class ListadoTests(AdminDatos):
+    def listar(self, **params):
+        r = self.client.get('/api/vuelos/', params)
+        self.assertEqual(r.status_code, 200, r.content)
+        return [v['numero_vuelo'] for v in r.json()['results']]
+
+    def test_solo_el_administrador(self):
+        self.solo_admin('get', '/api/vuelos/')
+        self.solo_admin('get', '/api/aviones/')
+
+    def test_desde_hoy_ordenado_y_con_avion(self):
+        self.vuelo('FA 1', fecha=MANANA + dt.timedelta(days=1))
+        self.vuelo('FA 2', fecha=MANANA, partida='18:00')
+        self.vuelo('FA 3', fecha=MANANA, partida='09:00', estado=Vuelo.Estado.CANCELADO)
+        self.vuelo('FA 4', fecha=HOY - dt.timedelta(days=1))
+        r = self.client.get('/api/vuelos/')
+        d = r.json()
+        self.assertEqual((d['count'], d['next'], d['previous']), (3, None, None))
+        self.assertEqual([v['numero_vuelo'] for v in d['results']], ['FA 3', 'FA 2', 'FA 1'])
+        self.assertEqual(set(d['results'][0]), VUELO_CAMPOS | {'avion'})
+        self.assertEqual(d['results'][0]['avion']['id'], str(self.avion.id))
+
+    def test_filtros(self):
+        a = self.vuelo('FA 10', fecha=MANANA)
+        self.vuelo('FA 20', fecha=MANANA, origen=self.cor, destino=self.aep, partida='10:00', avion=self.avion2)
+        self.vuelo('FA 30', fecha=MANANA + dt.timedelta(days=5), estado=Vuelo.Estado.CANCELADO)
+        viejo = self.vuelo('FA 40', fecha=HOY - dt.timedelta(days=3))
+        self.assertEqual(self.listar(q='fa 1'), ['FA 10'])
+        self.assertEqual(self.listar(q=str(a.id)), ['FA 10'])
+        self.assertEqual(self.listar(q=str(viejo.id)), ['FA 40'], 'por id se llega a un vuelo pasado')
+        self.assertEqual(self.listar(origen='cor'), ['FA 20'])
+        self.assertEqual(self.listar(destino='AEP', hasta=str(MANANA)), ['FA 20', 'FA 10'], 'por hora de partida')
+        self.assertEqual(self.listar(estado='cancelado'), ['FA 30'])
+        self.assertEqual(self.listar(desde=str(HOY - dt.timedelta(days=3)), hasta=str(HOY)), ['FA 40'])
+        self.assertEqual(self.listar(q='', origen='', estado=''), ['FA 20', 'FA 10', 'FA 30'], 'vacío = no enviado')
+
+    def test_filtros_invalidos(self):
+        r = self.client.get('/api/vuelos/', {'desde': 'ayer'})
+        self.assertEqual((r.status_code, r.json()), (400, {'desde': ['Indicá una fecha válida (AAAA-MM-DD).']}))
+        self.assertEqual(self.client.get('/api/vuelos/', {'estado': 'demorado'}).status_code, 400)
+
+    def test_paginas_de_50(self):
+        for n in range(51):
+            self.vuelo(f'FA {n}', fecha=MANANA + dt.timedelta(days=n))
+        primera = self.client.get('/api/vuelos/').json()
+        self.assertEqual((primera['count'], len(primera['results'])), (51, 50))
+        self.assertIsNotNone(primera['next'])
+        self.assertEqual(len(self.client.get('/api/vuelos/', {'page': 2}).json()['results']), 1)
+        self.assertEqual(self.client.get('/api/vuelos/', {'page': 9}).status_code, 404)
+
+    def test_aviones(self):
+        r = self.client.get('/api/aviones/')
+        self.assertEqual([a['matricula'] for a in r.json()], ['LV-FAA', 'LV-FAB'])
+        self.assertEqual(set(r.json()[0]), {'id', 'matricula', 'modelo', 'capacidad_economy', 'capacidad_primera'})
