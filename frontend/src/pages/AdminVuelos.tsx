@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { cancelarVuelo, listarVuelos, yaSalio, type FiltrosAdmin, type Pagina } from '../lib/adminVuelos'
+import { POR_PAGINA, cancelarVuelo, listarVuelos, paginasVisibles, yaSalio, type FiltrosAdmin, type Pagina } from '../lib/adminVuelos'
 import { fechaCorta, hora, precio } from '../lib/formato'
 import { getAeropuertos, llegaAlDiaSiguiente, type Aeropuerto, type VueloDetalle } from '../lib/vuelos'
 
 const CAMPO = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal outline-none focus:border-marino focus:ring-2 focus:ring-marino/20'
 const ICONO = 'grid h-9 w-9 place-items-center rounded-lg text-slate-600 hover:bg-slate-100 hover:text-marino aria-disabled:pointer-events-none aria-disabled:opacity-30 disabled:cursor-not-allowed disabled:opacity-30'
+
+const PAGINA = 'grid h-10 min-w-10 place-items-center rounded-xl border border-slate-300 bg-white px-2 font-bold text-marino hover:border-cielo disabled:cursor-not-allowed disabled:opacity-40'
 
 function leerFiltros(params: URLSearchParams): FiltrosAdmin {
   const texto = (clave: string) => params.get(clave) ?? ''
@@ -272,13 +274,28 @@ export default function AdminVuelos() {
               </tbody>
             </table>
           </div>
-          <nav aria-label="Páginas" className="mt-4 flex items-center justify-end gap-3 text-sm">
-            <button type="button" onClick={() => irAPagina(filtros.page - 1)} disabled={!pagina.previous} className="rounded-xl border border-slate-300 bg-white px-4 py-2 font-bold text-marino hover:border-cielo disabled:cursor-not-allowed disabled:opacity-40">
-              Anterior
+          <nav aria-label="Páginas" className="mt-6 flex flex-wrap items-center justify-center gap-1.5 text-sm">
+            <button type="button" onClick={() => irAPagina(filtros.page - 1)} disabled={!pagina.previous} aria-label="Página anterior" className={PAGINA}>
+              <Icono d="M15 6l-6 6 6 6" />
             </button>
-            <span className="text-slate-500">Página {filtros.page}</span>
-            <button type="button" onClick={() => irAPagina(filtros.page + 1)} disabled={!pagina.next} className="rounded-xl border border-slate-300 bg-white px-4 py-2 font-bold text-marino hover:border-cielo disabled:cursor-not-allowed disabled:opacity-40">
-              Siguiente
+            {paginasVisibles(filtros.page, Math.ceil(pagina.count / POR_PAGINA)).map((n, i) =>
+              n === null ? (
+                <span key={`hueco-${i}`} aria-hidden="true" className="px-1 text-slate-400">…</span>
+              ) : (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => irAPagina(n)}
+                  aria-label={`Página ${n}`}
+                  aria-current={n === filtros.page ? 'page' : undefined}
+                  className={`${PAGINA} aria-[current=page]:border-marino aria-[current=page]:bg-marino aria-[current=page]:text-white`}
+                >
+                  {n}
+                </button>
+              ),
+            )}
+            <button type="button" onClick={() => irAPagina(filtros.page + 1)} disabled={!pagina.next} aria-label="Página siguiente" className={PAGINA}>
+              <Icono d="M9 6l6 6-6 6" />
             </button>
           </nav>
         </>

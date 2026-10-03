@@ -79,6 +79,23 @@ export function queryListado(f: FiltrosAdmin): URLSearchParams {
   return q
 }
 
+/** Vuelos por página del listado: el `page_size` del backend (Paginacion en vuelos/views.py). */
+export const POR_PAGINA = 50
+
+/** Números a mostrar en la paginación: primera, última y las vecinas de `actual`. null = puntos suspensivos. */
+export function paginasVisibles(actual: number, total: number): (number | null)[] {
+  const ultima = Math.max(1, total)
+  const elegidas = [1, actual - 1, actual, actual + 1, ultima].filter((n) => n >= 1 && n <= ultima)
+  const paginas: (number | null)[] = []
+  for (const n of [...new Set(elegidas)].sort((a, b) => a - b)) {
+    const anterior = paginas.at(-1)
+    if (typeof anterior === 'number' && n - anterior === 2) paginas.push(n - 1)
+    else if (typeof anterior === 'number' && n - anterior > 2) paginas.push(null)
+    paginas.push(n)
+  }
+  return paginas
+}
+
 /** ponytail: usa el reloj del navegador (se asume hora de Argentina); solo deshabilita botones, el backend decide. */
 export function yaSalio(v: { fecha_operacion: string; hora_partida: string }, ahora = new Date()): boolean {
   return new Date(`${v.fecha_operacion}T${v.hora_partida}`) <= ahora
