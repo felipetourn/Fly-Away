@@ -1,5 +1,5 @@
 import { Link, NavLink } from 'react-router-dom'
-import { iniciales } from '../lib/auth'
+import { iniciales, MENU } from '../lib/auth'
 import { useSesion } from '../lib/sesion'
 
 const navLink = ({ isActive }: { isActive: boolean }) =>
@@ -12,19 +12,18 @@ const navLink = ({ isActive }: { isActive: boolean }) =>
 export default function Header() {
   const { usuario } = useSesion()
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/90 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white">
       <div className="flex h-20 items-center justify-between gap-3 px-4 md:px-8">
         <Link to="/" aria-label="Fly Away, inicio" className="shrink-0">
           <img src="/logoMain.svg" alt="" className="h-9 sm:hidden" />
           <img src="/titulo.svg" alt="" className="hidden h-8 sm:block md:h-10" />
         </Link>
         <nav className="flex items-center gap-1 text-xs font-semibold sm:text-sm md:gap-2">
-          <NavLink to="/" end className={navLink}>
-            Vuelos
-          </NavLink>
-          <NavLink to="/reservas" className={navLink}>
-            Reservas
-          </NavLink>
+          {MENU[usuario?.rol ?? 'pasajero'].map(({ to, texto }) => (
+            <NavLink key={to} to={to} end={to === '/'} className={navLink}>
+              {texto}
+            </NavLink>
+          ))}
           <span className="mx-1 h-6 w-px bg-slate-200" aria-hidden="true" />
           {usuario ? (
             <Link

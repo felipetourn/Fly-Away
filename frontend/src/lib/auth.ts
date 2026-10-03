@@ -13,8 +13,20 @@ export function iniciales(u: Usuario): string {
   return `${u.nombre.charAt(0)}${u.apellido.charAt(0)}`.toUpperCase()
 }
 
-export function inicioPorRol(rol: Usuario['rol']): string {
-  if (rol === 'administrador') return '/admin'
-  if (rol === 'empleado_mostrador') return '/mostrador'
-  return '/'
+// Opciones del header según el rol; sin sesión se muestran las del pasajero.
+// Solo resuelve navegación: el permiso real lo valida cada endpoint del backend.
+export const MENU: Record<Usuario['rol'], { to: string; texto: string }[]> = {
+  pasajero: [
+    { to: '/', texto: 'Vuelos' },
+    { to: '/reservas', texto: 'Reservas' },
+  ],
+  empleado_mostrador: [
+    { to: '/', texto: 'Vuelos' },
+    { to: '/empleado/reservas', texto: 'Reservas' },
+  ],
+  administrador: [
+    { to: '/', texto: 'Vuelos' },
+    { to: '/admin/reservas', texto: 'Reservas' },
+    { to: '/admin/vuelos', texto: 'Gestión de vuelos' },
+  ],
 }

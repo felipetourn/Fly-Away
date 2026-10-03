@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { inicioPorRol } from '../lib/auth'
 import { useSesion } from '../lib/sesion'
 
 export default function Login() {
@@ -12,15 +11,15 @@ export default function Login() {
   const [enviando, setEnviando] = useState(false)
 
   if (cargando) return <main className="mx-auto max-w-md px-4 py-16" aria-busy="true">Cargando sesión…</main>
-  if (usuario) return <Navigate to={inicioPorRol(usuario.rol)} replace />
+  if (usuario) return <Navigate to="/" replace />
 
   const enviar = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setError('')
     setEnviando(true)
     try {
-      const actual = await login(email, password)
-      navigate(inicioPorRol(actual.rol), { replace: true })
+      await login(email, password)
+      navigate('/', { replace: true })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo iniciar sesión.')
     } finally {

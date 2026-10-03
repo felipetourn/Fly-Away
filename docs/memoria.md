@@ -4,6 +4,13 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-03 — Revisión de la US22 (rama `feature/autenticacion`)**
+- Corregido: las llamadas de autenticación del front duplicaban el prefijo (`/api/api/auth/...`) porque `VITE_API_URL` ya termina en `/api`; ahora usan `/auth/...` como el resto de `lib/`.
+- El área del empleado pasa de `/mostrador` a `/empleado`. El rol sigue siendo `empleado_mostrador`.
+- Un solo layout con header para los tres roles. Tras iniciar sesión todos llegan a `/`; cambian las opciones del header (`MENU` en `src/lib/auth.ts`): pasajero Vuelos y Reservas; empleado Vuelos y Reservas (`/empleado/reservas`); administrador Vuelos, Reservas (`/admin/reservas`) y Gestión de vuelos (`/admin/vuelos`). Las pantallas nuevas son placeholders; el ABM de vuelos va en `/admin/vuelos`.
+- Header con fondo opaco (antes era semitransparente y dejaba ver el hero al hacer scroll).
+- Cuentas de prueba creadas en Supabase, una por rol: `admin@gmail.com`, `empleado@gmail.com`, `pepe@gmail.com`. Las contraseñas no se documentan acá; crear los emails siempre en minúsculas (el login distingue mayúsculas).
+
 **2026-10-02 — US22, autenticación de usuarios**
 - Backend: login por email con SimpleJWT, registro público exclusivo para pasajeros con validación de contraseña, endpoint autenticado `GET /api/auth/yo/` y cuentas de administrador/empleado gestionables desde Django Admin con contraseña hasheada.
 - Frontend: formularios reales de inicio de sesión y registro; recuperación de sesión consultando `/api/auth/yo/`; navegación por rol y guardas para perfil, reservas, administración y mostrador. Empleado no puede abrir administración; pasajero no puede abrir mostrador ni administración. El cierre de sesión elimina ambos tokens.
@@ -52,6 +59,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-10-03 | Misma interfaz para los tres roles: inicio en `/` y header con opciones según el rol, en vez de un panel separado por rol | Menos layouts que mantener; se ve claro que el rol cambia las opciones. Si el ABM queda apretado, `/admin` puede pasar a un layout de panel sin tocar las pantallas |
 | 2026-10-02 | `react-day-picker` para elegir el rango en un mismo calendario | `<input type="date">` no elige rangos; la librería trae accesibilidad (teclado, lectores) y español resueltos |
 | 2026-10-02 | Sin límite de días en el rango de búsqueda; rango también en ida y vuelta | Pedido del equipo: elegir ida y vuelta en una fecha o entre dos |
 | 2026-10-02 | Errores 400 con el formato de DRF (`{"param": ["mensaje"]}`) en español | Estándar del framework; el front puede ubicar cada error en su campo |

@@ -45,16 +45,18 @@ Fly Away/
         ├── lib/              api.ts (fetch + JWT), llamadas a la API, lógica pura (sesión todavía mock)
         ├── components/       Header, HeroCarrusel, BuscadorVuelos, FiltroPrecio, CardVuelo, ListaVuelos, DetalleVuelo
         ├── pages/            pantallas
-        └── App.tsx           rutas: / (pasajero), /mostrador, /admin
+        └── App.tsx           rutas: / (todos), /empleado/*, /admin/* (por rol)
 ```
 
 ## Roles
 
-| Rol (`usuarios.rol`) | Interfaz | Puede |
+| Rol (`usuarios.rol`) | Opciones del header | Puede |
 |---|---|---|
-| `pasajero` | `/` | buscar vuelos, comprar (≤ 9 pasajes), ver/descargar sus pasajes |
-| `empleado_mostrador` | `/mostrador` | vender pasajes a un pasajero en mostrador, consultar reservas |
-| `administrador` | `/admin` | ABM de vuelos, cancelar, reportes de ocupación |
+| `pasajero` | Vuelos, Reservas (`/reservas`) | buscar vuelos, comprar (≤ 9 pasajes), ver/descargar sus pasajes |
+| `empleado_mostrador` | Vuelos, Reservas (`/empleado/reservas`) | vender pasajes a un pasajero en mostrador, consultar reservas |
+| `administrador` | Vuelos, Reservas (`/admin/reservas`), Gestión de vuelos (`/admin/vuelos`) | ABM de vuelos, cancelar, reportes de ocupación |
+
+Todos los roles comparten layout y header y, al iniciar sesión, llegan a `/` (búsqueda de vuelos); el header muestra las opciones del rol (`MENU` en `src/lib/auth.ts`).
 
 El Django admin (`/admin/` del backend) queda como herramienta interna, no como la interfaz de administradores.
 
@@ -118,7 +120,7 @@ GET  /api/pasajes/{codigo}/pdf/  descarga ticket electrónico
 GET  /api/reportes/ocupacion/?vuelo=&desde=&hasta=   (admin)
 ```
 
-El registro público siempre asigna el rol `pasajero` y valida la contraseña con los validadores de Django. Las cuentas de administrador y empleado se provisionan desde Django Admin por un administrador; las contraseñas se ingresan como texto en el formulario y se guardan hasheadas. Solo los usuarios activos con rol `administrador` son staff y acceden a Django Admin; empleados y pasajeros no acceden. El frontend renueva el access token con el refresh al recibir un 401 y descarta la sesión si la renovación falla. Las rutas `/admin/*` (React) y `/mostrador/*` exigen administrador y empleado, respectivamente; las búsquedas públicas de vuelos siguen abiertas. Cualquier nueva operación de negocio exclusiva por rol debe validar el permiso también en su endpoint de backend.
+El registro público siempre asigna el rol `pasajero` y valida la contraseña con los validadores de Django. Las cuentas de administrador y empleado se provisionan desde Django Admin por un administrador; las contraseñas se ingresan como texto en el formulario y se guardan hasheadas. Solo los usuarios activos con rol `administrador` son staff y acceden a Django Admin; empleados y pasajeros no acceden. El frontend renueva el access token con el refresh al recibir un 401 y descarta la sesión si la renovación falla. Las rutas `/admin/*` (React) y `/empleado/*` exigen administrador y empleado, respectivamente (cualquier otro rol vuelve a `/`); las búsquedas públicas de vuelos siguen abiertas. Cualquier nueva operación de negocio exclusiva por rol debe validar el permiso también en su endpoint de backend.
 
 **Errores 400:** formato estándar de DRF, `{"parametro": ["mensaje"]}`, con mensajes en español (los mismos que muestra el front). Un parámetro vacío (`?hasta=`) cuenta como no enviado. El 404 es `{"detail": "..."}`.
 

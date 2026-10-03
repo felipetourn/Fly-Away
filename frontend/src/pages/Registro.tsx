@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
-import { inicioPorRol } from '../lib/auth'
 import { useSesion } from '../lib/sesion'
 
 export default function Registro() {
@@ -15,7 +14,7 @@ export default function Registro() {
   const [enviando, setEnviando] = useState(false)
 
   if (cargando) return <main className="mx-auto max-w-md px-4 py-16" aria-busy="true">Cargando sesión…</main>
-  if (usuario) return <Navigate to={inicioPorRol(usuario.rol)} replace />
+  if (usuario) return <Navigate to="/" replace />
 
   const enviar = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -26,8 +25,8 @@ export default function Registro() {
     }
     setEnviando(true)
     try {
-      const actual = await registrarse({ email, nombre, apellido, password })
-      navigate(inicioPorRol(actual.rol), { replace: true })
+      await registrarse({ email, nombre, apellido, password })
+      navigate('/', { replace: true })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo crear la cuenta.')
     } finally {
