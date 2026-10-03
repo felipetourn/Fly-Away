@@ -1,10 +1,19 @@
+from django.db import IntegrityError
 from django.utils import timezone
 from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from .models import Aeropuerto, Vuelo
-from .serializers import AeropuertoSerializer, BusquedaSerializer, VueloDetalleSerializer, VueloSerializer
+from .permissions import EsAdministrador
+from .serializers import (
+    AeropuertoSerializer,
+    AltaVueloSerializer,
+    BusquedaSerializer,
+    VueloDetalleSerializer,
+    VueloSerializer,
+)
+from .servicios import crear_vuelos, error_general
 
 
 class AeropuertosView(generics.ListAPIView):
@@ -50,3 +59,19 @@ class VueloDetalleView(generics.RetrieveAPIView):
 
     queryset = Vuelo.objects.select_related('avion', 'aeropuerto_origen', 'aeropuerto_destino')
     serializer_class = VueloDetalleSerializer
+
+
+class VuelosView(generics.GenericAPIView):
+    """ABM de vuelos del administrador: alta con recurrencia (el listado se suma en el GET)."""
+
+    permission_classes = [EsAdministrador]
+
+    def post(self, request):
+        alta = AltaVueloSerializer(data=request.data)
+        alta.is_valid(raise_exception=True)
+        try:
+            numero, cantidad = crear_vuelos(alta.validated_data, request.user)
+        except IntegrityError:
+            # Dos altas a la vez tomaron el mismo número: el índice único frena a la segunda.
+            raise error_general('No se pudo asignar el número de vuelo. Probá de nuevo.')
+        return Response({'numero_vuelo': numero, 'cantidad': cantidad}, status=201)

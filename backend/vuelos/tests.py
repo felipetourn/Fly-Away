@@ -17,6 +17,7 @@ from .models import Aeropuerto, Avion, Vuelo
 BA = ZoneInfo('America/Argentina/Buenos_Aires')
 AHORA = dt.datetime(2026, 10, 20, 12, 0, tzinfo=BA)  # mediodía en Buenos Aires
 HOY = AHORA.date()
+MANANA = HOY + dt.timedelta(days=1)
 
 
 class Datos(APITestCase):
@@ -135,9 +136,6 @@ class DetalleTests(Datos):
             r = self.client.get(f'/api/vuelos/{id_}/')
             self.assertEqual(r.status_code, 404, id_)
             self.assertIn('detail', r.json())
-
-
-MANANA = HOY + dt.timedelta(days=1)
 
 
 class BuscarTests(Datos):
@@ -338,3 +336,184 @@ class MigracionFechaLlegadaTests(TransactionTestCase):
         )
         apps = self.migrar(ultima)
         self.assertEqual(apps.get_model('vuelos', 'Vuelo').objects.get().fecha_llegada, HOY)
+
+
+class AdminDatos(Datos):
+    """Sesión de administrador. HOY es martes 2026-10-20."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        crear = get_user_model().objects.create_user
+        cls.pasajero = crear('pasajero@mail.com', 'x', nombre='Pepe', apellido='P', rol='pasajero')
+        cls.empleado = crear('empleado@mail.com', 'x', nombre='Eva', apellido='E', rol='empleado_mostrador')
+        cls.avion2 = Avion.objects.create(
+            matricula='LV-FAB', modelo='Embraer E190', capacidad_economy=96, capacidad_primera=8
+        )
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(self.admin)
+
+    def solo_admin(self, metodo, url):
+        pedir = getattr(self.client, metodo)
+        extra = {} if metodo == 'get' else {'data': {}, 'format': 'json'}
+        self.client.force_authenticate(None)
+        self.assertEqual(pedir(url, **extra).status_code, 401, url)
+        for usuario in (self.pasajero, self.empleado):
+            self.client.force_authenticate(usuario)
+            self.assertEqual(pedir(url, **extra).status_code, 403, url)
+        self.client.force_authenticate(self.admin)
+
+
+class AltaTests(AdminDatos):
+    def periodo(self, **cambios):
+        # Del miércoles 21/10 al martes 3/11, lunes y miércoles: 21/10, 26/10, 28/10 y 2/11.
+        return {
+            'desde': str(MANANA), 'hasta': str(MANANA + dt.timedelta(days=13)), 'dias': [0, 2],
+            'avion': str(self.avion.id), 'precio_economy': '85000.00', 'precio_primera': '190000.00', **cambios,
+        }
+
+    def datos(self, **cambios):
+        return {
+            'origen': 'BHI', 'destino': 'AEP', 'hora_partida': '08:30', 'hora_llegada': '10:45',
+            'periodos': [self.periodo()], **cambios,
+        }
+
+    def crear(self, datos):
+        return self.client.post('/api/vuelos/', datos, format='json')
+
+    def rechaza(self, datos, vuelos_antes=0):
+        r = self.crear(datos)
+        self.assertEqual(r.status_code, 400, r.content)
+        self.assertEqual(Vuelo.objects.count(), vuelos_antes, 'el alta es atómica')
+        return r.json()
+
+    def test_solo_el_administrador(self):
+        self.solo_admin('post', '/api/vuelos/')
+
+    def test_genera_una_instancia_por_fecha(self):
+        r = self.crear(self.datos())
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertEqual(r.json(), {'numero_vuelo': 'FA 1000', 'cantidad': 4})
+        vuelos = list(Vuelo.objects.filter(numero_vuelo='FA 1000'))
+        self.assertEqual(
+            [v.fecha_operacion for v in vuelos],
+            [dt.date(2026, 10, 21), dt.date(2026, 10, 26), dt.date(2026, 10, 28), dt.date(2026, 11, 2)],
+        )
+        self.assertEqual(len({v.id for v in vuelos}), 4, 'un id por fecha')
+        for v in vuelos:
+            self.assertEqual(v.fecha_llegada, v.fecha_operacion)
+            self.assertEqual((v.hora_partida, v.hora_llegada), (dt.time(8, 30), dt.time(10, 45)))
+            self.assertEqual((v.aeropuerto_origen, v.aeropuerto_destino, v.avion), (self.bhi, self.aep, self.avion))
+            self.assertEqual((v.asientos_disponibles_economy, v.asientos_disponibles_primera), (150, 12))
+            self.assertEqual((v.precio_economy, v.precio_primera), (Decimal('85000.00'), Decimal('190000.00')))
+            self.assertEqual((v.estado, v.creado_por), (Vuelo.Estado.ACTIVO, self.admin))
+
+    def test_numero_siguiente_al_mas_alto(self):
+        self.vuelo('FA 2203', fecha=MANANA + dt.timedelta(days=60))
+        self.vuelo('FA 1500', fecha=MANANA + dt.timedelta(days=61))
+        self.assertEqual(self.crear(self.datos()).json()['numero_vuelo'], 'FA 2204')
+
+    def test_cada_periodo_con_su_avion_y_sus_precios(self):
+        jueves = MANANA + dt.timedelta(days=1)
+        periodos = [
+            self.periodo(hasta=str(MANANA), dias=[2]),
+            self.periodo(desde=str(jueves), hasta=str(jueves), dias=[3], avion=str(self.avion2.id), precio_economy='99000.00'),
+        ]
+        r = self.crear(self.datos(periodos=periodos))
+        self.assertEqual(r.json()['cantidad'], 2, r.content)
+        segundo = Vuelo.objects.get(fecha_operacion=jueves)
+        self.assertEqual(segundo.avion, self.avion2)
+        self.assertEqual((segundo.asientos_disponibles_economy, segundo.asientos_disponibles_primera), (96, 8))
+        self.assertEqual(segundo.precio_economy, Decimal('99000.00'))
+        self.assertEqual(segundo.numero_vuelo, Vuelo.objects.get(fecha_operacion=MANANA).numero_vuelo)
+
+    def test_cruza_medianoche(self):
+        r = self.crear(self.datos(hora_partida='23:00', hora_llegada='01:30'))
+        self.assertEqual(r.status_code, 201, r.content)
+        for v in Vuelo.objects.all():
+            self.assertEqual(v.fecha_llegada, v.fecha_operacion + dt.timedelta(days=1))
+
+    def test_validaciones(self):
+        self.assertEqual(set(self.rechaza({})), {'origen', 'destino', 'hora_partida', 'hora_llegada', 'periodos'})
+        self.assertIn('periodos', self.rechaza(self.datos(periodos=[])))
+        self.assertEqual(
+            self.rechaza(self.datos(destino='BHI')), {'destino': ['El destino tiene que ser distinto del origen.']}
+        )
+        self.assertEqual(
+            self.rechaza(self.datos(origen='AEP', destino='EZE')),
+            {'destino': ['Origen y destino están en la misma ciudad.']},
+        )
+        self.assertEqual(self.rechaza(self.datos(origen='ZZZ')), {'origen': ['No conocemos el aeropuerto "ZZZ".']})
+        self.assertEqual(
+            self.rechaza(self.datos(hora_llegada='08:30')),
+            {'hora_llegada': ['La llegada no puede ser a la misma hora que la partida.']},
+        )
+
+        def periodo_invalido(clave, mensaje=None, **cambios):
+            # DRF indexa los errores de una lista por posición: {'periodos': {'0': {...}}}
+            errores = self.rechaza(self.datos(periodos=[self.periodo(**cambios)]))['periodos']['0']
+            self.assertIn(clave, errores, cambios)
+            if mensaje:
+                self.assertEqual(errores[clave], [mensaje])
+
+        periodo_invalido('desde', 'La fecha no puede ser en el pasado.', desde=str(HOY - dt.timedelta(days=1)))
+        periodo_invalido('hasta', '"Hasta" no puede ser antes de "Desde".', hasta=str(HOY))
+        periodo_invalido(
+            'hasta', 'El período no puede pasar de un año desde hoy.', hasta=str(HOY + dt.timedelta(days=366))
+        )
+        periodo_invalido('dias', dias=[])
+        periodo_invalido('dias', dias=[7])
+        periodo_invalido('dias', 'Ningún día del rango cae en los días elegidos.', hasta=str(MANANA), dias=[0])
+        periodo_invalido('precio_economy', 'El precio tiene que ser mayor a cero.', precio_economy='0')
+        periodo_invalido('precio_primera', precio_primera='abc')
+        periodo_invalido('avion', avion='no-es-un-uuid')
+        periodo_invalido('avion', avion=str(uuid.uuid4()))
+
+    def test_fechas_repetidas_entre_periodos(self):
+        periodos = [self.periodo(), self.periodo(avion=str(self.avion2.id), dias=[2, 4])]
+        errores = self.rechaza(self.datos(periodos=periodos))
+        self.assertEqual(
+            errores, {'non_field_errors': ['Hay fechas repetidas entre períodos: 2026-10-21, 2026-10-28.']}
+        )
+
+    def test_hoy_con_horario_pasado(self):
+        hoy = self.periodo(desde=str(HOY), hasta=str(HOY), dias=[1])  # martes; AHORA son las 12:00
+        self.assertEqual(
+            self.rechaza(self.datos(hora_partida='11:00', hora_llegada='12:30', periodos=[hoy])),
+            {'hora_partida': ['Ese horario ya pasó para hoy.']},
+        )
+        self.assertEqual(self.crear(self.datos(hora_partida='13:00', hora_llegada='14:30', periodos=[hoy])).status_code, 201)
+
+    def test_avion_ocupado(self):
+        otro = self.vuelo('FA 1', fecha=MANANA, partida='09:00')  # LV-FAA de 09:00 a 10:00
+        self.assertEqual(
+            self.rechaza(self.datos(), vuelos_antes=1),
+            {'non_field_errors': ['LV-FAA ya está asignado al FA 1 el 2026-10-21 de 09:00 a 10:00.']},
+        )
+        otro.estado = Vuelo.Estado.CANCELADO
+        otro.save()
+        self.assertEqual(self.crear(self.datos()).status_code, 201, 'un cancelado no ocupa el avión')
+
+    def test_avion_libre_si_los_horarios_se_tocan_sin_pisarse(self):
+        self.vuelo('FA 1', fecha=MANANA, partida='10:45')  # sale justo cuando aterriza el nuevo
+        self.assertEqual(self.crear(self.datos()).status_code, 201)
+
+    def test_avion_ocupado_cruzando_medianoche(self):
+        self.vuelo('FA 1', fecha=MANANA + dt.timedelta(days=1), partida='00:30')  # madrugada del jueves
+        nocturno = self.datos(hora_partida='23:00', hora_llegada='01:00', periodos=[self.periodo(hasta=str(MANANA), dias=[2])])
+        self.assertEqual(
+            self.rechaza(nocturno, vuelos_antes=1),
+            {'non_field_errors': ['LV-FAA ya está asignado al FA 1 el 2026-10-22 de 00:30 a 01:30.']},
+        )
+
+    def test_doble_envio(self):
+        self.assertEqual(self.crear(self.datos()).status_code, 201)
+        self.assertIn('non_field_errors', self.rechaza(self.datos(), vuelos_antes=4))
+
+    def test_choque_de_numero(self):
+        self.vuelo('FA 1', fecha=MANANA, partida='15:00', avion=self.avion2)
+        with patch('vuelos.servicios.siguiente_numero', return_value='FA 1'):
+            errores = self.rechaza(self.datos(), vuelos_antes=1)
+        self.assertEqual(errores, {'non_field_errors': ['No se pudo asignar el número de vuelo. Probá de nuevo.']})

@@ -1,7 +1,12 @@
+import datetime as dt
+from collections import Counter
+from decimal import Decimal
+
 from django.utils import timezone
 from rest_framework import serializers
 
 from .models import Aeropuerto, Avion, Vuelo
+from .servicios import errores_de_ruta_y_horas, fechas_de_periodo
 
 
 class AeropuertoSerializer(serializers.ModelSerializer):
@@ -108,4 +113,75 @@ class BusquedaSerializer(serializers.Serializer):
             errores['precio_min'] = 'El mínimo no puede ser mayor que el máximo.'
         if errores:
             raise serializers.ValidationError(errores)
+        return datos
+
+
+def _aeropuerto():
+    return serializers.SlugRelatedField(
+        slug_field='codigo_iata',
+        queryset=Aeropuerto.objects.all(),
+        error_messages={'does_not_exist': 'No conocemos el aeropuerto "{value}".'},
+    )
+
+
+def _precio():
+    return serializers.DecimalField(
+        max_digits=10, decimal_places=2, min_value=Decimal('0.01'),
+        error_messages={'min_value': 'El precio tiene que ser mayor a cero.'},
+    )
+
+
+MAX_DIAS_ADELANTE = 365
+
+
+class PeriodoSerializer(serializers.Serializer):
+    desde = serializers.DateField()
+    hasta = serializers.DateField()
+    dias = serializers.ListField(child=serializers.IntegerField(min_value=0, max_value=6), allow_empty=False)
+    avion = serializers.PrimaryKeyRelatedField(queryset=Avion.objects.all())
+    precio_economy = _precio()
+    precio_primera = _precio()
+
+    def validate(self, periodo):
+        hoy = timezone.localdate()
+        errores = {}
+        if periodo['desde'] < hoy:
+            errores['desde'] = 'La fecha no puede ser en el pasado.'
+        if periodo['hasta'] < periodo['desde']:
+            errores['hasta'] = '"Hasta" no puede ser antes de "Desde".'
+        elif periodo['hasta'] > hoy + dt.timedelta(days=MAX_DIAS_ADELANTE):
+            errores['hasta'] = 'El período no puede pasar de un año desde hoy.'
+        else:
+            periodo['fechas'] = fechas_de_periodo(periodo['desde'], periodo['hasta'], periodo['dias'])
+            if not periodo['fechas']:
+                errores['dias'] = 'Ningún día del rango cae en los días elegidos.'
+        if errores:
+            raise serializers.ValidationError(errores)
+        return periodo
+
+
+class AltaVueloSerializer(serializers.Serializer):
+    """Cuerpo de POST /vuelos/. Lo común al alta y sus períodos; cada período sale con sus `fechas`."""
+
+    origen = _aeropuerto()
+    destino = _aeropuerto()
+    hora_partida = serializers.TimeField()
+    hora_llegada = serializers.TimeField()
+    periodos = PeriodoSerializer(many=True, allow_empty=False)
+
+    def validate(self, datos):
+        errores = errores_de_ruta_y_horas(
+            datos['origen'], datos['destino'], datos['hora_partida'], datos['hora_llegada']
+        )
+        veces = Counter(fecha for periodo in datos['periodos'] for fecha in periodo['fechas'])
+        ahora = timezone.localtime()
+        if ahora.date() in veces and datos['hora_partida'] <= ahora.time():
+            errores['hora_partida'] = 'Ese horario ya pasó para hoy.'
+        if errores:
+            raise serializers.ValidationError(errores)
+        repetidas = sorted(fecha for fecha, n in veces.items() if n > 1)
+        if repetidas:
+            raise serializers.ValidationError(
+                f'Hay fechas repetidas entre períodos: {", ".join(map(str, repetidas))}.'
+            )
         return datos
