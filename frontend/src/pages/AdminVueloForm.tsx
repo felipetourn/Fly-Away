@@ -115,13 +115,13 @@ export default function AdminVueloForm() {
 
   if (errorCarga) {
     return (
-      <main className="mx-auto max-w-3xl px-4 py-8">
+      <main className="mx-auto max-w-[88rem] px-4 py-8">
         <p role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{errorCarga}</p>
         <Link to="/admin/vuelos" className="mt-4 inline-block font-semibold text-marino underline">Volver al listado</Link>
       </main>
     )
   }
-  if (cargando) return <main className="mx-auto max-w-3xl px-4 py-8" aria-busy="true">Cargando…</main>
+  if (cargando) return <main className="mx-auto max-w-[88rem] px-4 py-8" aria-busy="true">Cargando…</main>
 
   const opcionesAeropuerto = aeropuertos.map((a) => (
     <option key={a.id} value={a.codigo_iata}>
@@ -130,7 +130,7 @@ export default function AdminVueloForm() {
   ))
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8">
+    <main className="mx-auto max-w-[88rem] px-4 py-8">
       <Link to="/admin/vuelos" className="text-sm font-semibold text-marino underline">Volver al listado</Link>
       <h1 className="mt-2 text-3xl font-extrabold text-marino">{vuelo ? `Vuelo ${vuelo.numero_vuelo}` : 'Nuevo vuelo'}</h1>
       {vuelo && <p className="mt-1 font-mono text-xs break-all text-slate-500">ID - {vuelo.id}</p>}
@@ -142,7 +142,7 @@ export default function AdminVueloForm() {
 
       <form onSubmit={guardar} className="mt-6">
         <fieldset disabled={soloLectura || enviando} className="space-y-6">
-          <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-2">
+          <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 sm:grid-cols-2 lg:grid-cols-4">
             <Campo etiqueta="Aeropuerto de origen" error={primero(errores.origen)}>
               <select required value={comunes.origen} onChange={(e) => cambiarComun('origen', e.target.value)} className={CAMPO}>
                 <option value="">Elegí un aeropuerto</option>
@@ -176,7 +176,7 @@ export default function AdminVueloForm() {
                   )}
                 </div>
               )}
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <Campo etiqueta={id ? 'Fecha' : 'Desde'} error={errorEn(i, 'desde')}>
                   <input type="date" required value={p.desde} onChange={(e) => cambiarPeriodo(i, { desde: e.target.value })} className={CAMPO} />
                 </Campo>
