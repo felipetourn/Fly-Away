@@ -2,12 +2,12 @@ import { NOMBRE_MARCA, type Pago } from '../lib/pagos'
 
 const CAJA = 'grid h-8 w-12 shrink-0 place-items-center rounded-md border text-[10px] font-extrabold'
 
-/** Insignia del medio de pago: la marca de la tarjeta o Mercado Pago (no son los logos oficiales). */
+/** Insignia del medio de pago: el logo de Mercado Pago (public/medios) o la marca de la tarjeta. */
 export default function LogoMedio({ pago }: { pago: Pick<Pago, 'metodo_pago' | 'marca'> }) {
   if (pago.metodo_pago === 'mercadopago')
     return (
-      <span title="Mercado Pago" className={`${CAJA} border-sky-200 bg-sky-50 text-sky-600`}>
-        MP
+      <span title="Mercado Pago" className={`${CAJA} border-slate-200 bg-white`}>
+        <img src="/medios/mercadopago.svg" alt="Mercado Pago" className="h-6" />
       </span>
     )
   if (pago.marca === 'mastercard')
