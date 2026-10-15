@@ -9,7 +9,7 @@ from rest_framework.test import APITestCase
 
 from vuelos.models import Aeropuerto, Avion, Vuelo
 
-from . import reservas_mock
+from . import reservas_mock, tarjeta
 from .models import Pago, ReservaDemo
 
 BA = ZoneInfo('America/Argentina/Buenos_Aires')
@@ -143,3 +143,37 @@ class ReservasApiTests(Datos):
         self.assertEqual(self.client.get('/api/pagos/reservas/').status_code, 401)
         self.client.force_authenticate(self.admin)
         self.assertEqual(self.client.get('/api/pagos/reservas/').status_code, 403)
+
+
+class TarjetaTests(Datos):
+    def errores(self, numero='4242424242424242', titular='Ana Pérez', vencimiento='12/30', cvv='123'):
+        return tarjeta.errores_de_tarjeta(tarjeta.limpiar_numero(numero), titular, vencimiento, cvv, HOY)
+
+    def test_tarjetas_validas_de_las_tres_marcas(self):
+        self.assertEqual(self.errores(), {})
+        self.assertEqual(self.errores(numero='5031755734530604'), {})
+        self.assertEqual(self.errores(numero='378282246310005', cvv='1234'), {})
+
+    def test_acepta_espacios_y_guiones(self):
+        self.assertEqual(self.errores(numero='4242 4242-4242 4242'), {})
+
+    def test_numero_invalido(self):
+        self.assertIn('numero', self.errores(numero='4242'))
+        self.assertIn('numero', self.errores(numero='4242424242424241'))  # Luhn
+        self.assertIn('numero', self.errores(numero='6011111111111117'))  # Discover: no soportada
+
+    def test_titular_vencimiento_y_cvv(self):
+        self.assertIn('titular', self.errores(titular='  '))
+        self.assertIn('vencimiento', self.errores(vencimiento='13/30'))
+        self.assertIn('vencimiento', self.errores(vencimiento='1230'))
+        self.assertIn('vencimiento', self.errores(vencimiento='09/26'))  # HOY es octubre de 2026
+        self.assertEqual(self.errores(vencimiento='10/26'), {})  # vence a fin de mes
+        self.assertIn('cvv', self.errores(cvv='12'))
+        self.assertIn('cvv', self.errores(numero='378282246310005', cvv='123'))  # Amex pide 4
+
+    def test_resultado_segun_la_tarjeta_de_prueba(self):
+        self.assertEqual(tarjeta.procesar('4242424242424242')[:2], (True, 'Pago aprobado.'))
+        self.assertEqual(tarjeta.procesar('4000000000000002')[:2], (False, 'Tarjeta rechazada por el emisor.'))
+        self.assertEqual(tarjeta.procesar('4000000000009995')[:2], (False, 'Fondos insuficientes.'))
+        self.assertFalse(tarjeta.procesar('4000000000000119')[0])
+        self.assertTrue(tarjeta.procesar('4242424242424242')[2].startswith('SIM-'))
