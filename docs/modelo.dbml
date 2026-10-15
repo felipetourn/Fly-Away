@@ -153,6 +153,8 @@ Table pagos {
   numero_factura varchar [unique]
   transaccion_externa_id varchar
   procesado_en timestamp
+  detalle varchar [note: 'Motivo legible del resultado, el que ve el pasajero']
+  creado_en timestamp [default: `now()`]
 }
 
 Enum pago_estado {
