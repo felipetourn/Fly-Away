@@ -19,3 +19,7 @@ dist/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Superpowers (specs y planes de trabajo, no son documentación oficial)
+.superpowers/
+docs/superpowers/
