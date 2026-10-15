@@ -4,7 +4,7 @@ process.env.TZ = 'America/Argentina/Buenos_Aires' // UTC−3: detecta fechas cor
 import assert from 'node:assert/strict'
 import { aParams, abreHaciaArriba, elegirDia, leerFiltros, validarBusqueda, type Filtros } from '../src/lib/busqueda.ts'
 import { duracion, fechaCompleta, fechaCorta, fechaDeInstante, fechaLarga, hora, precio, rangoCorto, rangoFechas } from '../src/lib/formato.ts'
-import { cuentaDelPago, erroresTarjeta, formatearNumero, formatearVencimiento, luhnValido, marcaDe, medioDePago, TARJETAS_PRUEBA } from '../src/lib/pagos.ts'
+import { cuentaDelPago, erroresTarjeta, mensajeCompra, formatearNumero, formatearVencimiento, luhnValido, marcaDe, medioDePago, TARJETAS_PRUEBA } from '../src/lib/pagos.ts'
 import { errorDePeriodo, erroresDe, fechasDePeriodo, paginasVisibles, primero, queryListado, yaSalio } from '../src/lib/adminVuelos.ts'
 import { ApiError } from '../src/lib/api.ts'
 import { duracionDe, estadoClase, llegaAlDiaSiguiente, queryBusqueda, vueltasPosibles, type ParamsBusqueda, type Vuelo } from '../src/lib/vuelos.ts'
@@ -251,4 +251,10 @@ assert.equal(medioDePago(conMp), 'Mercado Pago')
 assert.equal(cuentaDelPago(conTarjeta), '•••• 4242')
 assert.equal(cuentaDelPago(conMp), 'test@testuser.com')
 assert.equal(cuentaDelPago({ ...conMp, cuenta_mp: null }), 'Cuenta de Mercado Pago', 'MP no informó el mail')
+const vuelo = { id: 'v', numero_vuelo: 'FA 1072', origen: 'AEP', destino: 'COR', fecha_operacion: '2026-10-21', hora_partida: '15:00:00' }
+assert.equal(mensajeCompra({ estado: 'aprobado', vuelo, cantidad_pasajes: 2 }), 'Tus 2 pasajes para FA 1072, AEP → COR están confirmados.')
+assert.equal(mensajeCompra({ estado: 'aprobado', vuelo, cantidad_pasajes: 1 }), 'Tu pasaje para FA 1072, AEP → COR está confirmado.')
+assert.equal(mensajeCompra({ estado: 'aprobado', vuelo: null, cantidad_pasajes: null }), 'Tu compra está confirmada.')
+assert.equal(mensajeCompra({ estado: 'rechazado', vuelo, cantidad_pasajes: 2 }), 'La compra no se confirmó.')
+assert.equal(mensajeCompra({ estado: 'pendiente', vuelo, cantidad_pasajes: 2 }), '')
 console.log('pagos: OK')

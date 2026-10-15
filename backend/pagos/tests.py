@@ -234,6 +234,7 @@ class PagoTarjetaTests(Datos):
         self.assertEqual(r.data['monto'], '500000.00')
         self.assertEqual(r.data['ultimos_4'], '4242')
         self.assertEqual(r.data['vuelo']['numero_vuelo'], 'FA 1000')
+        self.assertEqual(r.data['cantidad_pasajes'], 2)
         pago = Pago.objects.get(id=r.data['id'])
         self.assertEqual((pago.reserva_id, pago.metodo_pago), (reserva.id, 'tarjeta'))
         self.assertIsNotNone(pago.procesado_en)

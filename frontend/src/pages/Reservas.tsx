@@ -42,7 +42,7 @@ export default function Reservas() {
             <div className="flex items-center justify-between gap-4 sm:justify-end">
               <p className="text-lg font-extrabold">{precio(Number(r.monto))}</p>
               {r.estado === 'pagada' ? (
-                <ChipEstado estado="aprobado" texto="Pagada" />
+                <ChipEstado estado="aprobado" texto="Confirmada" />
               ) : (
                 <Link to={`/pagar/${r.id}`} className="rounded-xl bg-naranja px-5 py-2.5 font-bold text-white hover:bg-naranja/90">
                   Pagar

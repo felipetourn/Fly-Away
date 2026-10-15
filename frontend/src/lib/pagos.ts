@@ -27,6 +27,7 @@ export interface Pago {
   id: string
   reserva_id: string
   vuelo: VueloResumen | null
+  cantidad_pasajes: number | null
   metodo_pago: 'tarjeta' | 'mercadopago'
   ultimos_4: string | null
   marca: Marca | null // de la tarjeta, o la usada dentro de Mercado Pago
@@ -147,6 +148,16 @@ export const pasajesDe = (r: Pick<Reserva, 'cantidad' | 'clase'>) =>
 
 /** "FA 1001, AEP → COR" */
 export const vueloCorto = (v: VueloResumen) => `${v.numero_vuelo}, ${v.origen} → ${v.destino}`
+
+/** Subtítulo del resultado: qué pasó con la compra (US08). */
+export function mensajeCompra(p: Pick<Pago, 'estado' | 'vuelo' | 'cantidad_pasajes'>): string {
+  if (p.estado === 'rechazado') return 'La compra no se confirmó.'
+  if (p.estado !== 'aprobado') return ''
+  if (!p.vuelo || !p.cantidad_pasajes) return 'Tu compra está confirmada.'
+  return p.cantidad_pasajes === 1
+    ? `Tu pasaje para ${vueloCorto(p.vuelo)} está confirmado.`
+    : `Tus ${p.cantidad_pasajes} pasajes para ${vueloCorto(p.vuelo)} están confirmados.`
+}
 
 export const getReservas = () => api<Reserva[]>('/pagos/reservas/')
 export const getPagos = () => api<Pago[]>('/pagos/')

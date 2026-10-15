@@ -53,14 +53,19 @@ class PagoSerializer(serializers.ModelSerializer):
     """`context['reservas']`: {reserva_id: ReservaDemo} del usuario, para el resumen del vuelo."""
 
     vuelo = serializers.SerializerMethodField()
+    cantidad_pasajes = serializers.SerializerMethodField()
 
     class Meta:
         model = Pago
         fields = [
-            'id', 'reserva_id', 'vuelo', 'metodo_pago', 'ultimos_4', 'marca', 'cuenta_mp', 'monto', 'estado', 'detalle',
+            'id', 'reserva_id', 'vuelo', 'cantidad_pasajes', 'metodo_pago', 'ultimos_4', 'marca', 'cuenta_mp', 'monto', 'estado', 'detalle',
             'transaccion_externa_id', 'creado_en', 'procesado_en',
         ]
 
     def get_vuelo(self, pago):
         reserva = self.context['reservas'].get(pago.reserva_id)
         return VueloResumenSerializer(reserva.vuelo).data if reserva else None
+
+    def get_cantidad_pasajes(self, pago):
+        reserva = self.context['reservas'].get(pago.reserva_id)
+        return len(reservas_mock.pasajes_de(reserva)) if reserva else None

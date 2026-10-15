@@ -3,9 +3,9 @@ import { Link, useParams } from 'react-router-dom'
 import ChipEstado from '../components/ChipEstado'
 import { EsqueletoPagina } from '../components/Esqueleto'
 import { precio } from '../lib/formato'
-import { getPago, medioDePago, vueloCorto, type Pago } from '../lib/pagos'
+import { getPago, medioDePago, mensajeCompra, vueloCorto, type Pago } from '../lib/pagos'
 
-const TITULO = { aprobado: 'Pago aprobado', rechazado: 'Pago rechazado', pendiente: 'Pago pendiente' }
+const TITULO = { aprobado: '¡Compra confirmada!', rechazado: 'Pago rechazado', pendiente: 'Pago pendiente' }
 
 export default function PagoResultado() {
   const { id = '' } = useParams()
@@ -43,6 +43,7 @@ export default function PagoResultado() {
       <section role="status" aria-live="polite" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <ChipEstado estado={pago.estado} />
         <h1 className="mt-3 text-3xl font-extrabold text-marino">{TITULO[pago.estado]}</h1>
+        {mensajeCompra(pago) && <p className="mt-2 font-medium text-slate-700">{mensajeCompra(pago)}</p>}
         <p className="mt-2 text-slate-600">{pago.detalle}</p>
         <dl className="mt-6 space-y-2 border-t border-slate-100 pt-4 text-sm">
           {pago.vuelo && (
