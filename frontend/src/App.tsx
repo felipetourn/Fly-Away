@@ -7,9 +7,12 @@ import { useSesion } from './lib/sesion'
 import AdminVueloForm from './pages/AdminVueloForm'
 import AdminVuelos from './pages/AdminVuelos'
 import Login from './pages/Login'
+import Pagar from './pages/Pagar'
+import PagoResultado from './pages/PagoResultado'
 import Perfil from './pages/Perfil'
 import Proximamente from './pages/Proximamente'
 import Registro from './pages/Registro'
+import Reservas from './pages/Reservas'
 import Vuelos from './pages/Vuelos'
 
 function RutaProtegida({ roles, children }: { roles: Usuario['rol'][]; children: ReactNode }) {
@@ -41,7 +44,9 @@ export default function App() {
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<Vuelos />} />
-          <Route path="reservas" element={<RutaProtegida roles={['pasajero']}><Proximamente titulo="Mis reservas" /></RutaProtegida>} />
+          <Route path="reservas" element={<RutaProtegida roles={['pasajero']}><Reservas /></RutaProtegida>} />
+          <Route path="pagar/:reservaId" element={<RutaProtegida roles={['pasajero']}><Pagar /></RutaProtegida>} />
+          <Route path="pagos/:id" element={<RutaProtegida roles={['pasajero']}><PagoResultado /></RutaProtegida>} />
           <Route path="perfil" element={<RutaProtegida roles={['pasajero', 'empleado_mostrador', 'administrador']}><Perfil /></RutaProtegida>} />
           <Route path="login" element={<Login />} />
           <Route path="registro" element={<Registro />} />
