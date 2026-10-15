@@ -2,7 +2,7 @@ import { NOMBRE_MARCA, type Pago } from '../lib/pagos'
 
 const CAJA = 'grid h-8 w-12 shrink-0 place-items-center rounded-md border text-[10px] font-extrabold'
 
-/** Insignia del medio de pago: el logo de Mercado Pago (public/medios) o la marca de la tarjeta. */
+/** Insignia del medio de pago: el logo de Mercado Pago o de la tarjeta (public/medios); Amex, sin logo, va como texto. */
 export default function LogoMedio({ pago }: { pago: Pick<Pago, 'metodo_pago' | 'marca'> }) {
   if (pago.metodo_pago === 'mercadopago')
     return (
@@ -10,19 +10,10 @@ export default function LogoMedio({ pago }: { pago: Pick<Pago, 'metodo_pago' | '
         <img src="/medios/mercadopago.svg" alt="Mercado Pago" className="h-6" />
       </span>
     )
-  if (pago.marca === 'mastercard')
+  if (pago.marca === 'mastercard' || pago.marca === 'visa')
     return (
-      <span title={NOMBRE_MARCA.mastercard} className={`${CAJA} border-slate-200 bg-white`}>
-        <svg viewBox="0 0 32 20" className="h-5 w-8" aria-hidden="true">
-          <circle cx="12" cy="10" r="8" fill="#eb001b" />
-          <circle cx="20" cy="10" r="8" fill="#f79e1b" fillOpacity="0.9" />
-        </svg>
-      </span>
-    )
-  if (pago.marca === 'visa')
-    return (
-      <span title={NOMBRE_MARCA.visa} className={`${CAJA} border-slate-200 bg-white text-xs text-[#1a1f71] italic`}>
-        VISA
+      <span title={NOMBRE_MARCA[pago.marca]} className={`${CAJA} border-slate-200 bg-white`}>
+        <img src={`/medios/${pago.marca}.svg`} alt={NOMBRE_MARCA[pago.marca]} className="max-h-4 max-w-9" />
       </span>
     )
   if (pago.marca === 'amex')
