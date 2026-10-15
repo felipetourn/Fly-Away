@@ -9,6 +9,7 @@ from rest_framework.test import APITestCase
 
 from vuelos.models import Aeropuerto, Avion, Vuelo
 
+from . import reservas_mock
 from .models import Pago, ReservaDemo
 
 BA = ZoneInfo('America/Argentina/Buenos_Aires')
@@ -87,3 +88,58 @@ class ModeloTests(Datos):
         for cantidad in (0, 10):
             with self.assertRaises(IntegrityError), transaction.atomic():
                 self.reserva(cantidad=cantidad)
+
+
+class ReservasDemoTests(Datos):
+    def test_la_primera_vez_crea_tres_reservas_en_vuelos_distintos(self):
+        reservas = reservas_mock.reservas_de(self.pasajero)
+        self.assertEqual([(r.clase, r.cantidad) for r in reservas], [('economy', 1), ('primera', 2), ('economy', 9)])
+        self.assertEqual([r.vuelo for r in reservas], self.vuelos[:3])
+
+    def test_despues_devuelve_siempre_las_mismas(self):
+        primeras = [r.id for r in reservas_mock.reservas_de(self.pasajero)]
+        Vuelo.objects.filter(id=self.vuelos[2].id).update(asientos_disponibles_economy=0)
+        self.crear_vuelo('FA 2000', HOY, hora_partida=dt.time(20, 0), hora_llegada=dt.time(21, 0))
+        self.assertEqual([r.id for r in reservas_mock.reservas_de(self.pasajero)], primeras)
+
+    def test_saltea_vuelos_cancelados_salidos_o_sin_lugar(self):
+        Vuelo.objects.filter(id=self.vuelos[0].id).update(estado=Vuelo.Estado.CANCELADO)
+        self.crear_vuelo('FA 2001', HOY, hora_partida=dt.time(9, 0), hora_llegada=dt.time(10, 0))  # ya salió
+        reservas = reservas_mock.reservas_de(self.pasajero)
+        self.assertNotIn(self.vuelos[0], [r.vuelo for r in reservas])
+        self.assertEqual(reservas[0].vuelo, self.vuelos[1])
+
+    def test_monto_es_la_suma_de_los_pasajes(self):
+        reserva = self.reserva(clase='primera', cantidad=2)
+        self.assertEqual(reservas_mock.pasajes_de(reserva), [('primera', Decimal('250000.00'))] * 2)
+        self.assertEqual(reservas_mock.monto_de(reserva), Decimal('500000.00'))
+
+    def test_reserva_de_solo_devuelve_las_propias(self):
+        propia = self.reserva()
+        ajena = self.reserva(pasajero=self.otro)
+        self.assertEqual(reservas_mock.reserva_de(self.pasajero, propia.id), propia)
+        self.assertIsNone(reservas_mock.reserva_de(self.pasajero, ajena.id))
+        self.assertIsNone(reservas_mock.reserva_de(self.pasajero, 'no-es-un-uuid'))
+
+
+class ReservasApiTests(Datos):
+    def test_lista_las_reservas_con_monto_y_estado(self):
+        r = self.client.get('/api/pagos/reservas/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.data), 3)
+        primera = r.data[0]
+        self.assertEqual(primera['vuelo']['numero_vuelo'], 'FA 1000')
+        self.assertEqual(primera['vuelo']['origen'], 'AEP')
+        self.assertEqual(primera['monto'], '100000.00')
+        self.assertEqual(primera['estado'], 'pendiente')
+
+    def test_una_reserva_con_pago_aprobado_figura_pagada(self):
+        reserva = reservas_mock.reservas_de(self.pasajero)[0]
+        self.pago(reserva)
+        self.assertEqual(self.client.get('/api/pagos/reservas/').data[0]['estado'], 'pagada')
+
+    def test_solo_pasajeros(self):
+        self.client.force_authenticate(None)
+        self.assertEqual(self.client.get('/api/pagos/reservas/').status_code, 401)
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.get('/api/pagos/reservas/').status_code, 403)
