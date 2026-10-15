@@ -59,11 +59,23 @@ def consultar_orden(order_id):
 MARCAS = {'visa': 'visa', 'master': 'mastercard', 'amex': 'amex'}
 
 
-def medio_de(orden):
-    """(marca, mail del comprador) de una orden; None en lo que MP no informe (por ejemplo, pago con saldo)."""
+def marca_de_orden(orden):
+    """visa | mastercard | amex de la orden; None si MP no lo informa (por ejemplo, pago con saldo)."""
     pagos = (orden.get('transactions') or {}).get('payments') or [{}]
-    medio = (pagos[0].get('payment_method') or {}).get('id')
-    return MARCAS.get(medio), (orden.get('payer') or {}).get('email')
+    return MARCAS.get((pagos[0].get('payment_method') or {}).get('id'))
+
+
+def cuenta_del_comprador(pago_id):
+    """Mail de la cuenta de MP que pagó. La orden no lo trae: sale del pago, buscado por external_reference.
+
+    None si no se puede consultar; el pago se resuelve igual.
+    """
+    try:
+        respuesta = _llamar('GET', f'https://api.mercadopago.com/v1/payments/search?external_reference={pago_id}')
+    except ErrorMercadoPago:
+        return None
+    pagos = respuesta.get('results') or [{}]
+    return (pagos[0].get('payer') or {}).get('email')
 
 
 def cancelar_orden(order_id):

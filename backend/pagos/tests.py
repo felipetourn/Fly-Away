@@ -57,6 +57,7 @@ class Datos(APITestCase):
         reloj = patch('django.utils.timezone.now', return_value=AHORA)
         reloj.start()
         self.addCleanup(reloj.stop)
+        self.enterContext(self.settings(MP_ACCESS_TOKEN=''))
         self.client.force_authenticate(self.pasajero)
 
     def reserva(self, clase='economy', cantidad=1, vuelo=None, pasajero=None):
@@ -287,6 +288,7 @@ class ConsultaPagosTests(Datos):
         self.assertEqual(segundo.detalle, servicios.YA_PAGADA)
 
 
+@patch('pagos.mercadopago.cuenta_del_comprador', new=lambda pago_id: None)
 @patch('pagos.mercadopago.cancelar_orden')
 @patch('pagos.mercadopago.consultar_orden')
 @patch('pagos.mercadopago.crear_orden', return_value=('ORDTST1', 'https://mp.test/checkout'))
@@ -325,10 +327,11 @@ class PagoMercadoPagoTests(Datos):
         consultar.return_value = {
             'status': 'processed',
             'status_detail': 'accredited',
-            'payer': {'email': 'test_user_123@testuser.com'},
             'transactions': {'payments': [{'payment_method': {'id': 'master', 'type': 'credit_card'}}]},
         }
-        r = self.client.get(f'/api/pagos/{pago_id}/')
+        with patch('pagos.mercadopago.cuenta_del_comprador', return_value='test_user_123@testuser.com') as cuenta:
+            r = self.client.get(f'/api/pagos/{pago_id}/')
+        cuenta.assert_called_once_with(pago_id)
         self.assertEqual((r.data['marca'], r.data['cuenta_mp']), ('mastercard', 'test_user_123@testuser.com'))
 
     def test_rechazo_de_mp_con_motivo(self, crear, consultar, cancelar):
@@ -415,11 +418,20 @@ class ClienteMercadoPagoTests(Datos):
         for status in ('created', 'processing', 'action_required'):
             self.assertEqual(mercadopago.resultado_de(status, None)[0], 'pendiente')
 
-    def test_medio_de_la_orden(self):
-        orden = {'payer': {'email': 'a@b.com'}, 'transactions': {'payments': [{'payment_method': {'id': 'visa'}}]}}
-        self.assertEqual(mercadopago.medio_de(orden), ('visa', 'a@b.com'))
-        self.assertEqual(mercadopago.medio_de({'transactions': {'payments': [{'payment_method': {'id': 'account_money'}}]}}), (None, None))
-        self.assertEqual(mercadopago.medio_de({}), (None, None))
+    def test_marca_de_la_orden(self):
+        self.assertEqual(mercadopago.marca_de_orden({'transactions': {'payments': [{'payment_method': {'id': 'master'}}]}}), 'mastercard')
+        self.assertIsNone(mercadopago.marca_de_orden({'transactions': {'payments': [{'payment_method': {'id': 'account_money'}}]}}))
+        self.assertIsNone(mercadopago.marca_de_orden({}))
+
+    def test_cuenta_del_comprador_sale_de_la_busqueda_de_pagos(self):
+        respuesta = {'results': [{'payer': {'email': 'test_user_1@testuser.com'}}]}
+        with patch('pagos.mercadopago._llamar', return_value=respuesta) as llamar:
+            self.assertEqual(mercadopago.cuenta_del_comprador('abc'), 'test_user_1@testuser.com')
+        self.assertTrue(llamar.call_args.args[1].endswith('/v1/payments/search?external_reference=abc'))
+        with patch('pagos.mercadopago._llamar', return_value={'results': []}):
+            self.assertIsNone(mercadopago.cuenta_del_comprador('abc'))
+        with patch('pagos.mercadopago._llamar', side_effect=mercadopago.ErrorMercadoPago('x')):
+            self.assertIsNone(mercadopago.cuenta_del_comprador('abc'))
 
     @patch('pagos.mercadopago._llamar', return_value={'id': 'ORDTST1', 'checkout_url': 'https://mp.test/c'})
     def test_crear_orden_arma_el_pedido(self, llamar):
