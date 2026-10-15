@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import ChipEstado from '../components/ChipEstado'
+import LogoMedio from '../components/LogoMedio'
 import { Esqueleto } from '../components/Esqueleto'
 import { iniciales, type Usuario } from '../lib/auth'
 import { fechaDeInstante, precio } from '../lib/formato'
-import { getPagos, medioDePago, vueloCorto, type Pago } from '../lib/pagos'
+import { cuentaDelPago, getPagos, vueloCorto, type Pago } from '../lib/pagos'
 import { useSesion } from '../lib/sesion'
 
 // El pasajero no muestra rol.
@@ -14,6 +15,7 @@ const ETIQUETA_ROL: Partial<Record<Usuario['rol'], string>> = {
 }
 
 function MisPagos() {
+  const navigate = useNavigate()
   const [pagos, setPagos] = useState<Pago[] | null>(null)
   const [error, setError] = useState('')
 
@@ -38,26 +40,40 @@ function MisPagos() {
         </p>
       )}
       {pagos && pagos.length > 0 && (
-        <ul className="mt-4 divide-y divide-slate-100">
-          {pagos.map((p) => (
-            <li key={p.id}>
-              <Link
-                to={`/pagos/${p.id}`}
-                className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 rounded-lg px-2 py-3 hover:bg-slate-50 sm:grid-cols-[7rem_1fr_auto_auto]"
-              >
-                <span className="text-sm text-slate-500">{fechaDeInstante(p.creado_en)}</span>
-                <span className="col-start-1 font-medium sm:col-start-auto">
-                  {p.vuelo ? vueloCorto(p.vuelo) : 'Reserva'}
-                  <span className="block text-sm font-normal text-slate-500">{medioDePago(p)}</span>
-                </span>
-                <span className="row-start-1 text-right font-bold sm:row-start-auto">{precio(Number(p.monto))}</span>
-                <span className="text-right">
-                  <ChipEstado estado={p.estado} />
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full min-w-[40rem] text-left text-sm">
+            <thead className="border-b border-slate-200 text-xs text-slate-500 uppercase">
+              <tr>
+                <th className="px-3 py-2 font-bold">Medio</th>
+                <th className="px-3 py-2 font-bold">Tarjeta o cuenta</th>
+                <th className="px-3 py-2 font-bold">Fecha</th>
+                <th className="px-3 py-2 font-bold">Vuelo</th>
+                <th className="px-3 py-2 text-right font-bold">Valor</th>
+                <th className="px-3 py-2 font-bold">Estado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {pagos.map((p) => (
+                <tr key={p.id} onClick={() => navigate(`/pagos/${p.id}`)} className="cursor-pointer hover:bg-slate-50">
+                  <td className="px-3 py-3">
+                    <LogoMedio pago={p} />
+                  </td>
+                  <td className="px-3 py-3 break-all">{cuentaDelPago(p)}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-slate-500">{fechaDeInstante(p.creado_en)}</td>
+                  <td className="px-3 py-3">
+                    <Link to={`/pagos/${p.id}`} className="font-medium text-marino hover:underline">
+                      {p.vuelo ? vueloCorto(p.vuelo) : 'Reserva'}
+                    </Link>
+                  </td>
+                  <td className="px-3 py-3 text-right font-bold whitespace-nowrap">{precio(Number(p.monto))}</td>
+                  <td className="px-3 py-3">
+                    <ChipEstado estado={p.estado} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   )
@@ -107,8 +123,8 @@ export default function Perfil() {
   if (!esPasajero) return <main className="mx-auto max-w-md px-4 py-16">{tarjeta}</main>
 
   return (
-    <main className="mx-auto grid max-w-5xl items-start gap-6 px-4 py-16 md:grid-cols-[20rem_1fr]">
-      {tarjeta}
+    <main className="mx-auto max-w-5xl space-y-8 px-4 py-16">
+      <div className="mx-auto max-w-md">{tarjeta}</div>
       <MisPagos />
     </main>
   )

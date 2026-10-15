@@ -4,7 +4,7 @@ process.env.TZ = 'America/Argentina/Buenos_Aires' // UTC−3: detecta fechas cor
 import assert from 'node:assert/strict'
 import { aParams, abreHaciaArriba, elegirDia, leerFiltros, validarBusqueda, type Filtros } from '../src/lib/busqueda.ts'
 import { duracion, fechaCompleta, fechaCorta, fechaDeInstante, fechaLarga, hora, precio, rangoCorto, rangoFechas } from '../src/lib/formato.ts'
-import { erroresTarjeta, formatearNumero, formatearVencimiento, luhnValido, marcaDe, medioDePago, TARJETAS_PRUEBA } from '../src/lib/pagos.ts'
+import { cuentaDelPago, erroresTarjeta, formatearNumero, formatearVencimiento, luhnValido, marcaDe, medioDePago, TARJETAS_PRUEBA } from '../src/lib/pagos.ts'
 import { errorDePeriodo, erroresDe, fechasDePeriodo, paginasVisibles, primero, queryListado, yaSalio } from '../src/lib/adminVuelos.ts'
 import { ApiError } from '../src/lib/api.ts'
 import { duracionDe, estadoClase, llegaAlDiaSiguiente, queryBusqueda, vueltasPosibles, type ParamsBusqueda, type Vuelo } from '../src/lib/vuelos.ts'
@@ -239,6 +239,12 @@ assert.ok(erroresTarjeta({ ...tarjetaOk, numero: '4242 4242 4242 4241' }, octubr
 assert.ok(erroresTarjeta({ ...tarjetaOk, numero: '6011 1111 1111 1117' }, octubre).numero, 'marca no soportada')
 assert.ok(erroresTarjeta({ ...tarjetaOk, titular: ' ' }, octubre).titular)
 assert.ok(erroresTarjeta({ ...tarjetaOk, numero: '3782 822463 10005', cvv: '123' }, octubre).cvv, 'Amex pide 4')
-assert.equal(medioDePago({ metodo_pago: 'tarjeta', ultimos_4: '4242' }), 'Tarjeta •••• 4242')
-assert.equal(medioDePago({ metodo_pago: 'mercadopago', ultimos_4: null }), 'Mercado Pago')
+const conTarjeta = { metodo_pago: 'tarjeta', ultimos_4: '4242', marca: 'visa', cuenta_mp: null } as const
+const conMp = { metodo_pago: 'mercadopago', ultimos_4: null, marca: 'mastercard', cuenta_mp: 'test@testuser.com' } as const
+assert.equal(medioDePago(conTarjeta), 'Visa •••• 4242')
+assert.equal(medioDePago({ ...conTarjeta, marca: null }), 'Tarjeta •••• 4242', 'pagos viejos sin marca')
+assert.equal(medioDePago(conMp), 'Mercado Pago')
+assert.equal(cuentaDelPago(conTarjeta), '•••• 4242')
+assert.equal(cuentaDelPago(conMp), 'test@testuser.com')
+assert.equal(cuentaDelPago({ ...conMp, cuenta_mp: null }), 'Cuenta de Mercado Pago', 'MP no informó el mail')
 console.log('pagos: OK')

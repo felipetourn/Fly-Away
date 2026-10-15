@@ -71,20 +71,24 @@ def _sincronizar(pago):
         _resolver(pago, Pago.Estado.RECHAZADO, 'No se pudo iniciar el pago en Mercado Pago.')
         return 'canceled'
     try:
-        status_mp, detalle_mp = mercadopago.consultar_orden(pago.transaccion_externa_id)
+        orden = mercadopago.consultar_orden(pago.transaccion_externa_id)
     except mercadopago.ErrorMercadoPago:
         return None
-    estado, detalle = mercadopago.resultado_de(status_mp, detalle_mp)
+    status_mp = orden.get('status')
+    estado, detalle = mercadopago.resultado_de(status_mp, orden.get('status_detail'))
     if estado != Pago.Estado.PENDIENTE:
-        _resolver(pago, estado, detalle)
+        marca, cuenta = mercadopago.medio_de(orden)
+        _resolver(pago, estado, detalle, marca=marca, cuenta_mp=cuenta)
     return status_mp
 
 
-def _resolver(pago, estado, detalle):
-    """Guarda el resultado solo si el pago sigue pendiente (otro pedido pudo resolverlo antes)."""
+def _resolver(pago, estado, detalle, **datos):
+    """Guarda el resultado (y `datos` del medio) solo si el pago sigue pendiente (otro pedido pudo resolverlo antes)."""
     with transaction.atomic():
         bloqueado = Pago.objects.select_for_update().get(id=pago.id)
         if bloqueado.estado == Pago.Estado.PENDIENTE:
+            for campo, valor in datos.items():
+                setattr(bloqueado, campo, valor)
             guardar_resultado(bloqueado, estado, detalle)
 
 
@@ -160,6 +164,7 @@ def pagar_con_tarjeta(reserva, numero):
             monto=reservas_mock.monto_de(reserva),
             metodo_pago=Pago.Metodo.TARJETA,
             ultimos_4=numero[-4:],
+            marca=tarjeta.marca_de(numero),
             transaccion_externa_id=transaccion,
         )
         guardar_resultado(pago, Pago.Estado.APROBADO if aprobado else Pago.Estado.RECHAZADO, detalle)

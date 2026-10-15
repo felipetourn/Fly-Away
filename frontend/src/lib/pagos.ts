@@ -29,6 +29,8 @@ export interface Pago {
   vuelo: VueloResumen | null
   metodo_pago: 'tarjeta' | 'mercadopago'
   ultimos_4: string | null
+  marca: Marca | null // de la tarjeta, o la usada dentro de Mercado Pago
+  cuenta_mp: string | null // mail del comprador en Mercado Pago
   monto: string
   estado: EstadoPago
   detalle: string
@@ -121,8 +123,18 @@ export function erroresTarjeta(t: DatosTarjeta, hoy = new Date()): ErroresTarjet
   return errores
 }
 
-export function medioDePago(p: Pick<Pago, 'metodo_pago' | 'ultimos_4'>): string {
-  return p.metodo_pago === 'mercadopago' ? 'Mercado Pago' : `Tarjeta •••• ${p.ultimos_4}`
+type MedioDePago = Pick<Pago, 'metodo_pago' | 'ultimos_4' | 'marca' | 'cuenta_mp'>
+
+/** "Visa •••• 4242" o "Mercado Pago" */
+export function medioDePago(p: MedioDePago): string {
+  if (p.metodo_pago === 'mercadopago') return 'Mercado Pago'
+  return `${p.marca ? NOMBRE_MARCA[p.marca] : 'Tarjeta'} •••• ${p.ultimos_4}`
+}
+
+/** Con qué se pagó: "•••• 4242" o el mail de la cuenta de Mercado Pago. */
+export function cuentaDelPago(p: MedioDePago): string {
+  if (p.metodo_pago === 'tarjeta') return `•••• ${p.ultimos_4}`
+  return p.cuenta_mp ?? 'Cuenta de Mercado Pago'
 }
 
 /** "2 pasajes en Primera" */

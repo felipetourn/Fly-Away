@@ -160,7 +160,7 @@ El registro público siempre asigna el rol `pasajero` y valida la contraseña co
 
 ## Pagos
 
-Dos medios. Ninguno guarda el número completo de la tarjeta ni el CVV: solo `ultimos_4`.
+Dos medios. Ninguno guarda el número completo de la tarjeta ni el CVV: solo `ultimos_4`. Cada pago guarda además `marca` (visa, mastercard o amex: la de la tarjeta o la usada dentro de MP) y, si pagó con MP, `cuenta_mp` (el mail del comprador, tomado de la orden). Con eso "Mis pagos" del perfil muestra logo, tarjeta o cuenta, fecha, vuelo, valor y estado.
 
 - **Tarjeta simulada** (`pagos/tarjeta.py`): valida como una pasarela real (Luhn, Visa/Mastercard/Amex, vencimiento, CVV de 3 o 4 dígitos) y decide el resultado por el número. Tarjetas de prueba (también en el botón "Tarjetas de prueba" de la pantalla de pago): `4242 4242 4242 4242` aprobada, `4000 0000 0000 0002` rechazada por el emisor, `4000 0000 0000 9995` fondos insuficientes, `4000 0000 0000 0119` error de procesamiento. Cualquier otra válida se aprueba (incluida la Mastercard de prueba de MP, que empieza con 50).
 - **Mercado Pago Checkout Pro** con la API de Orders (`pagos/mercadopago.py`, HTTP con urllib): se crea el pago pendiente, se pide la orden (`POST /v1/orders`, `external_reference` y `X-Idempotency-Key` = id del pago, vence en 30 min) y el pasajero va al `checkout_url`. MP lo devuelve a `FRONTEND_URL/pagos/{id}` y el backend consulta la orden (`GET /v1/orders/{id}`); nunca usa los parámetros de la URL de retorno. Sin webhook: un pendiente se actualiza al abrir su detalle o al intentar pagar de nuevo.

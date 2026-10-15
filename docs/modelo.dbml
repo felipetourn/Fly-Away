@@ -150,6 +150,8 @@ Table pagos {
   estado pago_estado [default: 'pendiente']
   metodo_pago varchar [not null]
   ultimos_4 varchar(4)
+  marca varchar [note: 'visa | mastercard | amex; la de la tarjeta o la usada dentro de Mercado Pago']
+  cuenta_mp varchar [note: 'Mail de la cuenta de Mercado Pago que pagó']
   numero_factura varchar [unique]
   transaccion_externa_id varchar
   procesado_en timestamp

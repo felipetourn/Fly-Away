@@ -52,9 +52,18 @@ def crear_orden(pago, items):
 
 
 def consultar_orden(order_id):
-    """(status, status_detail) de la orden."""
-    orden = _llamar('GET', f'{API}/{order_id}')
-    return orden.get('status'), orden.get('status_detail')
+    """La orden tal como la devuelve MP (status, status_detail, payer, transactions...)."""
+    return _llamar('GET', f'{API}/{order_id}')
+
+
+MARCAS = {'visa': 'visa', 'master': 'mastercard', 'amex': 'amex'}
+
+
+def medio_de(orden):
+    """(marca, mail del comprador) de una orden; None en lo que MP no informe (por ejemplo, pago con saldo)."""
+    pagos = (orden.get('transactions') or {}).get('payments') or [{}]
+    medio = (pagos[0].get('payment_method') or {}).get('id')
+    return MARCAS.get(medio), (orden.get('payer') or {}).get('email')
 
 
 def cancelar_orden(order_id):

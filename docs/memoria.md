@@ -9,6 +9,8 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 - Pantallas: `/reservas` provisoria con 3 reservas demo, `/pagar/:reservaId` (tarjeta con panel de tarjetas de prueba, o MP), `/pagos/:id` (resultado) y "Mis pagos" en el perfil del pasajero.
 - Un pago aprobado todavía no descuenta asientos ni marca la reserva como pagada en el modelo: eso es la US08.
 - **Migraciones nuevas** (`token_blacklist` de la US23 y `pagos`): con `DATABASE_URL` de Supabase en el `.env`, el login falla con 500 hasta correr `migrate`, porque cada login guarda el token en `token_blacklist_outstandingtoken`. El deploy las aplica solo (`build.sh`); para trabajar local sin tocar Supabase, correr con `DATABASE_URL=` (SQLite).
+- `pagos.marca` y `pagos.cuenta_mp` (migración `pagos/0002`). En local: `DATABASE_URL= .venv/Scripts/python manage.py migrate`. El mail y la marca de un pago de MP salen de la orden (`payer.email`, `transactions.payments[0].payment_method.id`); falta confirmarlo con un pago real del sandbox: si MP no los manda, se muestra "Cuenta de Mercado Pago".
+- Pago con tarjeta: espera simulada de 2,5 s con el avión como barra (`AvionCargando`).
 - **Render:** cargar `MP_ACCESS_TOKEN` y `FRONTEND_URL=https://fly-away-one.vercel.app` antes de probar MP en producción.
 
 **2026-10-15 - Inicio del Sprint 2: US23 y documentación oficial (rama `feat/sprint2-pagos`)**

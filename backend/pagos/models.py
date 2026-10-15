@@ -49,6 +49,8 @@ class Pago(models.Model):
     estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.PENDIENTE)
     metodo_pago = models.CharField(max_length=20, choices=Metodo.choices)
     ultimos_4 = models.CharField(max_length=4, null=True, blank=True)
+    marca = models.CharField(max_length=20, null=True, blank=True)  # visa | mastercard | amex
+    cuenta_mp = models.CharField(max_length=254, null=True, blank=True)  # mail del comprador en MP
     numero_factura = models.CharField(max_length=30, unique=True, null=True, blank=True)
     transaccion_externa_id = models.CharField(max_length=100, null=True, blank=True)
     detalle = models.CharField(max_length=200, blank=True, default='')

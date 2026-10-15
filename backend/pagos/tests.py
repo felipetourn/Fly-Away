@@ -200,6 +200,10 @@ class PagoTarjetaTests(Datos):
         self.assertEqual((pago.reserva_id, pago.metodo_pago), (reserva.id, 'tarjeta'))
         self.assertIsNotNone(pago.procesado_en)
 
+    def test_guarda_la_marca(self):
+        self.assertEqual(self.pagar(self.reserva()).data['marca'], 'visa')
+        self.assertEqual(self.pagar(self.reserva(vuelo=self.vuelos[1]), numero='5031 7557 3453 0604').data['marca'], 'mastercard')
+
     def test_rechazado_queda_registrado_con_el_motivo(self):
         r = self.pagar(self.reserva(), numero='4000 0000 0000 9995')
         self.assertEqual(r.status_code, 201)
@@ -311,14 +315,25 @@ class PagoMercadoPagoTests(Datos):
 
     def test_al_volver_se_consulta_la_orden(self, crear, consultar, cancelar):
         pago_id = self.pagar(self.reserva()).data['pago']['id']
-        consultar.return_value = ('processed', 'accredited')
+        consultar.return_value = {'status': 'processed', 'status_detail': 'accredited'}
         r = self.client.get(f'/api/pagos/{pago_id}/')
         consultar.assert_called_with('ORDTST1')
         self.assertEqual((r.data['estado'], r.data['detalle']), ('aprobado', 'Pago aprobado.'))
 
+    def test_al_volver_guarda_marca_y_cuenta_del_comprador(self, crear, consultar, cancelar):
+        pago_id = self.pagar(self.reserva()).data['pago']['id']
+        consultar.return_value = {
+            'status': 'processed',
+            'status_detail': 'accredited',
+            'payer': {'email': 'test_user_123@testuser.com'},
+            'transactions': {'payments': [{'payment_method': {'id': 'master', 'type': 'credit_card'}}]},
+        }
+        r = self.client.get(f'/api/pagos/{pago_id}/')
+        self.assertEqual((r.data['marca'], r.data['cuenta_mp']), ('mastercard', 'test_user_123@testuser.com'))
+
     def test_rechazo_de_mp_con_motivo(self, crear, consultar, cancelar):
         pago_id = self.pagar(self.reserva()).data['pago']['id']
-        consultar.return_value = ('failed', 'card_insufficient_amount')
+        consultar.return_value = {'status': 'failed', 'status_detail': 'card_insufficient_amount'}
         r = self.client.get(f'/api/pagos/{pago_id}/')
         self.assertEqual((r.data['estado'], r.data['detalle']), ('rechazado', 'Fondos insuficientes.'))
 
@@ -332,7 +347,7 @@ class PagoMercadoPagoTests(Datos):
     def test_volvio_sin_pagar_y_paga_con_tarjeta(self, crear, consultar, cancelar):
         reserva = self.reserva()
         self.pagar(reserva)
-        consultar.return_value = ('created', 'created')
+        consultar.return_value = {'status': 'created', 'status_detail': 'created'}
         r = self.client.post('/api/pagos/tarjeta/', {'reserva_id': str(reserva.id), **TARJETA_OK}, format='json')
         self.assertEqual(r.data['estado'], 'aprobado')
         cancelar.assert_called_once_with('ORDTST1')
@@ -342,7 +357,7 @@ class PagoMercadoPagoTests(Datos):
     def test_con_un_pago_de_mp_en_proceso_409(self, crear, consultar, cancelar):
         reserva = self.reserva()
         self.pagar(reserva)
-        consultar.return_value = ('processing', 'in_process')
+        consultar.return_value = {'status': 'processing', 'status_detail': 'in_process'}
         r = self.client.post('/api/pagos/tarjeta/', {'reserva_id': str(reserva.id), **TARJETA_OK}, format='json')
         self.assertEqual(r.status_code, 409)
         self.assertEqual(r.data['detail'], servicios.EN_PROCESO)
@@ -351,7 +366,7 @@ class PagoMercadoPagoTests(Datos):
     def test_mp_aprobado_mientras_tanto_entonces_ya_pagada(self, crear, consultar, cancelar):
         reserva = self.reserva()
         self.pagar(reserva)
-        consultar.return_value = ('processed', 'accredited')
+        consultar.return_value = {'status': 'processed', 'status_detail': 'accredited'}
         r = self.pagar(reserva)
         self.assertEqual(r.status_code, 409)
         self.assertEqual(r.data['detail'], 'La reserva ya está pagada.')
@@ -363,7 +378,7 @@ class PagoMercadoPagoTests(Datos):
     def test_orden_vencida_no_bloquea(self, crear, consultar, cancelar):
         reserva = self.reserva()
         self.client.post('/api/pagos/mercadopago/', {'reserva_id': str(reserva.id)}, format='json')
-        consultar.return_value = ('expired', 'expired')
+        consultar.return_value = {'status': 'expired', 'status_detail': 'expired'}
         self.assertEqual(self.pagar_con_tarjeta(reserva).data['estado'], 'aprobado')
         vencido = Pago.objects.get(metodo_pago='mercadopago')
         self.assertEqual((vencido.estado, vencido.detalle), ('rechazado', 'El pago no se completó a tiempo.'))
@@ -399,6 +414,12 @@ class ClienteMercadoPagoTests(Datos):
         self.assertEqual(mercadopago.resultado_de('processed', 'refunded')[0], 'rechazado')
         for status in ('created', 'processing', 'action_required'):
             self.assertEqual(mercadopago.resultado_de(status, None)[0], 'pendiente')
+
+    def test_medio_de_la_orden(self):
+        orden = {'payer': {'email': 'a@b.com'}, 'transactions': {'payments': [{'payment_method': {'id': 'visa'}}]}}
+        self.assertEqual(mercadopago.medio_de(orden), ('visa', 'a@b.com'))
+        self.assertEqual(mercadopago.medio_de({'transactions': {'payments': [{'payment_method': {'id': 'account_money'}}]}}), (None, None))
+        self.assertEqual(mercadopago.medio_de({}), (None, None))
 
     @patch('pagos.mercadopago._llamar', return_value={'id': 'ORDTST1', 'checkout_url': 'https://mp.test/c'})
     def test_crear_orden_arma_el_pedido(self, llamar):
