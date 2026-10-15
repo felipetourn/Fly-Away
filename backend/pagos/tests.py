@@ -315,15 +315,61 @@ class ConsultaPagosTests(Datos):
         self.assertEqual(r.status_code, 404)
         self.assertIn('detail', r.data)
 
-    def test_un_segundo_aprobado_queda_rechazado_y_no_da_500(self):
-        reserva = self.reserva()
-        self.pago(reserva)
+    def test_un_segundo_aprobado_queda_rechazado_sin_descontar_ni_dar_500(self):
+        reserva = self.reserva(cantidad=2)
+        self.pago(reserva)  # aprobado cargado directo: la reserva sigue pendiente, así salta el constraint
         segundo = self.pago(reserva, estado=Pago.Estado.PENDIENTE, metodo=Pago.Metodo.MERCADOPAGO)
-        servicios.guardar_resultado(segundo, Pago.Estado.APROBADO, 'Pago aprobado.')
+        segundo = servicios.confirmar_compra(segundo, 'Pago aprobado.')
         segundo.refresh_from_db()
-        self.assertEqual(segundo.estado, 'rechazado')
-        self.assertEqual(segundo.detalle, servicios.YA_PAGADA)
+        reserva.refresh_from_db()
+        self.vuelos[0].refresh_from_db()
+        self.assertEqual((segundo.estado, segundo.detalle), ('rechazado', servicios.YA_PAGADA))
+        self.assertEqual(reserva.estado, 'pendiente')
+        self.assertEqual(self.vuelos[0].asientos_disponibles_economy, 30)
 
+
+
+class ConfirmacionTests(Datos):
+    def pagar(self, reserva, numero='4242424242424242'):
+        datos = {'reserva_id': str(reserva.id), 'numero': numero, 'titular': 'Ana', 'vencimiento': '12/30', 'cvv': '123'}
+        return self.client.post('/api/pagos/tarjeta/', datos, format='json')
+
+    def asientos(self, vuelo):
+        vuelo.refresh_from_db()
+        return vuelo.asientos_disponibles_economy, vuelo.asientos_disponibles_primera
+
+    def test_aprobado_descuenta_los_asientos_de_su_clase_y_confirma(self):
+        reserva = self.reserva(clase='primera', cantidad=2)
+        self.assertEqual(self.pagar(reserva).data['estado'], 'aprobado')
+        self.assertEqual(self.asientos(self.vuelos[0]), (30, 10))
+        reserva.refresh_from_db()
+        self.assertEqual(reserva.estado, 'pagada')
+
+    def test_rechazado_no_toca_asientos_ni_reserva(self):
+        reserva = self.reserva(cantidad=3)
+        self.assertEqual(self.pagar(reserva, numero='4000000000009995').data['estado'], 'rechazado')
+        self.assertEqual(self.asientos(self.vuelos[0]), (30, 12))
+        reserva.refresh_from_db()
+        self.assertEqual(reserva.estado, 'pendiente')
+
+    def test_confirmar_dos_veces_descuenta_una(self):
+        reserva = self.reserva(cantidad=2)
+        pago = self.pago(reserva, estado=Pago.Estado.PENDIENTE)
+        servicios.confirmar_compra(pago, 'Pago aprobado.')
+        servicios.confirmar_compra(pago, 'Pago aprobado.')
+        self.assertEqual(self.asientos(self.vuelos[0]), (28, 12))
+
+    def test_reserva_ya_pagada_no_vuelve_a_descontar(self):
+        reserva = self.reserva(cantidad=2)
+        reservas_mock.marcar_pagada(reserva)
+        pago = servicios.confirmar_compra(self.pago(reserva, estado=Pago.Estado.PENDIENTE), 'Pago aprobado.')
+        self.assertEqual((pago.estado, pago.detalle), ('rechazado', servicios.YA_PAGADA))
+        self.assertEqual(self.asientos(self.vuelos[0]), (30, 12))
+
+    def test_una_reserva_pagada_no_se_puede_volver_a_pagar(self):
+        reserva = self.reserva()
+        reservas_mock.marcar_pagada(reserva)
+        self.assertEqual(self.pagar(reserva).status_code, 409)
 
 @patch('pagos.mercadopago.cuenta_del_comprador', new=lambda pago_id: None)
 @patch('pagos.mercadopago.cancelar_orden')

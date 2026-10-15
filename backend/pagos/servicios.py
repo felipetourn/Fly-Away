@@ -1,8 +1,9 @@
-"""Reglas de pago (US07). Las llamadas a Mercado Pago nunca van dentro de transaction.atomic()."""
+"""Reglas de pago (US07) y confirmación de la venta (US08). Las llamadas a MP nunca van dentro de transaction.atomic()."""
 import datetime as dt
 from collections import Counter
 
 from django.db import IntegrityError, transaction
+from django.db.models import F
 from django.utils import timezone
 from rest_framework.exceptions import APIException
 
@@ -10,9 +11,11 @@ from vuelos.models import Vuelo
 from vuelos.servicios import error_general, ya_salio
 
 from . import mercadopago, reservas_mock, tarjeta
-from .models import Pago
+from .models import Pago, ReservaDemo
 
 YA_PAGADA = 'Reserva ya pagada con otro pago: corresponde devolución.'
+SIN_ASIENTOS = 'No quedaban asientos al confirmar el pago: corresponde devolución.'
+VUELO_NO_DISPONIBLE = 'El vuelo ya no está disponible: corresponde devolución.'
 EN_PROCESO = 'Tenés un pago de Mercado Pago en proceso para esta reserva.'
 SIN_CONEXION = 'No pudimos conectar con Mercado Pago.'
 ESPERANDO = 'Estamos esperando la confirmación de Mercado Pago.'
@@ -32,6 +35,9 @@ class SinConexionMercadoPago(APIException):
 def validar_reserva(reserva):
     """Chequeos para cobrar, con el vuelo bloqueado. Llamar dentro de transaction.atomic(). Devuelve el vuelo bloqueado."""
     vuelo = Vuelo.objects.select_for_update().get(id=reserva.vuelo_id)
+    reserva.refresh_from_db(fields=['estado'])  # leída antes del lock
+    if reserva.estado == ReservaDemo.Estado.PAGADA:
+        raise Conflicto()
     pagos = Pago.objects.filter(reserva_id=reserva.id)
     if pagos.filter(estado=Pago.Estado.APROBADO).exists():
         raise Conflicto()
@@ -42,7 +48,7 @@ def validar_reserva(reserva):
     if ya_salio(vuelo):
         raise error_general('El vuelo ya salió.')
     # ponytail: las reservas demo no retienen asientos; si la Reserva de la US06 los retiene, este chequeo cambia.
-    if getattr(vuelo, f'asientos_disponibles_{reserva.clase}') < reserva.cantidad:
+    if _motivo_sin_lugar(reserva, vuelo):
         raise error_general('No quedan asientos suficientes en el vuelo.')
     return vuelo
 
@@ -57,6 +63,57 @@ def guardar_resultado(pago, estado, detalle):
     except IntegrityError:
         pago.estado, pago.detalle = Pago.Estado.RECHAZADO, YA_PAGADA
         pago.save()
+
+
+def _pasajes_por_clase(reserva):
+    return Counter(clase for clase, _ in reservas_mock.pasajes_de(reserva))
+
+
+def _motivo_sin_lugar(reserva, vuelo):
+    for clase, cantidad in _pasajes_por_clase(reserva).items():
+        if getattr(vuelo, f'asientos_disponibles_{clase}') < cantidad:
+            return SIN_ASIENTOS
+    return None
+
+
+def _motivo_para_no_vender(reserva, vuelo):
+    if reserva.estado == ReservaDemo.Estado.PAGADA:
+        return YA_PAGADA
+    if vuelo.estado == Vuelo.Estado.CANCELADO or ya_salio(vuelo):
+        return VUELO_NO_DISPONIBLE
+    return _motivo_sin_lugar(reserva, vuelo)
+
+
+def confirmar_compra(pago, detalle, **datos):
+    """Único camino a `aprobado` (US08): pago aprobado + reserva pagada + asientos descontados, o nada.
+
+    Bloquea vuelo y después pago, y relee la reserva con el vuelo bloqueado. Si ya no se puede vender,
+    el pago queda rechazado con el motivo ("corresponde devolución"). `datos`: marca y cuenta_mp del medio.
+    """
+    reserva = reservas_mock.reserva_de_pago(pago)
+    with transaction.atomic():
+        vuelo = Vuelo.objects.select_for_update().get(id=reserva.vuelo_id)
+        pago = Pago.objects.select_for_update().get(id=pago.id)
+        if pago.estado != Pago.Estado.PENDIENTE:
+            return pago  # ya resuelto: una transacción no confirma dos veces
+        reserva = reservas_mock.reserva_de_pago(pago)
+        for campo, valor in datos.items():
+            setattr(pago, campo, valor)
+        motivo = _motivo_para_no_vender(reserva, vuelo)
+        if motivo:
+            guardar_resultado(pago, Pago.Estado.RECHAZADO, motivo)
+            return pago
+        try:
+            with transaction.atomic():  # los tres efectos juntos, o ninguno
+                for clase, cantidad in _pasajes_por_clase(reserva).items():
+                    campo = f'asientos_disponibles_{clase}'
+                    Vuelo.objects.filter(id=vuelo.id).update(**{campo: F(campo) - cantidad})
+                reservas_mock.marcar_pagada(reserva)
+                pago.estado, pago.detalle, pago.procesado_en = Pago.Estado.APROBADO, detalle, timezone.now()
+                pago.save()
+        except IntegrityError:
+            guardar_resultado(pago, Pago.Estado.RECHAZADO, YA_PAGADA)
+        return pago
 
 
 def _sincronizar(pago):
@@ -167,5 +224,9 @@ def pagar_con_tarjeta(reserva, numero):
             marca=tarjeta.marca_de(numero),
             transaccion_externa_id=transaccion,
         )
-        guardar_resultado(pago, Pago.Estado.APROBADO if aprobado else Pago.Estado.RECHAZADO, detalle)
+        pago.save()  # pendiente: la aprobación pasa por confirmar_compra
+        if aprobado:
+            pago = confirmar_compra(pago, detalle)
+        else:
+            guardar_resultado(pago, Pago.Estado.RECHAZADO, detalle)
     return pago
