@@ -1,10 +1,11 @@
 import datetime as dt
+import http.client
 import importlib
 from decimal import Decimal
-import http.client
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
@@ -126,7 +127,6 @@ class ReservasDemoTests(Datos):
         self.assertIsNone(reservas_mock.reserva_de(self.pasajero, 'no-es-un-uuid'))
 
 
-
 class EstadoReservaTests(Datos):
     def test_una_reserva_nueva_esta_pendiente_y_se_puede_marcar_pagada(self):
         reserva = self.reserva()
@@ -140,8 +140,6 @@ class EstadoReservaTests(Datos):
         self.assertEqual(reservas_mock.reserva_de_pago(self.pago(reserva)), reserva)
 
     def test_la_migracion_marca_pagadas_las_reservas_con_pago_aprobado(self):
-        from django.apps import apps
-
         migracion = importlib.import_module('pagos.migrations.0003_reservademo_estado')
         pagada = self.reserva()
         self.pago(pagada)
@@ -151,6 +149,7 @@ class EstadoReservaTests(Datos):
         pagada.refresh_from_db()
         pendiente.refresh_from_db()
         self.assertEqual((pagada.estado, pendiente.estado), ('pagada', 'pendiente'))
+
 
 class ReservasApiTests(Datos):
     def test_lista_las_reservas_con_monto_y_estado(self):
@@ -329,7 +328,6 @@ class ConsultaPagosTests(Datos):
         self.assertEqual(self.vuelos[0].asientos_disponibles_economy, 30)
 
 
-
 class ConfirmacionTests(Datos):
     def pagar(self, reserva, numero='4242424242424242'):
         datos = {'reserva_id': str(reserva.id), 'numero': numero, 'titular': 'Ana', 'vencimiento': '12/30', 'cvv': '123'}
@@ -372,19 +370,20 @@ class ConfirmacionTests(Datos):
         reservas_mock.marcar_pagada(reserva)
         self.assertEqual(self.pagar(reserva).status_code, 409)
 
+
 @patch('pagos.mercadopago.cuenta_del_comprador', new=lambda pago_id: None)
 @patch('pagos.mercadopago.cancelar_orden')
 @patch('pagos.mercadopago.consultar_orden')
 @patch('pagos.mercadopago.crear_orden', return_value=('ORDTST1', 'https://mp.test/checkout'))
 class PagoMercadoPagoTests(Datos):
-    def pagar(self, reserva):
-        return self.client.post('/api/pagos/mercadopago/', {'reserva_id': str(reserva.id)}, format='json')
-
     APROBADA = {
         'status': 'processed',
         'status_detail': 'accredited',
         'transactions': {'payments': [{'payment_method': {'id': 'master'}}]},
     }
+
+    def pagar(self, reserva):
+        return self.client.post('/api/pagos/mercadopago/', {'reserva_id': str(reserva.id)}, format='json')
 
     def test_aprobado_al_volver_descuenta_y_confirma(self, crear, consultar, cancelar):
         reserva = self.reserva(clase='primera', cantidad=2)
@@ -534,6 +533,7 @@ class PagoMercadoPagoTests(Datos):
         self.pago(reserva, estado=Pago.Estado.PENDIENTE, metodo=Pago.Metodo.MERCADOPAGO)
         self.assertEqual(self.pagar_con_tarjeta(reserva).status_code, 409)
         consultar.assert_not_called()
+
 
 class ClienteMercadoPagoTests(Datos):
     def test_resultado_de_cada_estado_de_la_orden(self):

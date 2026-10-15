@@ -58,8 +58,8 @@ class PagoSerializer(serializers.ModelSerializer):
     class Meta:
         model = Pago
         fields = [
-            'id', 'reserva_id', 'vuelo', 'cantidad_pasajes', 'metodo_pago', 'ultimos_4', 'marca', 'cuenta_mp', 'monto', 'estado', 'detalle',
-            'transaccion_externa_id', 'creado_en', 'procesado_en',
+            'id', 'reserva_id', 'vuelo', 'cantidad_pasajes', 'metodo_pago', 'ultimos_4', 'marca', 'cuenta_mp',
+            'monto', 'estado', 'detalle', 'transaccion_externa_id', 'creado_en', 'procesado_en',
         ]
 
     def get_vuelo(self, pago):

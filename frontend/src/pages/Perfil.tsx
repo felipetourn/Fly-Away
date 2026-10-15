@@ -6,7 +6,7 @@ import LogoMedio from '../components/LogoMedio'
 import { Esqueleto } from '../components/Esqueleto'
 import { iniciales, type Usuario } from '../lib/auth'
 import { fechaDeInstante, precio } from '../lib/formato'
-import { cuentaDelPago, getPagos, type Pago } from '../lib/pagos'
+import { cuentaDelPago, getPagos, type Pago, type VueloResumen } from '../lib/pagos'
 import { getVuelo, type Vuelo } from '../lib/vuelos'
 import { useSesion } from '../lib/sesion'
 
@@ -22,9 +22,10 @@ function MisPagos() {
   // Vuelo cuyo detalle está abierto (null = diálogo cerrado). El comprobante del pago llega con la US09.
   const [vuelo, setVuelo] = useState<Vuelo | null>(null)
 
-  const verVuelo = (id: string) => {
+  const verVuelo = (v: VueloResumen | null) => {
+    if (!v) return
     setError('')
-    getVuelo(id)
+    getVuelo(v.id)
       .then(setVuelo)
       .catch((e: Error) => setError(e.message))
   }
@@ -54,12 +55,12 @@ function MisPagos() {
           <table className="w-full min-w-[40rem] text-left text-sm">
             <thead className="border-b border-slate-200 text-xs text-slate-500 uppercase">
               <tr>
-                <th className="px-3 py-2 text-left font-bold">Medio</th>
-                <th className="px-3 py-2 text-left font-bold">Tarjeta o cuenta</th>
-                <th className="px-3 py-2 text-left font-bold">Fecha</th>
-                <th className="px-3 py-2 text-left font-bold">Vuelo</th>
-                <th className="px-3 py-2 text-left font-bold">Valor</th>
-                <th className="px-3 py-2 text-left font-bold">Estado</th>
+                <th className="px-3 py-2 font-bold">Medio</th>
+                <th className="px-3 py-2 font-bold">Tarjeta o cuenta</th>
+                <th className="px-3 py-2 font-bold">Fecha</th>
+                <th className="px-3 py-2 font-bold">Vuelo</th>
+                <th className="px-3 py-2 font-bold">Valor</th>
+                <th className="px-3 py-2 font-bold">Estado</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -74,7 +75,7 @@ function MisPagos() {
                     {p.vuelo ? (
                       <button
                         type="button"
-                        onClick={() => verVuelo(p.vuelo!.id)}
+                        onClick={() => verVuelo(p.vuelo)}
                         className="text-left font-medium whitespace-nowrap text-marino hover:underline"
                       >
                         <span className="block">{p.vuelo.numero_vuelo}</span>

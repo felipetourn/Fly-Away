@@ -38,12 +38,14 @@ export default function PagoResultado() {
       </main>
     )
 
+  const mensaje = mensajeCompra(pago)
+
   return (
     <main className="mx-auto max-w-xl px-4 py-16">
       <section role="status" aria-live="polite" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <ChipEstado estado={pago.estado} />
         <h1 className="mt-3 text-3xl font-extrabold text-marino">{TITULO[pago.estado]}</h1>
-        {mensajeCompra(pago) && <p className="mt-2 font-medium text-slate-700">{mensajeCompra(pago)}</p>}
+        {mensaje && <p className="mt-2 font-medium text-slate-700">{mensaje}</p>}
         <p className="mt-2 text-slate-600">{pago.detalle}</p>
         <dl className="mt-6 space-y-2 border-t border-slate-100 pt-4 text-sm">
           {pago.vuelo && (
