@@ -1,6 +1,6 @@
 """Cliente mínimo de la API de Orders de Mercado Pago (Checkout Pro). Son tres llamadas: urllib alcanza, sin SDK."""
+import http.client
 import json
-import urllib.error
 import urllib.request
 
 from django.conf import settings
@@ -28,7 +28,8 @@ def _llamar(metodo, url, cuerpo=None, idempotencia=None):
     try:
         with urllib.request.urlopen(pedido, timeout=10) as respuesta:
             return json.loads(respuesta.read())
-    except (urllib.error.URLError, TimeoutError, ValueError) as error:  # HTTPError es un URLError
+    # OSError cubre URLError, timeouts y conexiones cortadas; HTTPException, una respuesta cortada a la mitad.
+    except (OSError, http.client.HTTPException, ValueError) as error:
         raise ErrorMercadoPago(str(error)) from error
 
 
@@ -68,6 +69,6 @@ def resultado_de(status, status_detail):
         return 'rechazado', 'El pago fue devuelto.'
     if status == 'failed':
         return 'rechazado', MOTIVOS.get(status_detail, 'Mercado Pago rechazó el pago.')
-    if status == 'canceled':
+    if status in ('canceled', 'expired'):
         return 'rechazado', 'El pago no se completó a tiempo.'
     return 'pendiente', 'Estamos esperando la confirmación de Mercado Pago.'

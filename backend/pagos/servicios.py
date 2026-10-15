@@ -1,4 +1,5 @@
 """Reglas de pago (US07). Las llamadas a Mercado Pago nunca van dentro de transaction.atomic()."""
+import datetime as dt
 from collections import Counter
 
 from django.db import IntegrityError, transaction
@@ -15,6 +16,7 @@ YA_PAGADA = 'Reserva ya pagada con otro pago: corresponde devolución.'
 EN_PROCESO = 'Tenés un pago de Mercado Pago en proceso para esta reserva.'
 SIN_CONEXION = 'No pudimos conectar con Mercado Pago.'
 ESPERANDO = 'Estamos esperando la confirmación de Mercado Pago.'
+SIN_ORDEN_MARGEN = dt.timedelta(minutes=2)  # más que el timeout de crear_orden (10 s)
 
 
 class Conflicto(APIException):
@@ -62,6 +64,12 @@ def _sincronizar(pago):
 
     Devuelve el status de MP, o None si no se pudo consultar (el pago sigue pendiente).
     """
+    if not pago.transaccion_externa_id:
+        # La orden nunca se guardó (crear_orden en curso o el proceso se cortó). Pasado el margen, no hay nada que cobrar.
+        if timezone.now() - pago.creado_en < SIN_ORDEN_MARGEN:
+            return None
+        _resolver(pago, Pago.Estado.RECHAZADO, 'No se pudo iniciar el pago en Mercado Pago.')
+        return 'canceled'
     try:
         status_mp, detalle_mp = mercadopago.consultar_orden(pago.transaccion_externa_id)
     except mercadopago.ErrorMercadoPago:
@@ -131,9 +139,12 @@ def pagar_con_mercadopago(reserva):
         )
     try:
         order_id, checkout_url = mercadopago.crear_orden(pago, _items(reserva))
-    except mercadopago.ErrorMercadoPago:
+    except Exception as error:
+        # Cualquier falla deja el pago rechazado: un pendiente sin orden bloquearía la reserva.
         guardar_resultado(pago, Pago.Estado.RECHAZADO, SIN_CONEXION)
-        raise ErrorDeMercadoPago()
+        if isinstance(error, mercadopago.ErrorMercadoPago):
+            raise ErrorDeMercadoPago() from error
+        raise
     pago.transaccion_externa_id = order_id
     pago.save(update_fields=['transaccion_externa_id'])
     return pago, checkout_url

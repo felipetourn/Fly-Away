@@ -1,5 +1,6 @@
 import datetime as dt
 from decimal import Decimal
+import http.client
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
@@ -387,3 +388,58 @@ class ClienteMercadoPagoTests(Datos):
     def test_sin_token_es_error(self):
         with self.settings(MP_ACCESS_TOKEN=''), self.assertRaises(mercadopago.ErrorMercadoPago):
             mercadopago.consultar_orden('ORDTST1')
+
+
+@patch('pagos.mercadopago.cancelar_orden')
+@patch('pagos.mercadopago.consultar_orden')
+@patch('pagos.mercadopago.crear_orden', return_value=('ORDTST1', 'https://mp.test/checkout'))
+class ReservaNoQuedaBloqueadaTests(Datos):
+    """Revisión final: ningún pago de MP trabado deja la reserva en 409 para siempre."""
+
+    def pagar_con_tarjeta(self, reserva):
+        return self.client.post('/api/pagos/tarjeta/', {'reserva_id': str(reserva.id), **TARJETA_OK}, format='json')
+
+    def test_orden_vencida_no_bloquea(self, crear, consultar, cancelar):
+        reserva = self.reserva()
+        self.client.post('/api/pagos/mercadopago/', {'reserva_id': str(reserva.id)}, format='json')
+        consultar.return_value = ('expired', 'expired')
+        self.assertEqual(self.pagar_con_tarjeta(reserva).data['estado'], 'aprobado')
+        vencido = Pago.objects.get(metodo_pago='mercadopago')
+        self.assertEqual((vencido.estado, vencido.detalle), ('rechazado', 'El pago no se completó a tiempo.'))
+
+    def test_si_crear_orden_explota_el_pago_queda_rechazado(self, crear, consultar, cancelar):
+        crear.side_effect = RuntimeError('inesperado')
+        reserva = self.reserva()
+        with self.assertRaises(RuntimeError):
+            self.client.post('/api/pagos/mercadopago/', {'reserva_id': str(reserva.id)}, format='json')
+        self.assertEqual(Pago.objects.get().estado, 'rechazado')
+        self.assertEqual(self.pagar_con_tarjeta(reserva).data['estado'], 'aprobado')
+
+    def test_pendiente_sin_orden_viejo_no_bloquea(self, crear, consultar, cancelar):
+        reserva = self.reserva()
+        huerfano = self.pago(reserva, estado=Pago.Estado.PENDIENTE, metodo=Pago.Metodo.MERCADOPAGO)
+        Pago.objects.filter(id=huerfano.id).update(creado_en=AHORA - dt.timedelta(minutes=10))
+        self.assertEqual(self.pagar_con_tarjeta(reserva).data['estado'], 'aprobado')
+        consultar.assert_not_called()
+        self.assertEqual(Pago.objects.get(id=huerfano.id).estado, 'rechazado')
+
+    def test_pendiente_sin_orden_reciente_es_409(self, crear, consultar, cancelar):
+        reserva = self.reserva()
+        self.pago(reserva, estado=Pago.Estado.PENDIENTE, metodo=Pago.Metodo.MERCADOPAGO)
+        self.assertEqual(self.pagar_con_tarjeta(reserva).status_code, 409)
+        consultar.assert_not_called()
+
+
+class CorteDeConexionTests(Datos):
+    def test_corte_a_mitad_de_respuesta_es_error_de_mp(self):
+        for error in (http.client.RemoteDisconnected('cerró'), ConnectionResetError(), http.client.IncompleteRead(b'')):
+            with self.subTest(error=type(error).__name__), self.settings(MP_ACCESS_TOKEN='x'), \
+                    patch('urllib.request.urlopen', side_effect=error), self.assertRaises(mercadopago.ErrorMercadoPago):
+                mercadopago.consultar_orden('ORDTST1')
+
+    def test_get_del_pago_con_corte_de_conexion_sigue_pendiente(self):
+        reserva = self.reserva()
+        pago = self.pago(reserva, estado=Pago.Estado.PENDIENTE, metodo=Pago.Metodo.MERCADOPAGO, transaccion_externa_id='ORDTST1')
+        with self.settings(MP_ACCESS_TOKEN='x'), patch('urllib.request.urlopen', side_effect=http.client.RemoteDisconnected('cerró')):
+            r = self.client.get(f'/api/pagos/{pago.id}/')
+        self.assertEqual((r.status_code, r.data['estado']), (200, 'pendiente'))
