@@ -4,6 +4,12 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-15 - US08, confirmar la venta (rama `feat/sprint2-pagos`)**
+- Un pago aprobado confirma la compra: la reserva pasa a `pagada` y se descuentan los asientos de cada clase, en una transacción y una sola vez (`servicios.confirmar_compra`, usado por la tarjeta y por Mercado Pago).
+- Si al aprobarse un pago ya no se puede vender (reserva ya pagada, vuelo cancelado o que salió, sin asientos), el pago queda rechazado con "corresponde devolución".
+- La pantalla de resultado muestra "¡Compra confirmada!" con los pasajes; la reserva, el chip "Confirmada".
+- **Migración `pagos/0003`** (`reservas_demo.estado`): marca `pagada` las reservas demo que ya tenían un pago aprobado (no descuenta asientos de esas compras de prueba). En local: `DATABASE_URL= .venv/Scripts/python manage.py migrate`.
+
 **2026-10-15 - US07, pago de pasajes (rama `feat/sprint2-pagos`)**
 - App `pagos`: tarjeta simulada y Mercado Pago Checkout Pro (API de Orders, sandbox). Detalle en la sección "Pagos" de arquitectura.md.
 - Pantallas: `/reservas` provisoria con 3 reservas demo, `/pagar/:reservaId` (tarjeta con panel de tarjetas de prueba, o MP), `/pagos/:id` (resultado) y "Mis pagos" en el perfil del pasajero.
@@ -90,6 +96,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-10-15 | Los asientos se descuentan solo al confirmarse el pago, no al iniciarlo ni al reservar | Cumple "un pago rechazado no modifica definitivamente la disponibilidad" sin retenciones que liberar; si con MP no quedan asientos al aprobarse, se marca para devolución |
 | 2026-10-15 | Mastercard acepta el prefijo 50 en la tarjeta simulada | La tarjeta de prueba de MP (5031...) también vale en el formulario propio |
 | 2026-10-15 | Antes de otro intento, una orden de MP sin pagar se cancela; una en proceso bloquea (409) | Evita cobrar dos veces la misma reserva |
 | 2026-10-15 | Pagos con Mercado Pago Checkout Pro (API de Orders, sandbox) y una pasarela de tarjetas simulada propia | MP es lo real del mercado local; Orders es lo que MP recomienda para integraciones nuevas. La tarjeta simulada anda sin internet ni credenciales (demo y tests). Visa/Mastercard no tienen un mock público para comercios |
@@ -131,7 +138,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 ## Pendientes / a definir
 
 - [ ] **Webhook de Mercado Pago:** hoy el estado se consulta al volver del checkout; con webhook se confirmaría aunque el pasajero cierre la pestaña.
-- [ ] **Devoluciones:** un segundo pago aprobado de la misma reserva queda rechazado con "corresponde devolución", pero la devolución no se automatiza.
+- [ ] **Devoluciones:** un pago aprobado que no pudo confirmar la compra (reserva ya pagada, vuelo cancelado o sin asientos) queda rechazado con "corresponde devolución", pero la devolución no se automatiza.
 - [ ] **Integrar US06 con pagos:** al crear `Reserva`/`Pasaje`, seguir el "Contrato entre reservas y pagos" de [arquitectura.md](arquitectura.md) (reescribir `pagos/reservas_mock.py`, FK en `pagos.reserva_id`, borrar `reservas_demo`).
 - [ ] **¿La reserva retiene asientos al crearse?** Definir entre US06 y US08; hoy el pago verifica disponibilidad antes de cobrar.
 - [ ] **Proveedor de email en prod:** verificar si el plan free de Render permite SMTP saliente; si no, usar la API HTTP de un proveedor (Resend, Brevo, etc.).

@@ -103,15 +103,15 @@ Traducción a Django (al implementar):
 
 Los pagos se implementan antes que las reservas. Para no bloquearse ni pisar la US06, la app `pagos` trabaja con una **tabla temporal propia** y un único punto de contacto:
 
-- **`reservas_demo`** (modelo `ReservaDemo` en `pagos`): `id`, `pasajero`, `vuelo`, `clase`, `cantidad`. Al entrar a `/reservas`, cada pasajero recibe 3 reservas demo fijas (economy × 1, primera × 2, economy × 9) para poder pagar. No es la tabla `reservas` del DBML y ninguna FK la apunta.
+- **`reservas_demo`** (modelo `ReservaDemo` en `pagos`): `id`, `pasajero`, `vuelo`, `clase`, `cantidad`, `estado` (`pendiente` | `pagada`). Al entrar a `/reservas`, cada pasajero recibe 3 reservas demo fijas (economy × 1, primera × 2, economy × 9) para poder pagar. No es la tabla `reservas` del DBML y ninguna FK la apunta.
 - **`pagos.reserva_id`** es un UUID **sin FK** que hoy guarda el id de una reserva demo.
-- **`pagos/reservas_mock.py`** es lo único que conoce las reservas. Expone `reservas_de(usuario)`, `pasajes_de(reserva)` (clase y precio por asiento) y `monto_de(reserva)` (suma de los precios de los pasajes).
+- **`pagos/reservas_mock.py`** es lo único que conoce las reservas. Expone `reservas_de(usuario)`, `pasajes_de(reserva)` (clase y precio por asiento), `monto_de(reserva)` (suma de los precios de los pasajes), `reserva_de_pago(pago)` y `marcar_pagada(reserva)` (US08).
 
 Lo que la US06 tiene que respetar para que pagos funcione sin cambios:
 
 1. `Reserva` y `Pasaje` con los nombres de [modelo.dbml](modelo.dbml) (`reservas`, `pasajes`). La clase y el precio van en cada **pasaje**; el monto a pagar es la **suma de `pasajes.precio`**.
-2. Una reserva recién creada queda en `estado = pendiente`. El paso a `pagada` y el descuento de `asientos_disponibles_*` los hace la US08 cuando el pago se aprueba.
-3. A definir con pagos: si la reserva **retiene asientos** al crearse. Hoy el pago verifica `asientos_disponibles_<clase> ≥ cantidad` antes de cobrar.
+2. Una reserva recién creada queda en `estado = pendiente`. El paso a `pagada` y el descuento de `asientos_disponibles_*` los hace pagos (`confirmar_compra`, US08) cuando el pago se aprueba; la US06 no los toca.
+3. A definir con pagos: si la reserva **retiene asientos** al crearse. Hoy los asientos se descuentan **solo al confirmarse el pago**; si la US06 retiene asientos, `confirmar_compra` pasa a convertir la retención en venta en vez de descontar.
 
 Al integrar la US06: se reescribe `reservas_mock.py` sobre `Reserva`/`Pasaje` (misma interfaz), `pagos.reserva_id` pasa a `ForeignKey` a `reservas`, se borran los pagos de prueba de reservas demo y una migración elimina `reservas_demo`. El botón **Pagar** de la pantalla de reservas lleva a `/pagar/:reservaId`.
 
@@ -164,6 +164,7 @@ Dos medios. Ninguno guarda el número completo de la tarjeta ni el CVV: solo `ul
 
 - **Tarjeta simulada** (`pagos/tarjeta.py`): valida como una pasarela real (Luhn, Visa/Mastercard/Amex, vencimiento, CVV de 3 o 4 dígitos) y decide el resultado por el número. Tarjetas de prueba, una Visa y una Mastercard por caso (también en el botón "Tarjetas de prueba" de la pantalla de pago): aprobada `4242 4242 4242 4242` o `5555 5555 5555 4444`; rechazada por el emisor `4000 0000 0000 0002` o `5200 0000 0000 0007`; fondos insuficientes `4000 0000 0000 9995` o `5200 0000 0000 9990`; error de procesamiento `4000 0000 0000 0119` o `5200 0000 0000 0114`. Cualquier otra válida se aprueba (incluida la Mastercard de prueba de MP, que empieza con 50).
 - **Mercado Pago Checkout Pro** con la API de Orders (`pagos/mercadopago.py`, HTTP con urllib): se crea el pago pendiente, se pide la orden (`POST /v1/orders`, `external_reference` y `X-Idempotency-Key` = id del pago, vence en 30 min) y el pasajero va al `checkout_url`. MP lo devuelve a `FRONTEND_URL/pagos/{id}` y el backend consulta la orden (`GET /v1/orders/{id}`); nunca usa los parámetros de la URL de retorno. Sin webhook: un pendiente se actualiza al abrir su detalle o al intentar pagar de nuevo.
+- **Confirmación de la venta (US08):** `servicios.confirmar_compra` es el único camino a un pago `aprobado`. Compra confirmada = pago `aprobado` + reserva `pagada` + asientos descontados, en una transacción: bloquea el vuelo y después el pago (siempre en ese orden), relee la reserva y descuenta por clase de pasaje dentro de un savepoint, así nunca queda una venta a medias. **Los asientos se descuentan solo al confirmar**; un rechazo no toca la disponibilidad. Si al aprobarse ya no se puede vender, el pago queda rechazado con "corresponde devolución": reserva ya pagada, vuelo cancelado o que salió, o sin asientos (puede pasar con MP, entre crear la orden y que se apruebe). Una misma transacción no confirma dos veces: si el pago ya no está pendiente, no hace nada.
 - **Una reserva, un solo pago aprobado:** constraint parcial en `pagos` (`pago_un_aprobado_por_reserva`). Antes de un nuevo intento, una orden de MP sin pagar se cancela y una en proceso responde 409.
 - **Transacciones:** las llamadas a MP nunca van dentro de `transaction.atomic()`; el pago pendiente se commitea antes, así una falla de MP lo deja rechazado en vez de perderlo.
 - **Variables:** `MP_ACCESS_TOKEN` (Access Token de prueba de la app en developers.mercadopago.com; vacío = MP deshabilitado) y `FRONTEND_URL`. En Render: `FRONTEND_URL=https://fly-away-one.vercel.app`.
