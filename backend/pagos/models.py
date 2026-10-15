@@ -15,11 +15,16 @@ class ReservaDemo(models.Model):
         ECONOMY = 'economy', 'Economy'
         PRIMERA = 'primera', 'Primera'
 
+    class Estado(models.TextChoices):
+        PENDIENTE = 'pendiente', 'Pendiente'
+        PAGADA = 'pagada', 'Pagada'  # compra confirmada (US08)
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     pasajero = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reservas_demo')
     vuelo = models.ForeignKey('vuelos.Vuelo', on_delete=models.PROTECT, related_name='reservas_demo')
     clase = models.CharField(max_length=10, choices=Clase.choices)
     cantidad = models.IntegerField()
+    estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.PENDIENTE)
     creado_en = models.DateTimeField(auto_now_add=True)
 
     class Meta:

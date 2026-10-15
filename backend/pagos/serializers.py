@@ -19,7 +19,6 @@ class VueloResumenSerializer(serializers.ModelSerializer):
 class ReservaSerializer(serializers.ModelSerializer):
     vuelo = VueloResumenSerializer()
     monto = serializers.SerializerMethodField()
-    estado = serializers.SerializerMethodField()
 
     class Meta:
         model = ReservaDemo
@@ -27,10 +26,6 @@ class ReservaSerializer(serializers.ModelSerializer):
 
     def get_monto(self, reserva):
         return str(reservas_mock.monto_de(reserva))
-
-    def get_estado(self, reserva):
-        pagada = Pago.objects.filter(reserva_id=reserva.id, estado=Pago.Estado.APROBADO).exists()
-        return 'pagada' if pagada else 'pendiente'
 
 
 class ReservaIdSerializer(serializers.Serializer):

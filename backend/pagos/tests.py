@@ -1,4 +1,5 @@
 import datetime as dt
+import importlib
 from decimal import Decimal
 import http.client
 from unittest.mock import patch
@@ -125,6 +126,32 @@ class ReservasDemoTests(Datos):
         self.assertIsNone(reservas_mock.reserva_de(self.pasajero, 'no-es-un-uuid'))
 
 
+
+class EstadoReservaTests(Datos):
+    def test_una_reserva_nueva_esta_pendiente_y_se_puede_marcar_pagada(self):
+        reserva = self.reserva()
+        self.assertEqual(reserva.estado, 'pendiente')
+        reservas_mock.marcar_pagada(reserva)
+        reserva.refresh_from_db()
+        self.assertEqual(reserva.estado, 'pagada')
+
+    def test_reserva_de_pago(self):
+        reserva = self.reserva()
+        self.assertEqual(reservas_mock.reserva_de_pago(self.pago(reserva)), reserva)
+
+    def test_la_migracion_marca_pagadas_las_reservas_con_pago_aprobado(self):
+        from django.apps import apps
+
+        migracion = importlib.import_module('pagos.migrations.0003_reservademo_estado')
+        pagada = self.reserva()
+        self.pago(pagada)
+        pendiente = self.reserva(vuelo=self.vuelos[1])
+        self.pago(pendiente, estado=Pago.Estado.RECHAZADO)
+        migracion.marcar_reservas_pagadas(apps, None)
+        pagada.refresh_from_db()
+        pendiente.refresh_from_db()
+        self.assertEqual((pagada.estado, pendiente.estado), ('pagada', 'pendiente'))
+
 class ReservasApiTests(Datos):
     def test_lista_las_reservas_con_monto_y_estado(self):
         r = self.client.get('/api/pagos/reservas/')
@@ -138,7 +165,7 @@ class ReservasApiTests(Datos):
 
     def test_una_reserva_con_pago_aprobado_figura_pagada(self):
         reserva = reservas_mock.reservas_de(self.pasajero)[0]
-        self.pago(reserva)
+        reservas_mock.marcar_pagada(reserva)
         self.assertEqual(self.client.get('/api/pagos/reservas/').data[0]['estado'], 'pagada')
 
     def test_solo_pasajeros(self):

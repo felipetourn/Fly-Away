@@ -114,6 +114,8 @@ Table reservas {
     Cuando la compra es online, pasajero_id está seteado y vendido_por es NULL.
     IMPORTANTE: cantidad_pasajes debe coincidir con COUNT(pasajes) una vez confirmada la
     reserva (estado = 'pagada'). Validar en el backend antes de confirmar el pago.
+    estado = 'pagada' es la compra confirmada (US08): solo cambia junto con el pago aprobado
+    y el descuento de asientos.
   '''
 }
 

@@ -57,3 +57,14 @@ def pasajes_de(reserva):
 
 def monto_de(reserva):
     return sum((precio for _, precio in pasajes_de(reserva)), Decimal('0'))
+
+
+def reserva_de_pago(pago):
+    """La reserva de un pago, sin filtrar por usuario (lo usa la confirmación de MP); None si no existe."""
+    return ReservaDemo.objects.select_related('vuelo').filter(id=pago.reserva_id).first()
+
+
+def marcar_pagada(reserva):
+    """La reserva pasa a ser una compra confirmada. Con la US06 cambia `Reserva.estado`."""
+    reserva.estado = ReservaDemo.Estado.PAGADA
+    reserva.save(update_fields=['estado'])
