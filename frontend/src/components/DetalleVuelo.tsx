@@ -17,9 +17,10 @@ import {
 interface Props {
   /** El vuelo de la card: se muestra mientras llega el detalle. */
   vuelo: Vuelo
-  clase: Clase
-  pasajeros: number
-  onElegir: (v: Vuelo) => void
+  /** Sin clase, pasajeros ni onElegir (por ejemplo, desde "Mis pagos") el diálogo solo informa: no se elige el vuelo. */
+  clase?: Clase
+  pasajeros?: number
+  onElegir?: (v: Vuelo) => void
   onCerrar: () => void
 }
 
@@ -95,7 +96,7 @@ export default function DetalleVuelo({ vuelo, clase, pasajeros, onElegir, onCerr
     ? null
     : detalle.estado === 'cancelado'
       ? 'Este vuelo fue cancelado'
-      : asientosDe(detalle, clase) < pasajeros
+      : onElegir && clase && pasajeros && asientosDe(detalle, clase) < pasajeros
         ? `No hay lugar para ${pasajeros} ${pasajeros === 1 ? 'pasajero' : 'pasajeros'} en ${NOMBRE_CLASE[clase]}`
         : null
   const puedeElegir = detalle !== null && motivo === null
@@ -104,7 +105,7 @@ export default function DetalleVuelo({ vuelo, clase, pasajeros, onElegir, onCerr
   function elegir() {
     if (!detalle) return
     cerrar()
-    onElegir(detalle)
+    onElegir?.(detalle)
   }
   function reintentar() {
     setResultado({ detalle: null, error: false })
@@ -248,15 +249,17 @@ export default function DetalleVuelo({ vuelo, clase, pasajeros, onElegir, onCerr
         >
           Cerrar
         </button>
-        <button
-          type="button"
-          onClick={elegir}
-          disabled={!puedeElegir}
-          aria-describedby={motivo ? idMotivo : undefined}
-          className="rounded-xl bg-marino px-5 py-2.5 font-bold text-white hover:bg-cielo disabled:cursor-not-allowed disabled:bg-slate-300"
-        >
-          Elegir este vuelo
-        </button>
+        {onElegir && (
+          <button
+            type="button"
+            onClick={elegir}
+            disabled={!puedeElegir}
+            aria-describedby={motivo ? idMotivo : undefined}
+            className="rounded-xl bg-marino px-5 py-2.5 font-bold text-white hover:bg-cielo disabled:cursor-not-allowed disabled:bg-slate-300"
+          >
+            Elegir este vuelo
+          </button>
+        )}
       </div>
     </dialog>
   )

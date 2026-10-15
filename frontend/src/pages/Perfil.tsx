@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import ChipEstado from '../components/ChipEstado'
+import DetalleVuelo from '../components/DetalleVuelo'
 import LogoMedio from '../components/LogoMedio'
 import { Esqueleto } from '../components/Esqueleto'
 import { iniciales, type Usuario } from '../lib/auth'
 import { fechaDeInstante, precio } from '../lib/formato'
-import { cuentaDelPago, getPagos, vueloCorto, type Pago } from '../lib/pagos'
+import { cuentaDelPago, getPagos, type Pago } from '../lib/pagos'
+import { getVuelo, type Vuelo } from '../lib/vuelos'
 import { useSesion } from '../lib/sesion'
 
 // El pasajero no muestra rol.
@@ -15,9 +17,17 @@ const ETIQUETA_ROL: Partial<Record<Usuario['rol'], string>> = {
 }
 
 function MisPagos() {
-  const navigate = useNavigate()
   const [pagos, setPagos] = useState<Pago[] | null>(null)
   const [error, setError] = useState('')
+  // Vuelo cuyo detalle está abierto (null = diálogo cerrado). El comprobante del pago llega con la US09.
+  const [vuelo, setVuelo] = useState<Vuelo | null>(null)
+
+  const verVuelo = (id: string) => {
+    setError('')
+    getVuelo(id)
+      .then(setVuelo)
+      .catch((e: Error) => setError(e.message))
+  }
 
   useEffect(() => {
     getPagos()
@@ -44,26 +54,37 @@ function MisPagos() {
           <table className="w-full min-w-[40rem] text-left text-sm">
             <thead className="border-b border-slate-200 text-xs text-slate-500 uppercase">
               <tr>
-                <th className="px-3 py-2 font-bold">Medio</th>
-                <th className="px-3 py-2 font-bold">Tarjeta o cuenta</th>
-                <th className="px-3 py-2 font-bold">Fecha</th>
-                <th className="px-3 py-2 font-bold">Vuelo</th>
-                <th className="px-3 py-2 text-right font-bold">Valor</th>
-                <th className="px-3 py-2 font-bold">Estado</th>
+                <th className="px-3 py-2 text-center font-bold">Medio</th>
+                <th className="px-3 py-2 text-center font-bold">Tarjeta o cuenta</th>
+                <th className="px-3 py-2 text-center font-bold">Fecha</th>
+                <th className="px-3 py-2 text-center font-bold">Vuelo</th>
+                <th className="px-3 py-2 text-center font-bold">Valor</th>
+                <th className="px-3 py-2 text-center font-bold">Estado</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {pagos.map((p) => (
-                <tr key={p.id} onClick={() => navigate(`/pagos/${p.id}`)} className="cursor-pointer hover:bg-slate-50">
+                <tr key={p.id} className="hover:bg-slate-50">
                   <td className="px-3 py-3">
                     <LogoMedio pago={p} />
                   </td>
                   <td className="px-3 py-3 break-all">{cuentaDelPago(p)}</td>
                   <td className="px-3 py-3 whitespace-nowrap text-slate-500">{fechaDeInstante(p.creado_en)}</td>
                   <td className="px-3 py-3">
-                    <Link to={`/pagos/${p.id}`} className="font-medium text-marino hover:underline">
-                      {p.vuelo ? vueloCorto(p.vuelo) : 'Reserva'}
-                    </Link>
+                    {p.vuelo ? (
+                      <button
+                        type="button"
+                        onClick={() => verVuelo(p.vuelo!.id)}
+                        className="text-left font-medium whitespace-nowrap text-marino hover:underline"
+                      >
+                        <span className="block">{p.vuelo.numero_vuelo}</span>
+                        <span className="block text-slate-500">
+                          {p.vuelo.origen} → {p.vuelo.destino}
+                        </span>
+                      </button>
+                    ) : (
+                      'Reserva'
+                    )}
                   </td>
                   <td className="px-3 py-3 text-right font-bold whitespace-nowrap">{precio(Number(p.monto))}</td>
                   <td className="px-3 py-3">
@@ -75,6 +96,7 @@ function MisPagos() {
           </table>
         </div>
       )}
+      {vuelo && <DetalleVuelo key={vuelo.id} vuelo={vuelo} onCerrar={() => setVuelo(null)} />}
     </section>
   )
 }
