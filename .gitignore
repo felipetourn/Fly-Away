@@ -20,6 +20,6 @@ dist/
 .DS_Store
 Thumbs.db
 
-# Superpowers (specs y planes de trabajo, no son documentación oficial)
+# Superpowers: carpetas de specs y planes de trabajo, en cualquier nivel (no son documentación oficial)
+superpowers/
 .superpowers/
-docs/superpowers/

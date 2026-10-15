@@ -13,6 +13,7 @@ Sistema web de una aerolínea nacional: búsqueda de vuelos, gestión de vuelos 
 | [docs/arquitectura.md](docs/arquitectura.md) | Stack, carpetas, roles, modelo de datos, API, deploy y cómo correr en local |
 | [docs/modelo.dbml](docs/modelo.dbml) | Modelo relacional. **Fuente de verdad del esquema** (se ve en dbdiagram.io) |
 | [docs/memoria.md](docs/memoria.md) | Qué está hecho, decisiones tomadas con su motivo y pendientes |
+| [docs/US/](docs/US/) | Una ficha por user story y sprint: horas, criterios de aceptación con su evidencia y cómo probarla |
 
 ## Correr en local
 
