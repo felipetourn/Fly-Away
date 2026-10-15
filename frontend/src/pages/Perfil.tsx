@@ -54,12 +54,12 @@ function MisPagos() {
           <table className="w-full min-w-[40rem] text-left text-sm">
             <thead className="border-b border-slate-200 text-xs text-slate-500 uppercase">
               <tr>
-                <th className="px-3 py-2 text-center font-bold">Medio</th>
-                <th className="px-3 py-2 text-center font-bold">Tarjeta o cuenta</th>
-                <th className="px-3 py-2 text-center font-bold">Fecha</th>
-                <th className="px-3 py-2 text-center font-bold">Vuelo</th>
-                <th className="px-3 py-2 text-center font-bold">Valor</th>
-                <th className="px-3 py-2 text-center font-bold">Estado</th>
+                <th className="px-3 py-2 text-left font-bold">Medio</th>
+                <th className="px-3 py-2 text-left font-bold">Tarjeta o cuenta</th>
+                <th className="px-3 py-2 text-left font-bold">Fecha</th>
+                <th className="px-3 py-2 text-left font-bold">Vuelo</th>
+                <th className="px-3 py-2 text-left font-bold">Valor</th>
+                <th className="px-3 py-2 text-left font-bold">Estado</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -86,7 +86,7 @@ function MisPagos() {
                       'Reserva'
                     )}
                   </td>
-                  <td className="px-3 py-3 text-right font-bold whitespace-nowrap">{precio(Number(p.monto))}</td>
+                  <td className="px-3 py-3 font-bold whitespace-nowrap">{precio(Number(p.monto))}</td>
                   <td className="px-3 py-3">
                     <ChipEstado estado={p.estado} />
                   </td>
