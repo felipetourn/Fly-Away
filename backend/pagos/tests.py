@@ -379,6 +379,49 @@ class PagoMercadoPagoTests(Datos):
     def pagar(self, reserva):
         return self.client.post('/api/pagos/mercadopago/', {'reserva_id': str(reserva.id)}, format='json')
 
+    APROBADA = {
+        'status': 'processed',
+        'status_detail': 'accredited',
+        'transactions': {'payments': [{'payment_method': {'id': 'master'}}]},
+    }
+
+    def test_aprobado_al_volver_descuenta_y_confirma(self, crear, consultar, cancelar):
+        reserva = self.reserva(clase='primera', cantidad=2)
+        pago_id = self.pagar(reserva).data['pago']['id']
+        consultar.return_value = self.APROBADA
+        self.assertEqual(self.client.get(f'/api/pagos/{pago_id}/').data['estado'], 'aprobado')
+        self.client.get(f'/api/pagos/{pago_id}/')  # volver a abrirlo no descuenta otra vez
+        self.vuelos[0].refresh_from_db()
+        reserva.refresh_from_db()
+        self.assertEqual((self.vuelos[0].asientos_disponibles_primera, reserva.estado), (10, 'pagada'))
+
+    def test_rechazado_de_mp_no_toca_asientos(self, crear, consultar, cancelar):
+        reserva = self.reserva(cantidad=2)
+        pago_id = self.pagar(reserva).data['pago']['id']
+        consultar.return_value = {'status': 'failed', 'status_detail': 'rejected_by_issuer'}
+        self.client.get(f'/api/pagos/{pago_id}/')
+        self.vuelos[0].refresh_from_db()
+        reserva.refresh_from_db()
+        self.assertEqual((self.vuelos[0].asientos_disponibles_economy, reserva.estado), (30, 'pendiente'))
+
+    def test_sin_asientos_al_aprobarse_corresponde_devolucion(self, crear, consultar, cancelar):
+        reserva = self.reserva(cantidad=2)
+        pago_id = self.pagar(reserva).data['pago']['id']
+        Vuelo.objects.filter(id=self.vuelos[0].id).update(asientos_disponibles_economy=1)  # otro compró mientras tanto
+        consultar.return_value = self.APROBADA
+        r = self.client.get(f'/api/pagos/{pago_id}/')
+        self.assertEqual((r.data['estado'], r.data['detalle'], r.data['marca']), ('rechazado', servicios.SIN_ASIENTOS, 'mastercard'))
+        self.vuelos[0].refresh_from_db()
+        self.assertEqual(self.vuelos[0].asientos_disponibles_economy, 1)
+
+    def test_vuelo_cancelado_mientras_pagaba(self, crear, consultar, cancelar):
+        reserva = self.reserva()
+        pago_id = self.pagar(reserva).data['pago']['id']
+        Vuelo.objects.filter(id=self.vuelos[0].id).update(estado=Vuelo.Estado.CANCELADO)
+        consultar.return_value = self.APROBADA
+        r = self.client.get(f'/api/pagos/{pago_id}/')
+        self.assertEqual((r.data['estado'], r.data['detalle']), ('rechazado', servicios.VUELO_NO_DISPONIBLE))
+
     def test_crea_la_orden_con_el_monto_del_backend(self, crear, consultar, cancelar):
         reserva = self.reserva(clase='primera', cantidad=2)
         r = self.pagar(reserva)

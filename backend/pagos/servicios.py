@@ -134,8 +134,11 @@ def _sincronizar(pago):
     status_mp = orden.get('status')
     estado, detalle = mercadopago.resultado_de(status_mp, orden.get('status_detail'))
     if estado != Pago.Estado.PENDIENTE:
-        marca = mercadopago.marca_de_orden(orden)
-        _resolver(pago, estado, detalle, marca=marca, cuenta_mp=mercadopago.cuenta_del_comprador(str(pago.id)))
+        datos = {'marca': mercadopago.marca_de_orden(orden), 'cuenta_mp': mercadopago.cuenta_del_comprador(str(pago.id))}
+        if estado == Pago.Estado.APROBADO:
+            confirmar_compra(pago, detalle, **datos)
+        else:
+            _resolver(pago, estado, detalle, **datos)
     return status_mp
 
 
