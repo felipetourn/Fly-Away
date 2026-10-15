@@ -4,6 +4,13 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-15 - Inicio del Sprint 2: US23 y documentación oficial (rama `feat/sprint2-pagos`)**
+- US23 (cerrar sesión): el logout ya borraba los tokens del navegador; ahora además invalida el refresh en el servidor con `POST /api/auth/logout/` (`token_blacklist` de SimpleJWT). Un refresh cerrado ya no renueva; los de otros usuarios siguen andando (test en `usuarios/tests.py`). El access vigente vence solo (1 h).
+- `README.md` en la raíz como punto de entrada; `arquitectura.md` al día con lo implementado.
+- Los specs y planes de trabajo (`docs/superpowers/`) quedan fuera del repo; la documentación oficial es `README.md` + `docs/`.
+- `npm audit fix` en el front (vulnerabilidad de `source-map-js`, dependencia de Vite).
+- Sprint 2: US06 (reservar) la hace otro integrante; acá siguen US07 (pago) y US08 (confirmar la venta).
+
 **2026-10-03 - Ajustes de interfaz tras probar el ABM (PR #7 y rama `fix/errores-no-json`)**
 - Formulario de vuelo al ancho del listado (88rem), con los cuatro campos de cada card en una línea. Listado con paginación centrada: flechas y números (`paginasVisibles` en `lib/adminVuelos.ts`).
 - Inicio: el calendario abre hacia arriba cuando abajo no entra (`abreHaciaArriba` en `lib/busqueda.ts`; el alto del calendario está estimado en 380 px en `SelectorFechas`).
@@ -13,7 +20,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 - **Supabase:** migraciones `0002` y `0003` aplicadas por el deploy del PR #6. Se borraron los 6 389 vuelos de ejemplo posteriores al 2026-11-02; quedan 6 960, hasta esa fecha, sobre LV-FAA a LV-FAD. Del 2026-11-03 en adelante no hay vuelos: se cargan desde `/admin/vuelos`. Los aviones LV-FAE a LV-FAJ están libres.
 
 **2026-10-03 - ABM de vuelos, US01, US02 y US03 (rama `feat/abm-vuelos`)**
-- `/admin/vuelos`: listado con filtros y paginación, alta con períodos de recurrencia, edición de una instancia (lápiz) y cancelación con confirmación (tacho). Spec y plan en `docs/superpowers/`.
+- `/admin/vuelos`: listado con filtros y paginación, alta con períodos de recurrencia, edición de una instancia (lápiz) y cancelación con confirmación (tacho).
 - Backend: `GET/POST /api/vuelos/`, `PATCH /api/vuelos/{id}/`, `POST /api/vuelos/{id}/cancelar/`, `GET /api/aviones/`, todos solo para el rol administrador. Reglas en `vuelos/servicios.py`.
 - `vuelos.fecha_llegada` nuevo (vuelos que cruzan medianoche). Las filas existentes quedaron con `fecha_llegada = fecha_operacion`.
 - `seed` carga el catálogo y la flota de 10; los vuelos de ejemplo solo con `--vuelos` y ya no corren en `build.sh`.
@@ -74,6 +81,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-10-15 | Logout con blacklist del refresh token (SimpleJWT), sin bajar la vida del access | Cumple "la sesión queda invalidada" sin dependencias nuevas; el access dura como mucho 1 h más |
 | 2026-10-03 | El lápiz queda habilitado en vuelos cancelados o que ya salieron y abre el formulario en solo lectura | Permite consultar cualquier instancia; el tacho sí se deshabilita |
 | 2026-10-03 | Una respuesta del backend que no es JSON se muestra como "No pudimos conectar con el servidor" | La API siempre responde JSON; un texto es una página de error que no hay que volcar en pantalla |
 | 2026-10-03 | El backend asigna `numero_vuelo` (uno por alta, `FA ` + correlativo) y no se edita | El identificador de cada instancia es su `id`; evita choques con el índice único. Un alta nueva siempre recibe un número nuevo |
@@ -120,7 +128,6 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Próximos pasos
 
-1. Mergear `feat/backend-vuelos` a `main` (Supabase ya está lista) y crear el superusuario con `createsuperuser`.
-2. Compra: cerrar los pendientes del modelo (arriba) y sumar reservas + pasajes + pagos + emails.
-3. Reportes de ocupación.
-4. Notificaciones por cambio de horario / cancelación (el ABM ya cancela y edita; falta avisar).
+1. Sprint 2: US06 reservar pasajes, US07 pago, US08 confirmar la venta, US09 ticket electrónico, US10 factura por email.
+2. Reportes de ocupación.
+3. Notificaciones por cambio de horario / cancelación (el ABM ya cancela y edita; falta avisar).

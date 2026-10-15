@@ -23,7 +23,7 @@ El front es una SPA estática; toda la lógica de negocio y validación vive en 
 
 ```
 Fly Away/
-├── CLAUDE.md                 guía para Claude (comandos, reglas)
+├── README.md                 punto de entrada (cómo correr, convenciones)
 ├── docs/
 │   ├── enunciado.md
 │   ├── arquitectura.md       este archivo
@@ -42,7 +42,7 @@ Fly Away/
     ├── .env.local / .env.example
     ├── vercel.json           rewrite SPA
     └── src/
-        ├── lib/              api.ts (fetch + JWT), llamadas a la API, lógica pura (sesión todavía mock)
+        ├── lib/              api.ts (fetch + JWT + renovación), sesion.tsx, llamadas a la API y lógica pura
         ├── components/       Header, HeroCarrusel, BuscadorVuelos, FiltroPrecio, CardVuelo, ListaVuelos, DetalleVuelo
         ├── pages/            pantallas (AdminVuelos y AdminVueloForm: ABM de vuelos)
         └── App.tsx           rutas: / (todos), /empleado/*, /admin/* (por rol)
@@ -98,13 +98,16 @@ Traducción a Django (al implementar):
 - `db_table` explícito para que las tablas se llamen igual que en el DBML.
 - Reglas simples como constraints de Postgres (`CheckConstraint`): cantidad 1..9, origen ≠ destino.
 
-## API (propuesta)
+## API
+
+✅ = implementado. Lo demás es la propuesta para lo que falta.
 
 ```
 POST /api/auth/token/            login por email → {access, refresh} ✅
 POST /api/auth/token/refresh/                                      ✅
 POST /api/auth/registro/         alta pública de pasajero            ✅
 GET  /api/auth/yo/               usuario autenticado (JWT)            ✅
+POST /api/auth/logout/           {refresh} → invalida ese refresh (blacklist) ✅
 GET  /api/health/                                                  ✅ hecho
 GET  /api/aeropuertos/                                             ✅ hecho
 GET  /api/vuelos/buscar/?origen=&destino=&desde=&hasta=&pasajeros=&clase=&precio_min=&precio_max=   ✅ hecho
@@ -127,7 +130,7 @@ GET  /api/pasajes/{codigo}/pdf/  descarga ticket electrónico
 GET  /api/reportes/ocupacion/?vuelo=&desde=&hasta=   (admin)
 ```
 
-El registro público siempre asigna el rol `pasajero` y valida la contraseña con los validadores de Django. Las cuentas de administrador y empleado se provisionan desde Django Admin por un administrador; las contraseñas se ingresan como texto en el formulario y se guardan hasheadas. Solo los usuarios activos con rol `administrador` son staff y acceden a Django Admin; empleados y pasajeros no acceden. El frontend renueva el access token con el refresh al recibir un 401 y descarta la sesión si la renovación falla. Las rutas `/admin/*` (React) y `/empleado/*` exigen administrador y empleado, respectivamente (cualquier otro rol vuelve a `/`); las búsquedas públicas de vuelos siguen abiertas. Cualquier nueva operación de negocio exclusiva por rol debe validar el permiso también en su endpoint de backend.
+El registro público siempre asigna el rol `pasajero` y valida la contraseña con los validadores de Django. Las cuentas de administrador y empleado se provisionan desde Django Admin por un administrador; las contraseñas se ingresan como texto en el formulario y se guardan hasheadas. Solo los usuarios activos con rol `administrador` son staff y acceden a Django Admin; empleados y pasajeros no acceden. El frontend renueva el access token con el refresh al recibir un 401 y descarta la sesión si la renovación falla. Cerrar sesión borra los tokens del navegador y manda el refresh a `/api/auth/logout/`, que lo invalida en el servidor (`token_blacklist` de SimpleJWT): ese refresh ya no renueva, y el access vigente vence solo (1 h). Las sesiones de otros usuarios o dispositivos no se tocan. Las rutas `/admin/*` (React) y `/empleado/*` exigen administrador y empleado, respectivamente (cualquier otro rol vuelve a `/`); las búsquedas públicas de vuelos siguen abiertas. Cualquier nueva operación de negocio exclusiva por rol debe validar el permiso también en su endpoint de backend.
 
 **Errores 400:** formato estándar de DRF, `{"parametro": ["mensaje"]}`, con mensajes en español (los mismos que muestra el front). Los errores de un período del alta llegan en `periodos` indexados por posición (`{"periodos": {"0": {"desde": ["mensaje"]}}}`); los que no son de un campo, en `non_field_errors`. Un parámetro vacío (`?hasta=`) cuenta como no enviado. El 404 es `{"detail": "..."}`. Si la respuesta no es JSON (error 500, hosting caído), el front muestra un mensaje fijo (`ApiError` en `src/lib/api.ts`).
 
