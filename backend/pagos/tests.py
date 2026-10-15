@@ -9,7 +9,7 @@ from rest_framework.test import APITestCase
 
 from vuelos.models import Aeropuerto, Avion, Vuelo
 
-from . import reservas_mock, tarjeta
+from . import reservas_mock, servicios, tarjeta
 from .models import Pago, ReservaDemo
 
 BA = ZoneInfo('America/Argentina/Buenos_Aires')
@@ -177,3 +177,105 @@ class TarjetaTests(Datos):
         self.assertEqual(tarjeta.procesar('4000000000009995')[:2], (False, 'Fondos insuficientes.'))
         self.assertFalse(tarjeta.procesar('4000000000000119')[0])
         self.assertTrue(tarjeta.procesar('4242424242424242')[2].startswith('SIM-'))
+
+
+TARJETA_OK = {'numero': '4242 4242 4242 4242', 'titular': 'Ana Pérez', 'vencimiento': '12/30', 'cvv': '123'}
+
+
+class PagoTarjetaTests(Datos):
+    def pagar(self, reserva, **cambios):
+        return self.client.post('/api/pagos/tarjeta/', {'reserva_id': str(reserva.id), **TARJETA_OK, **cambios}, format='json')
+
+    def test_aprobado(self):
+        reserva = self.reserva(clase='primera', cantidad=2)
+        r = self.pagar(reserva)
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.data['estado'], 'aprobado')
+        self.assertEqual(r.data['monto'], '500000.00')
+        self.assertEqual(r.data['ultimos_4'], '4242')
+        self.assertEqual(r.data['vuelo']['numero_vuelo'], 'FA 1000')
+        pago = Pago.objects.get(id=r.data['id'])
+        self.assertEqual((pago.reserva_id, pago.metodo_pago), (reserva.id, 'tarjeta'))
+        self.assertIsNotNone(pago.procesado_en)
+
+    def test_rechazado_queda_registrado_con_el_motivo(self):
+        r = self.pagar(self.reserva(), numero='4000 0000 0000 9995')
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual((r.data['estado'], r.data['detalle']), ('rechazado', 'Fondos insuficientes.'))
+
+    def test_no_guarda_el_numero_completo_ni_el_cvv(self):
+        self.pagar(self.reserva(), cvv='987')
+        pago = Pago.objects.get()
+        valores = ' '.join(str(getattr(pago, campo.attname)) for campo in Pago._meta.fields)
+        self.assertNotIn('4242424242424242', valores)
+        self.assertNotIn('987', valores)
+
+    def test_datos_invalidos_400_por_campo(self):
+        r = self.pagar(self.reserva(), numero='1234', cvv='', vencimiento='01/20')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('numero', r.data)
+        self.assertIn('vencimiento', r.data)
+        self.assertIn('cvv', r.data)
+        self.assertFalse(Pago.objects.exists())
+
+    def test_doble_envio_el_segundo_es_409(self):
+        reserva = self.reserva()
+        self.assertEqual(self.pagar(reserva).status_code, 201)
+        r = self.pagar(reserva)
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(r.data['detail'], 'La reserva ya está pagada.')
+        self.assertEqual(Pago.objects.filter(estado='aprobado').count(), 1)
+
+    def test_reintento_despues_de_un_rechazo(self):
+        reserva = self.reserva()
+        self.pagar(reserva, numero='4000000000000002')
+        self.assertEqual(self.pagar(reserva).data['estado'], 'aprobado')
+
+    def test_reserva_ajena_o_inexistente_404(self):
+        self.assertEqual(self.pagar(self.reserva(pasajero=self.otro)).status_code, 404)
+        r = self.client.post('/api/pagos/tarjeta/', {'reserva_id': '00000000-0000-0000-0000-000000000000', **TARJETA_OK}, format='json')
+        self.assertEqual(r.status_code, 404)
+
+    def test_vuelo_cancelado_salido_o_sin_lugar_400(self):
+        cancelado = self.crear_vuelo('FA 3000', HOY + dt.timedelta(days=5), estado=Vuelo.Estado.CANCELADO)
+        salido = self.crear_vuelo('FA 3001', HOY, hora_partida=dt.time(9, 0), hora_llegada=dt.time(10, 0))
+        lleno = self.crear_vuelo('FA 3002', HOY + dt.timedelta(days=6), asientos_disponibles_economy=1)
+        for vuelo, cantidad in ((cancelado, 1), (salido, 1), (lleno, 2)):
+            r = self.pagar(self.reserva(vuelo=vuelo, cantidad=cantidad))
+            self.assertEqual(r.status_code, 400, vuelo.numero_vuelo)
+            self.assertIn('non_field_errors', r.data)
+        self.assertFalse(Pago.objects.exists())
+
+    def test_solo_pasajeros(self):
+        reserva = self.reserva()
+        self.client.force_authenticate(None)
+        self.assertEqual(self.pagar(reserva).status_code, 401)
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.pagar(reserva).status_code, 403)
+
+
+class ConsultaPagosTests(Datos):
+    def test_lista_solo_los_pagos_propios(self):
+        propio = self.pago(self.reserva())
+        self.pago(self.reserva(pasajero=self.otro))
+        r = self.client.get('/api/pagos/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual([p['id'] for p in r.data], [str(propio.id)])
+
+    def test_detalle_propio_y_404_para_ajeno_o_id_malformado(self):
+        propio = self.pago(self.reserva())
+        ajeno = self.pago(self.reserva(pasajero=self.otro))
+        self.assertEqual(self.client.get(f'/api/pagos/{propio.id}/').status_code, 200)
+        self.assertEqual(self.client.get(f'/api/pagos/{ajeno.id}/').status_code, 404)
+        r = self.client.get('/api/pagos/abc/')
+        self.assertEqual(r.status_code, 404)
+        self.assertIn('detail', r.data)
+
+    def test_un_segundo_aprobado_queda_rechazado_y_no_da_500(self):
+        reserva = self.reserva()
+        self.pago(reserva)
+        segundo = self.pago(reserva, estado=Pago.Estado.PENDIENTE, metodo=Pago.Metodo.MERCADOPAGO)
+        servicios.guardar_resultado(segundo, Pago.Estado.APROBADO, 'Pago aprobado.')
+        segundo.refresh_from_db()
+        self.assertEqual(segundo.estado, 'rechazado')
+        self.assertEqual(segundo.detalle, servicios.YA_PAGADA)
