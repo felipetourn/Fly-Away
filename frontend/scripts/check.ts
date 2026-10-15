@@ -3,7 +3,8 @@ process.env.TZ = 'America/Argentina/Buenos_Aires' // UTC−3: detecta fechas cor
 
 import assert from 'node:assert/strict'
 import { aParams, abreHaciaArriba, elegirDia, leerFiltros, validarBusqueda, type Filtros } from '../src/lib/busqueda.ts'
-import { duracion, fechaCompleta, fechaCorta, fechaLarga, hora, precio, rangoCorto, rangoFechas } from '../src/lib/formato.ts'
+import { duracion, fechaCompleta, fechaCorta, fechaDeInstante, fechaLarga, hora, precio, rangoCorto, rangoFechas } from '../src/lib/formato.ts'
+import { erroresTarjeta, formatearNumero, formatearVencimiento, luhnValido, marcaDe, medioDePago, TARJETAS_PRUEBA } from '../src/lib/pagos.ts'
 import { errorDePeriodo, erroresDe, fechasDePeriodo, paginasVisibles, primero, queryListado, yaSalio } from '../src/lib/adminVuelos.ts'
 import { ApiError } from '../src/lib/api.ts'
 import { duracionDe, estadoClase, llegaAlDiaSiguiente, queryBusqueda, vueltasPosibles, type ParamsBusqueda, type Vuelo } from '../src/lib/vuelos.ts'
@@ -211,3 +212,33 @@ assert.equal(new ApiError(404, { detail: 'No encontrado.' }).message, 'No encont
 assert.equal(new ApiError(500, {}).message, 'Error 500')
 
 console.log('api: OK')
+
+// pagos: tarjeta (mismas reglas que el backend)
+assert.equal(luhnValido('4242424242424242'), true)
+assert.equal(luhnValido('4242424242424241'), false)
+for (const t of TARJETAS_PRUEBA) assert.equal(luhnValido(t.numero.replace(/ /g, '')), true, `tarjeta de prueba ${t.numero}`)
+assert.equal(marcaDe('4242424242424242'), 'visa')
+assert.equal(marcaDe('5031755734530604'), 'mastercard', 'la Mastercard de prueba de Mercado Pago empieza con 50')
+assert.equal(marcaDe('5555555555554444'), 'mastercard')
+assert.equal(marcaDe('2221000000000009'), 'mastercard')
+assert.equal(marcaDe('378282246310005'), 'amex')
+assert.equal(marcaDe('6011111111111117'), null)
+assert.equal(formatearNumero('42424242abc42424242999999'), '4242 4242 4242 4242 999', 'máximo 19 dígitos')
+assert.equal(formatearVencimiento('1230'), '12/30')
+assert.equal(formatearVencimiento('1'), '1')
+const tarjetaOk = { numero: '4242 4242 4242 4242', titular: 'Ana', vencimiento: '12/30', cvv: '123' }
+const octubre = new Date(2026, 9, 20)
+assert.deepEqual(erroresTarjeta(tarjetaOk, octubre), {})
+assert.deepEqual(erroresTarjeta({ ...tarjetaOk, vencimiento: '10/26' }, octubre), {}, 'vence a fin de mes')
+assert.ok(erroresTarjeta({ ...tarjetaOk, vencimiento: '09/26' }, octubre).vencimiento, 'vencida')
+assert.ok(erroresTarjeta({ ...tarjetaOk, vencimiento: '13/30' }, octubre).vencimiento)
+assert.ok(erroresTarjeta({ ...tarjetaOk, numero: '4242 4242 4242 4241' }, octubre).numero, 'Luhn')
+assert.ok(erroresTarjeta({ ...tarjetaOk, numero: '6011 1111 1111 1117' }, octubre).numero, 'marca no soportada')
+assert.ok(erroresTarjeta({ ...tarjetaOk, titular: ' ' }, octubre).titular)
+assert.ok(erroresTarjeta({ ...tarjetaOk, numero: '3782 822463 10005', cvv: '123' }, octubre).cvv, 'Amex pide 4')
+assert.equal(medioDePago({ metodo_pago: 'tarjeta', ultimos_4: '4242' }), 'Tarjeta •••• 4242')
+assert.equal(medioDePago({ metodo_pago: 'mercadopago', ultimos_4: null }), 'Mercado Pago')
+
+// fechaDeInstante: en hora de Buenos Aires, no UTC
+assert.equal(fechaDeInstante('2026-10-21T02:00:00Z'), fechaDeInstante('2026-10-20T23:00:00-03:00'))
+assert.match(fechaDeInstante('2026-10-21T02:00:00Z'), /^20 de oct/)

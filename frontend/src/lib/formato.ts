@@ -48,3 +48,8 @@ export function duracion(min: number): string {
   const m = min % 60
   return m ? `${h} h ${m} m` : `${h} h`
 }
+
+/** Instante de la API ("2026-10-20T12:00:00-03:00") → "20 de oct de 2026", en hora local. */
+export function fechaDeInstante(iso: string): string {
+  return new Date(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
+}
