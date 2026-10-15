@@ -98,6 +98,22 @@ Traducción a Django (al implementar):
 - `db_table` explícito para que las tablas se llamen igual que en el DBML.
 - Reglas simples como constraints de Postgres (`CheckConstraint`): cantidad 1..9, origen ≠ destino.
 
+## Contrato entre reservas (US06) y pagos (US07/US08)
+
+Los pagos se implementan antes que las reservas. Para no bloquearse ni pisar la US06, la app `pagos` trabaja con una **tabla temporal propia** y un único punto de contacto:
+
+- **`reservas_demo`** (modelo `ReservaDemo` en `pagos`): `id`, `pasajero`, `vuelo`, `clase`, `cantidad`. Al entrar a `/reservas`, cada pasajero recibe 3 reservas demo fijas (economy × 1, primera × 2, economy × 9) para poder pagar. No es la tabla `reservas` del DBML y ninguna FK la apunta.
+- **`pagos.reserva_id`** es un UUID **sin FK** que hoy guarda el id de una reserva demo.
+- **`pagos/reservas_mock.py`** es lo único que conoce las reservas. Expone `reservas_de(usuario)`, `pasajes_de(reserva)` (clase y precio por asiento) y `monto_de(reserva)` (suma de los precios de los pasajes).
+
+Lo que la US06 tiene que respetar para que pagos funcione sin cambios:
+
+1. `Reserva` y `Pasaje` con los nombres de [modelo.dbml](modelo.dbml) (`reservas`, `pasajes`). La clase y el precio van en cada **pasaje**; el monto a pagar es la **suma de `pasajes.precio`**.
+2. Una reserva recién creada queda en `estado = pendiente`. El paso a `pagada` y el descuento de `asientos_disponibles_*` los hace la US08 cuando el pago se aprueba.
+3. A definir con pagos: si la reserva **retiene asientos** al crearse. Hoy el pago verifica `asientos_disponibles_<clase> ≥ cantidad` antes de cobrar.
+
+Al integrar la US06: se reescribe `reservas_mock.py` sobre `Reserva`/`Pasaje` (misma interfaz), `pagos.reserva_id` pasa a `ForeignKey` a `reservas`, se borran los pagos de prueba de reservas demo y una migración elimina `reservas_demo`. El botón **Pagar** de la pantalla de reservas lleva a `/pagar/:reservaId`.
+
 ## API
 
 ✅ = implementado. Lo demás es la propuesta para lo que falta.

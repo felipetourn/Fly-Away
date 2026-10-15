@@ -81,6 +81,8 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-10-15 | Pagos con Mercado Pago Checkout Pro (API de Orders, sandbox) y una pasarela de tarjetas simulada propia | MP es lo real del mercado local; Orders es lo que MP recomienda para integraciones nuevas. La tarjeta simulada anda sin internet ni credenciales (demo y tests). Visa/Mastercard no tienen un mock público para comercios |
+| 2026-10-15 | Reservas de pagos en una tabla temporal `reservas_demo` y `pagos.reserva_id` sin FK | La US06 la hace otro integrante; no se pisa su modelo y el contrato queda escrito en arquitectura.md |
 | 2026-10-15 | Logout con blacklist del refresh token (SimpleJWT), sin bajar la vida del access | Cumple "la sesión queda invalidada" sin dependencias nuevas; el access dura como mucho 1 h más |
 | 2026-10-03 | El lápiz queda habilitado en vuelos cancelados o que ya salieron y abre el formulario en solo lectura | Permite consultar cualquier instancia; el tacho sí se deshabilita |
 | 2026-10-03 | Una respuesta del backend que no es JSON se muestra como "No pudimos conectar con el servidor" | La API siempre responde JSON; un texto es una página de error que no hay que volcar en pantalla |
@@ -117,7 +119,8 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Pendientes / a definir
 
-- [ ] **Pagos:** ¿simulados (form de tarjeta que se valida y se registra) o pasarela real (Mercado Pago sandbox)? Propuesta: simulado.
+- [ ] **Integrar US06 con pagos:** al crear `Reserva`/`Pasaje`, seguir el "Contrato entre reservas y pagos" de [arquitectura.md](arquitectura.md) (reescribir `pagos/reservas_mock.py`, FK en `pagos.reserva_id`, borrar `reservas_demo`).
+- [ ] **¿La reserva retiene asientos al crearse?** Definir entre US06 y US08; hoy el pago verifica disponibilidad antes de cobrar.
 - [ ] **Proveedor de email en prod:** verificar si el plan free de Render permite SMTP saliente; si no, usar la API HTTP de un proveedor (Resend, Brevo, etc.).
 - [ ] **PDF de pasajes/factura:** elegir librería (p. ej. `reportlab`) cuando se implemente.
 - [ ] **Periodo de venta:** el modelo lo toma como "fechas en que opera". Si la cátedra lo entiende como "desde cuándo se puede comprar", falta un campo (ej. `venta_desde`). Confirmar con el docente.
