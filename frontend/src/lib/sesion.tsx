@@ -67,6 +67,9 @@ export function SesionProvider({ children }: { children: ReactNode }) {
   }
 
   const logout = () => {
+    const refresh = localStorage.getItem(CLAVE_REFRESH)
+    // Invalida el refresh en el servidor; si falla, la sesión local se cierra igual.
+    if (refresh) api('/auth/logout/', { method: 'POST', body: JSON.stringify({ refresh }) }).catch(() => {})
     localStorage.removeItem(CLAVE_TOKEN)
     localStorage.removeItem(CLAVE_REFRESH)
     setUsuario(null)

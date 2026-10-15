@@ -228,3 +228,16 @@ class UsuarioTests(TestCase):
         cliente = Client()
         cliente.force_login(administrador)
         self.assertEqual(cliente.get('/admin/').status_code, 200)
+
+    def test_logout_invalida_el_refresh_solo_de_esa_sesion(self):
+        Usuario.objects.create_user('ana@mail.com', 'clave-segura-1', nombre='Ana', apellido='Pérez')
+        Usuario.objects.create_user('beto@mail.com', 'clave-segura-2', nombre='Beto', apellido='Gómez')
+        cliente = APIClient()
+        ana = cliente.post('/api/auth/token/', {'email': 'ana@mail.com', 'password': 'clave-segura-1'}, format='json').data
+        beto = cliente.post('/api/auth/token/', {'email': 'beto@mail.com', 'password': 'clave-segura-2'}, format='json').data
+
+        self.assertEqual(cliente.post('/api/auth/logout/', {'refresh': ana['refresh']}, format='json').status_code, 200)
+
+        renovar = lambda refresh: cliente.post('/api/auth/token/refresh/', {'refresh': refresh}, format='json')
+        self.assertEqual(renovar(ana['refresh']).status_code, 401)
+        self.assertEqual(renovar(beto['refresh']).status_code, 200)
