@@ -177,7 +177,12 @@ export default function Pagar() {
                             }}
                             className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2.5 text-left hover:bg-slate-50"
                           >
-                            <span className="font-mono text-sm">{t.numero}</span>
+                            <span className="flex items-center gap-3">
+                          <span className="grid w-9 shrink-0 place-items-center">
+                            <img src={`/medios/${t.marca}.svg`} alt={NOMBRE_MARCA[t.marca]} className="max-h-4 max-w-9" />
+                          </span>
+                          <span className="font-mono text-sm">{t.numero}</span>
+                        </span>
                             <span className={`text-sm font-bold ${COLOR_RESULTADO[t.tono]}`}>{t.resultado}</span>
                           </button>
                         </li>

@@ -181,6 +181,16 @@ class TarjetaTests(Datos):
         self.assertFalse(tarjeta.procesar('4000000000000119')[0])
         self.assertTrue(tarjeta.procesar('4242424242424242')[2].startswith('SIM-'))
 
+    def test_cada_caso_tiene_su_mastercard(self):
+        for visa, mastercard in (
+            ('4242424242424242', '5555555555554444'),
+            ('4000000000000002', '5200000000000007'),
+            ('4000000000009995', '5200000000009990'),
+            ('4000000000000119', '5200000000000114'),
+        ):
+            self.assertEqual(self.errores(numero=mastercard), {})
+            self.assertEqual(tarjeta.procesar(mastercard)[:2], tarjeta.procesar(visa)[:2])
+
 
 TARJETA_OK = {'numero': '4242 4242 4242 4242', 'titular': 'Ana Pérez', 'vencimiento': '12/30', 'cvv': '123'}
 

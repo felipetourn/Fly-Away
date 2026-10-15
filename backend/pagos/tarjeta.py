@@ -3,10 +3,16 @@ import re
 import uuid
 
 APROBADO = 'Pago aprobado.'
-RECHAZOS = {
-    '4000000000000002': 'Tarjeta rechazada por el emisor.',
-    '4000000000009995': 'Fondos insuficientes.',
-    '4000000000000119': 'Error al procesar el pago. No se realizó ningún cobro; podés intentar de nuevo.',
+EMISOR = 'Tarjeta rechazada por el emisor.'
+FONDOS = 'Fondos insuficientes.'
+ERROR = 'Error al procesar el pago. No se realizó ningún cobro; podés intentar de nuevo.'
+RECHAZOS = {  # una Visa y una Mastercard por caso; las mismas que muestra el front (TARJETAS_PRUEBA)
+    '4000000000000002': EMISOR,
+    '5200000000000007': EMISOR,
+    '4000000000009995': FONDOS,
+    '5200000000009990': FONDOS,
+    '4000000000000119': ERROR,
+    '5200000000000114': ERROR,
 }
 
 

@@ -54,10 +54,14 @@ export const ETIQUETA_ESTADO: Record<EstadoPago, string> = { aprobado: 'Aprobado
 
 /** Las mismas tarjetas de prueba que reconoce la pasarela simulada del backend (pagos/tarjeta.py). */
 export const TARJETAS_PRUEBA = [
-  { numero: '4242 4242 4242 4242', resultado: 'Aprobada', tono: 'ok' },
-  { numero: '4000 0000 0000 0002', resultado: 'Rechazada por el emisor', tono: 'error' },
-  { numero: '4000 0000 0000 9995', resultado: 'Fondos insuficientes', tono: 'error' },
-  { numero: '4000 0000 0000 0119', resultado: 'Error de procesamiento', tono: 'aviso' },
+  { marca: 'visa', numero: '4242 4242 4242 4242', resultado: 'Aprobada', tono: 'ok' },
+  { marca: 'mastercard', numero: '5555 5555 5555 4444', resultado: 'Aprobada', tono: 'ok' },
+  { marca: 'visa', numero: '4000 0000 0000 0002', resultado: 'Rechazada por el emisor', tono: 'error' },
+  { marca: 'mastercard', numero: '5200 0000 0000 0007', resultado: 'Rechazada por el emisor', tono: 'error' },
+  { marca: 'visa', numero: '4000 0000 0000 9995', resultado: 'Fondos insuficientes', tono: 'error' },
+  { marca: 'mastercard', numero: '5200 0000 0000 9990', resultado: 'Fondos insuficientes', tono: 'error' },
+  { marca: 'visa', numero: '4000 0000 0000 0119', resultado: 'Error de procesamiento', tono: 'aviso' },
+  { marca: 'mastercard', numero: '5200 0000 0000 0114', resultado: 'Error de procesamiento', tono: 'aviso' },
 ] as const
 
 export const DATOS_PRUEBA = { titular: 'Pasajero Demo', vencimiento: '12/30', cvv: '123' }

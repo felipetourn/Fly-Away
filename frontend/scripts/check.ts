@@ -219,7 +219,11 @@ console.log('api: OK')
 // pagos: tarjeta (mismas reglas que el backend)
 assert.equal(luhnValido('4242424242424242'), true)
 assert.equal(luhnValido('4242424242424241'), false)
-for (const t of TARJETAS_PRUEBA) assert.equal(luhnValido(t.numero.replace(/ /g, '')), true, `tarjeta de prueba ${t.numero}`)
+for (const t of TARJETAS_PRUEBA) {
+  assert.equal(luhnValido(t.numero.replace(/ /g, '')), true, `tarjeta de prueba ${t.numero}`)
+  assert.equal(marcaDe(t.numero.replace(/ /g, '')), t.marca, `marca de ${t.numero}`)
+}
+assert.equal(TARJETAS_PRUEBA.filter((t) => t.marca === 'visa').length, TARJETAS_PRUEBA.filter((t) => t.marca === 'mastercard').length, 'una Visa y una Mastercard por caso')
 assert.equal(marcaDe('4242424242424242'), 'visa')
 assert.equal(marcaDe('5031755734530604'), 'mastercard', 'la Mastercard de prueba de Mercado Pago empieza con 50')
 assert.equal(marcaDe('5555555555554444'), 'mastercard')
