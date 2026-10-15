@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 
 from . import reservas_mock, servicios
 from .models import Pago
-from .serializers import PagoSerializer, ReservaSerializer, TarjetaSerializer
+from .serializers import PagoSerializer, ReservaIdSerializer, ReservaSerializer, TarjetaSerializer
 
 
 class EsPasajero(BasePermission):
@@ -70,3 +70,15 @@ class PagoTarjetaView(APIView):
         reserva = reserva_o_404(request.user, datos.validated_data['reserva_id'])
         pago = servicios.pagar_con_tarjeta(reserva, datos.validated_data['numero'])
         return Response(PagoSerializer(pago, context={'reservas': {reserva.id: reserva}}).data, status=201)
+
+
+class PagoMercadoPagoView(APIView):
+    permission_classes = [EsPasajero]
+
+    def post(self, request):
+        datos = ReservaIdSerializer(data=request.data)
+        datos.is_valid(raise_exception=True)
+        reserva = reserva_o_404(request.user, datos.validated_data['reserva_id'])
+        pago, checkout_url = servicios.pagar_con_mercadopago(reserva)
+        contexto = {'reservas': {reserva.id: reserva}}
+        return Response({'pago': PagoSerializer(pago, context=contexto).data, 'checkout_url': checkout_url}, status=201)

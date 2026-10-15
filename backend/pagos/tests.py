@@ -3,13 +3,14 @@ from decimal import Decimal
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from rest_framework.test import APITestCase
 
 from vuelos.models import Aeropuerto, Avion, Vuelo
 
-from . import reservas_mock, servicios, tarjeta
+from . import mercadopago, reservas_mock, servicios, tarjeta
 from .models import Pago, ReservaDemo
 
 BA = ZoneInfo('America/Argentina/Buenos_Aires')
@@ -279,3 +280,110 @@ class ConsultaPagosTests(Datos):
         segundo.refresh_from_db()
         self.assertEqual(segundo.estado, 'rechazado')
         self.assertEqual(segundo.detalle, servicios.YA_PAGADA)
+
+
+@patch('pagos.mercadopago.cancelar_orden')
+@patch('pagos.mercadopago.consultar_orden')
+@patch('pagos.mercadopago.crear_orden', return_value=('ORDTST1', 'https://mp.test/checkout'))
+class PagoMercadoPagoTests(Datos):
+    def pagar(self, reserva):
+        return self.client.post('/api/pagos/mercadopago/', {'reserva_id': str(reserva.id)}, format='json')
+
+    def test_crea_la_orden_con_el_monto_del_backend(self, crear, consultar, cancelar):
+        reserva = self.reserva(clase='primera', cantidad=2)
+        r = self.pagar(reserva)
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.data['checkout_url'], 'https://mp.test/checkout')
+        self.assertEqual(r.data['pago']['estado'], 'pendiente')
+        pago = Pago.objects.get()
+        self.assertEqual((pago.transaccion_externa_id, pago.monto), ('ORDTST1', Decimal('500000.00')))
+        enviado, items = crear.call_args.args
+        self.assertEqual(enviado.id, pago.id)
+        self.assertEqual(items, [('Vuelo FA 1000 AEP → COR, primera', 2, Decimal('250000.00'))])
+
+    def test_si_mp_falla_el_pago_queda_rechazado_y_502(self, crear, consultar, cancelar):
+        crear.side_effect = mercadopago.ErrorMercadoPago('timeout')
+        r = self.pagar(self.reserva())
+        self.assertEqual(r.status_code, 502)
+        self.assertEqual(r.data['detail'], 'No pudimos conectar con Mercado Pago.')
+        self.assertEqual(Pago.objects.get().estado, 'rechazado')
+
+    def test_al_volver_se_consulta_la_orden(self, crear, consultar, cancelar):
+        pago_id = self.pagar(self.reserva()).data['pago']['id']
+        consultar.return_value = ('processed', 'accredited')
+        r = self.client.get(f'/api/pagos/{pago_id}/')
+        consultar.assert_called_with('ORDTST1')
+        self.assertEqual((r.data['estado'], r.data['detalle']), ('aprobado', 'Pago aprobado.'))
+
+    def test_rechazo_de_mp_con_motivo(self, crear, consultar, cancelar):
+        pago_id = self.pagar(self.reserva()).data['pago']['id']
+        consultar.return_value = ('failed', 'card_insufficient_amount')
+        r = self.client.get(f'/api/pagos/{pago_id}/')
+        self.assertEqual((r.data['estado'], r.data['detalle']), ('rechazado', 'Fondos insuficientes.'))
+
+    def test_sin_conexion_al_volver_sigue_pendiente(self, crear, consultar, cancelar):
+        pago_id = self.pagar(self.reserva()).data['pago']['id']
+        consultar.side_effect = mercadopago.ErrorMercadoPago('timeout')
+        r = self.client.get(f'/api/pagos/{pago_id}/')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.data['estado'], 'pendiente')
+
+    def test_volvio_sin_pagar_y_paga_con_tarjeta(self, crear, consultar, cancelar):
+        reserva = self.reserva()
+        self.pagar(reserva)
+        consultar.return_value = ('created', 'created')
+        r = self.client.post('/api/pagos/tarjeta/', {'reserva_id': str(reserva.id), **TARJETA_OK}, format='json')
+        self.assertEqual(r.data['estado'], 'aprobado')
+        cancelar.assert_called_once_with('ORDTST1')
+        abandonado = Pago.objects.get(metodo_pago='mercadopago')
+        self.assertEqual((abandonado.estado, abandonado.detalle), ('rechazado', 'Reemplazado por un nuevo intento de pago.'))
+
+    def test_con_un_pago_de_mp_en_proceso_409(self, crear, consultar, cancelar):
+        reserva = self.reserva()
+        self.pagar(reserva)
+        consultar.return_value = ('processing', 'in_process')
+        r = self.client.post('/api/pagos/tarjeta/', {'reserva_id': str(reserva.id), **TARJETA_OK}, format='json')
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(r.data['detail'], servicios.EN_PROCESO)
+        cancelar.assert_not_called()
+
+    def test_mp_aprobado_mientras_tanto_entonces_ya_pagada(self, crear, consultar, cancelar):
+        reserva = self.reserva()
+        self.pagar(reserva)
+        consultar.return_value = ('processed', 'accredited')
+        r = self.pagar(reserva)
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual(r.data['detail'], 'La reserva ya está pagada.')
+
+
+class ClienteMercadoPagoTests(Datos):
+    def test_resultado_de_cada_estado_de_la_orden(self):
+        self.assertEqual(mercadopago.resultado_de('processed', 'accredited'), ('aprobado', 'Pago aprobado.'))
+        self.assertEqual(mercadopago.resultado_de('failed', 'rejected_by_issuer'), ('rechazado', 'Tarjeta rechazada por el emisor.'))
+        self.assertEqual(mercadopago.resultado_de('failed', 'otro'), ('rechazado', 'Mercado Pago rechazó el pago.'))
+        self.assertEqual(mercadopago.resultado_de('canceled', 'canceled')[0], 'rechazado')
+        self.assertEqual(mercadopago.resultado_de('processed', 'refunded')[0], 'rechazado')
+        for status in ('created', 'processing', 'action_required'):
+            self.assertEqual(mercadopago.resultado_de(status, None)[0], 'pendiente')
+
+    @patch('pagos.mercadopago._llamar', return_value={'id': 'ORDTST1', 'checkout_url': 'https://mp.test/c'})
+    def test_crear_orden_arma_el_pedido(self, llamar):
+        pago = self.pago(self.reserva(), estado=Pago.Estado.PENDIENTE, metodo=Pago.Metodo.MERCADOPAGO)
+        resultado = mercadopago.crear_orden(pago, [('Vuelo FA 1000 AEP → COR, economy', 1, Decimal('100000.00'))])
+        self.assertEqual(resultado, ('ORDTST1', 'https://mp.test/c'))
+        metodo, url, cuerpo = llamar.call_args.args
+        self.assertEqual((metodo, url), ('POST', 'https://api.mercadopago.com/v1/orders'))
+        self.assertEqual(llamar.call_args.kwargs['idempotencia'], str(pago.id))
+        self.assertEqual(cuerpo['total_amount'], '100000.00')
+        self.assertEqual(cuerpo['external_reference'], str(pago.id))
+        self.assertEqual(cuerpo['config']['online']['success_url'], f'{settings.FRONTEND_URL}/pagos/{pago.id}')
+
+    @patch('pagos.mercadopago._llamar', return_value={'status': 'created'})
+    def test_respuesta_sin_checkout_url_es_error(self, llamar):
+        pago = self.pago(self.reserva(), estado=Pago.Estado.PENDIENTE, metodo=Pago.Metodo.MERCADOPAGO)
+        with self.assertRaises(mercadopago.ErrorMercadoPago):
+            mercadopago.crear_orden(pago, [])
+
+    def test_sin_token_es_error(self):
+        with self.settings(MP_ACCESS_TOKEN=''), self.assertRaises(mercadopago.ErrorMercadoPago):
+            mercadopago.consultar_orden('ORDTST1')

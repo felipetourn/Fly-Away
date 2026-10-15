@@ -1,4 +1,6 @@
 """Reglas de pago (US07). Las llamadas a Mercado Pago nunca van dentro de transaction.atomic()."""
+from collections import Counter
+
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 from rest_framework.exceptions import APIException
@@ -6,16 +8,23 @@ from rest_framework.exceptions import APIException
 from vuelos.models import Vuelo
 from vuelos.servicios import error_general, ya_salio
 
-from . import reservas_mock, tarjeta
+from . import mercadopago, reservas_mock, tarjeta
 from .models import Pago
 
 YA_PAGADA = 'Reserva ya pagada con otro pago: corresponde devolución.'
 EN_PROCESO = 'Tenés un pago de Mercado Pago en proceso para esta reserva.'
+SIN_CONEXION = 'No pudimos conectar con Mercado Pago.'
+ESPERANDO = 'Estamos esperando la confirmación de Mercado Pago.'
 
 
 class Conflicto(APIException):
     status_code = 409
     default_detail = 'La reserva ya está pagada.'
+
+
+class ErrorDeMercadoPago(APIException):
+    status_code = 502
+    default_detail = SIN_CONEXION
 
 
 def validar_reserva(reserva):
@@ -48,13 +57,86 @@ def guardar_resultado(pago, estado, detalle):
         pago.save()
 
 
-def liberar_pendientes_de_mp(reserva):
-    """Antes de otro intento. Se completa con Mercado Pago."""
+def _sincronizar(pago):
+    """Consulta la orden de un pago de MP pendiente y guarda el resultado si ya se resolvió.
+
+    Devuelve el status de MP, o None si no se pudo consultar (el pago sigue pendiente).
+    """
+    try:
+        status_mp, detalle_mp = mercadopago.consultar_orden(pago.transaccion_externa_id)
+    except mercadopago.ErrorMercadoPago:
+        return None
+    estado, detalle = mercadopago.resultado_de(status_mp, detalle_mp)
+    if estado != Pago.Estado.PENDIENTE:
+        _resolver(pago, estado, detalle)
+    return status_mp
+
+
+def _resolver(pago, estado, detalle):
+    """Guarda el resultado solo si el pago sigue pendiente (otro pedido pudo resolverlo antes)."""
+    with transaction.atomic():
+        bloqueado = Pago.objects.select_for_update().get(id=pago.id)
+        if bloqueado.estado == Pago.Estado.PENDIENTE:
+            guardar_resultado(bloqueado, estado, detalle)
 
 
 def actualizar_pago(pago):
-    """El pago con su estado al día. Se completa con Mercado Pago."""
+    """El pago con su estado al día: si es de MP y está pendiente, consulta la orden."""
+    if pago.metodo_pago == Pago.Metodo.MERCADOPAGO and pago.estado == Pago.Estado.PENDIENTE:
+        _sincronizar(pago)
+        pago.refresh_from_db()
     return pago
+
+
+def liberar_pendientes_de_mp(reserva):
+    """Antes de otro intento: actualiza los pagos de MP pendientes y cancela las órdenes que nadie pagó.
+
+    Una orden en proceso (o que no se puede consultar) bloquea el intento: evita cobrar dos veces.
+    """
+    pendientes = Pago.objects.filter(
+        reserva_id=reserva.id, metodo_pago=Pago.Metodo.MERCADOPAGO, estado=Pago.Estado.PENDIENTE
+    )
+    for pago in pendientes:
+        status_mp = _sincronizar(pago)
+        if status_mp == 'created':
+            try:
+                mercadopago.cancelar_orden(pago.transaccion_externa_id)
+            except mercadopago.ErrorMercadoPago:
+                raise Conflicto(EN_PROCESO)
+            _resolver(pago, Pago.Estado.RECHAZADO, 'Reemplazado por un nuevo intento de pago.')
+        elif status_mp is None or status_mp in ('processing', 'action_required'):
+            raise Conflicto(EN_PROCESO)
+
+
+def _items(reserva):
+    """Un ítem por clase para la orden de MP; la suma da el monto."""
+    vuelo = reserva.vuelo
+    ruta = f'{vuelo.numero_vuelo} {vuelo.aeropuerto_origen.codigo_iata} → {vuelo.aeropuerto_destino.codigo_iata}'
+    return [
+        (f'Vuelo {ruta}, {clase}', cantidad, precio)
+        for (clase, precio), cantidad in Counter(reservas_mock.pasajes_de(reserva)).items()
+    ]
+
+
+def pagar_con_mercadopago(reserva):
+    """Crea el pago pendiente (commit), pide la orden a MP fuera de la transacción y devuelve (pago, checkout_url)."""
+    liberar_pendientes_de_mp(reserva)
+    with transaction.atomic():
+        reserva.vuelo = validar_reserva(reserva)
+        pago = Pago.objects.create(
+            reserva_id=reserva.id,
+            monto=reservas_mock.monto_de(reserva),
+            metodo_pago=Pago.Metodo.MERCADOPAGO,
+            detalle=ESPERANDO,
+        )
+    try:
+        order_id, checkout_url = mercadopago.crear_orden(pago, _items(reserva))
+    except mercadopago.ErrorMercadoPago:
+        guardar_resultado(pago, Pago.Estado.RECHAZADO, SIN_CONEXION)
+        raise ErrorDeMercadoPago()
+    pago.transaccion_externa_id = order_id
+    pago.save(update_fields=['transaccion_externa_id'])
+    return pago, checkout_url
 
 
 def pagar_con_tarjeta(reserva, numero):
