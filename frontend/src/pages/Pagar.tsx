@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import AvionCargando from '../components/AvionCargando'
 import { EsqueletoPagina } from '../components/Esqueleto'
 import { erroresDe, primero } from '../lib/adminVuelos'
 import { fechaCorta, hora, precio } from '../lib/formato'
@@ -26,6 +27,8 @@ const VACIA: DatosTarjeta = { numero: '', titular: '', vencimiento: '', cvv: '' 
 const CAMPOS = ['numero', 'titular', 'vencimiento', 'cvv'] as const
 const CAMPO =
   'mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal outline-none focus:border-marino focus:ring-2 focus:ring-marino/20'
+// ponytail: la pasarela simulada responde al instante; la espera imita a una real. Sacar con una pasarela de verdad.
+const ESPERA_TARJETA_MS = 2500
 const COLOR_RESULTADO = { ok: 'text-emerald-700', error: 'text-red-700', aviso: 'text-amber-700' }
 
 export default function Pagar() {
@@ -71,10 +74,13 @@ export default function Pagar() {
     setErrores(locales)
     if (Object.keys(locales).length) return
     setProcesando(true)
+    const espera = new Promise((listo) => setTimeout(listo, ESPERA_TARJETA_MS))
     try {
       const pago = await pagarConTarjeta(reserva.id, tarjeta)
+      await espera
       navigate(`/pagos/${pago.id}`)
     } catch (err) {
+      await espera
       const delBackend = erroresDe(err)
       const porCampo = Object.fromEntries(CAMPOS.map((c) => [c, primero(delBackend[c])]).filter(([, m]) => m)) as ErroresTarjeta
       setErrores(porCampo)
@@ -131,126 +137,135 @@ export default function Pagar() {
         </p>
       ) : (
         <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
-            {opcion('tarjeta', 'Tarjeta')}
-            {opcion('mercadopago', 'Mercado Pago')}
-          </div>
-
-          {medio === 'tarjeta' ? (
-            <form onSubmit={pagarTarjeta} noValidate className="mt-5 space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="font-bold text-marino">Tarjeta de crédito o débito</p>
-                <button type="button" popoverTarget="tarjetas-prueba" className="text-sm font-bold text-cielo hover:underline">
-                  ⓘ Tarjetas de prueba
-                </button>
-              </div>
-              <div
-                id="tarjetas-prueba"
-                popover="auto"
-                className="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-5 shadow-xl backdrop:bg-slate-900/30"
-              >
-                <p className="font-bold text-marino">Tarjetas de prueba</p>
-                <p className="mt-1 text-sm text-slate-500">Tocá una para completar el formulario.</p>
-                <ul className="mt-3 divide-y divide-slate-100">
-                  {TARJETAS_PRUEBA.map((t) => (
-                    <li key={t.numero}>
-                      <button
-                        type="button"
-                        popoverTarget="tarjetas-prueba"
-                        popoverTargetAction="hide"
-                        onClick={() => {
-                          setTarjeta({ numero: t.numero, ...DATOS_PRUEBA })
-                          setErrores({})
-                        }}
-                        className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2.5 text-left hover:bg-slate-50"
-                      >
-                        <span className="font-mono text-sm">{t.numero}</span>
-                        <span className={`text-sm font-bold ${COLOR_RESULTADO[t.tono]}`}>{t.resultado}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-3 text-xs text-slate-500">Titular y CVV: cualquiera. Vencimiento: cualquier fecha futura.</p>
-              </div>
-
-              <label className="block text-sm font-bold text-slate-700">
-                Número de tarjeta {marca && <span className="font-normal text-slate-500">- {NOMBRE_MARCA[marca]}</span>}
-                <input
-                  value={tarjeta.numero}
-                  onChange={(e) => cambiar('numero', e.target.value)}
-                  inputMode="numeric"
-                  autoComplete="cc-number"
-                  placeholder="1234 5678 9012 3456"
-                  aria-invalid={Boolean(errores.numero)}
-                  className={CAMPO}
-                />
-                {errores.numero && <span className="mt-1 block font-medium text-red-700">{errores.numero}</span>}
-              </label>
-              <label className="block text-sm font-bold text-slate-700">
-                Titular (como figura en la tarjeta)
-                <input
-                  value={tarjeta.titular}
-                  onChange={(e) => cambiar('titular', e.target.value)}
-                  autoComplete="cc-name"
-                  aria-invalid={Boolean(errores.titular)}
-                  className={CAMPO}
-                />
-                {errores.titular && <span className="mt-1 block font-medium text-red-700">{errores.titular}</span>}
-              </label>
-              <div className="grid grid-cols-2 gap-4">
-                <label className="block text-sm font-bold text-slate-700">
-                  Vencimiento
-                  <input
-                    value={tarjeta.vencimiento}
-                    onChange={(e) => cambiar('vencimiento', e.target.value)}
-                    inputMode="numeric"
-                    autoComplete="cc-exp"
-                    placeholder="MM/AA"
-                    aria-invalid={Boolean(errores.vencimiento)}
-                    className={CAMPO}
-                  />
-                  {errores.vencimiento && <span className="mt-1 block font-medium text-red-700">{errores.vencimiento}</span>}
-                </label>
-                <label className="block text-sm font-bold text-slate-700">
-                  CVV
-                  <input
-                    value={tarjeta.cvv}
-                    onChange={(e) => cambiar('cvv', e.target.value)}
-                    inputMode="numeric"
-                    autoComplete="cc-csc"
-                    placeholder="123"
-                    aria-invalid={Boolean(errores.cvv)}
-                    className={CAMPO}
-                  />
-                  {errores.cvv && <span className="mt-1 block font-medium text-red-700">{errores.cvv}</span>}
-                </label>
-              </div>
-              {error && <p role="alert" className="text-sm font-medium text-red-700">{error}</p>}
-              <button
-                type="submit"
-                disabled={procesando}
-                className="w-full rounded-xl bg-naranja px-5 py-3 font-bold text-white hover:bg-naranja/90 disabled:opacity-60"
-              >
-                {procesando ? 'Procesando pago…' : `Pagar ${precio(Number(reserva.monto))}`}
-              </button>
-            </form>
+          {procesando ? (
+            <AvionCargando
+              texto={medio === 'tarjeta' ? 'Validando tu tarjeta…' : 'Conectando con Mercado Pago…'}
+              detalle="No cierres ni recargues esta página."
+            />
           ) : (
-            <div className="mt-5 space-y-4">
-              <p className="text-slate-600">Te llevamos a Mercado Pago para completar el pago y después volvés acá con el resultado.</p>
-              {error && <p role="alert" className="text-sm font-medium text-red-700">{error}</p>}
-              <button
-                type="button"
-                onClick={pagarMercadoPago}
-                disabled={procesando}
-                className="w-full rounded-xl bg-cielo px-5 py-3 font-bold text-white hover:bg-cielo/90 disabled:opacity-60"
-              >
-                {procesando ? 'Procesando pago…' : 'Pagar con Mercado Pago'}
-              </button>
-              <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
-                Sandbox: iniciá sesión con el comprador de prueba y pagá con la Mastercard 5031 7557 3453 0604, CVV 123,
-                vencimiento 11/30. Titular APRO = aprobada, OTHE = rechazada.
-              </p>
-            </div>
+            <>
+              <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
+                {opcion('tarjeta', 'Tarjeta')}
+                {opcion('mercadopago', 'Mercado Pago')}
+              </div>
+
+              {medio === 'tarjeta' ? (
+                <form onSubmit={pagarTarjeta} noValidate className="mt-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-marino">Tarjeta de crédito o débito</p>
+                    <button type="button" popoverTarget="tarjetas-prueba" className="text-sm font-bold text-cielo hover:underline">
+                      ⓘ Tarjetas de prueba
+                    </button>
+                  </div>
+                  <div
+                    id="tarjetas-prueba"
+                    popover="auto"
+                    className="m-auto w-[min(28rem,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white p-5 shadow-xl backdrop:bg-slate-900/30"
+                  >
+                    <p className="font-bold text-marino">Tarjetas de prueba</p>
+                    <p className="mt-1 text-sm text-slate-500">Tocá una para completar el formulario.</p>
+                    <ul className="mt-3 divide-y divide-slate-100">
+                      {TARJETAS_PRUEBA.map((t) => (
+                        <li key={t.numero}>
+                          <button
+                            type="button"
+                            popoverTarget="tarjetas-prueba"
+                            popoverTargetAction="hide"
+                            onClick={() => {
+                              setTarjeta({ numero: t.numero, ...DATOS_PRUEBA })
+                              setErrores({})
+                            }}
+                            className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-2.5 text-left hover:bg-slate-50"
+                          >
+                            <span className="font-mono text-sm">{t.numero}</span>
+                            <span className={`text-sm font-bold ${COLOR_RESULTADO[t.tono]}`}>{t.resultado}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-3 text-xs text-slate-500">Titular y CVV: cualquiera. Vencimiento: cualquier fecha futura.</p>
+                  </div>
+
+                  <label className="block text-sm font-bold text-slate-700">
+                    Número de tarjeta {marca && <span className="font-normal text-slate-500">- {NOMBRE_MARCA[marca]}</span>}
+                    <input
+                      value={tarjeta.numero}
+                      onChange={(e) => cambiar('numero', e.target.value)}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      placeholder="1234 5678 9012 3456"
+                      aria-invalid={Boolean(errores.numero)}
+                      className={CAMPO}
+                    />
+                    {errores.numero && <span className="mt-1 block font-medium text-red-700">{errores.numero}</span>}
+                  </label>
+                  <label className="block text-sm font-bold text-slate-700">
+                    Titular (como figura en la tarjeta)
+                    <input
+                      value={tarjeta.titular}
+                      onChange={(e) => cambiar('titular', e.target.value)}
+                      autoComplete="off"
+                      aria-invalid={Boolean(errores.titular)}
+                      className={CAMPO}
+                    />
+                    {errores.titular && <span className="mt-1 block font-medium text-red-700">{errores.titular}</span>}
+                  </label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <label className="block text-sm font-bold text-slate-700">
+                      Vencimiento
+                      <input
+                        value={tarjeta.vencimiento}
+                        onChange={(e) => cambiar('vencimiento', e.target.value)}
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="MM/AA"
+                        aria-invalid={Boolean(errores.vencimiento)}
+                        className={CAMPO}
+                      />
+                      {errores.vencimiento && <span className="mt-1 block font-medium text-red-700">{errores.vencimiento}</span>}
+                    </label>
+                    <label className="block text-sm font-bold text-slate-700">
+                      CVV
+                      <input
+                        value={tarjeta.cvv}
+                        onChange={(e) => cambiar('cvv', e.target.value)}
+                        inputMode="numeric"
+                        autoComplete="off"
+                        placeholder="123"
+                        aria-invalid={Boolean(errores.cvv)}
+                        className={CAMPO}
+                      />
+                      {errores.cvv && <span className="mt-1 block font-medium text-red-700">{errores.cvv}</span>}
+                    </label>
+                  </div>
+                  {error && <p role="alert" className="text-sm font-medium text-red-700">{error}</p>}
+                  <button
+                    type="submit"
+                    disabled={procesando}
+                    className="w-full rounded-xl bg-naranja px-5 py-3 font-bold text-white hover:bg-naranja/90 disabled:opacity-60"
+                  >
+                    {procesando ? 'Procesando pago…' : `Pagar ${precio(Number(reserva.monto))}`}
+                  </button>
+                </form>
+              ) : (
+                <div className="mt-5 space-y-4">
+                  <p className="text-slate-600">Te llevamos a Mercado Pago para completar el pago y después volvés acá con el resultado.</p>
+                  {error && <p role="alert" className="text-sm font-medium text-red-700">{error}</p>}
+                  <button
+                    type="button"
+                    onClick={pagarMercadoPago}
+                    disabled={procesando}
+                    className="w-full rounded-xl bg-cielo px-5 py-3 font-bold text-white hover:bg-cielo/90 disabled:opacity-60"
+                  >
+                    {procesando ? 'Procesando pago…' : 'Pagar con Mercado Pago'}
+                  </button>
+                  <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
+                    Sandbox: iniciá sesión con el comprador de prueba y pagá con la Mastercard 5031 7557 3453 0604, CVV 123,
+                    vencimiento 11/30. Titular APRO = aprobada, OTHE = rechazada.
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </section>
       )}

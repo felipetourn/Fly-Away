@@ -83,3 +83,18 @@ html {
     transform: none;
   }
 }
+
+/* Barra de espera (AvionCargando): el avión va de un extremo al otro */
+.avion-vuela {
+  animation: volar 1.8s ease-in-out infinite;
+}
+@keyframes volar {
+  from { left: 0%; }
+  to { left: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .avion-vuela {
+    animation: none;
+    left: 50%;
+  }
+}
