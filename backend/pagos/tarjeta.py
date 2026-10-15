@@ -31,7 +31,7 @@ def marca_de(numero):
         return 'visa'
     if numero[:2] in ('34', '37'):
         return 'amex'
-    if 51 <= int(numero[:2]) <= 55 or 2221 <= int(numero[:4]) <= 2720:
+    if 50 <= int(numero[:2]) <= 55 or 2221 <= int(numero[:4]) <= 2720:
         return 'mastercard'
     return None
 
