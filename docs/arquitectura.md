@@ -37,14 +37,15 @@ Fly Away/
 │   ├── manage.py
 │   ├── config/               settings, urls, wsgi
 │   ├── usuarios/             modelo Usuario (tabla usuarios, login por email, rol)
-│   └── vuelos/               aeropuertos, aviones, vuelos; búsqueda, detalle y ABM del administrador; comando seed
+│   ├── vuelos/               aeropuertos, aviones, vuelos; búsqueda, detalle y ABM del administrador; comando seed
+│   └── pagos/                pagos (tarjeta simulada y Mercado Pago), reservas demo temporales
 └── frontend/
     ├── .env.local / .env.example
     ├── vercel.json           rewrite SPA
     └── src/
         ├── lib/              api.ts (fetch + JWT + renovación), sesion.tsx, llamadas a la API y lógica pura
         ├── components/       Header, HeroCarrusel, BuscadorVuelos, FiltroPrecio, CardVuelo, ListaVuelos, DetalleVuelo
-        ├── pages/            pantallas (AdminVuelos y AdminVueloForm: ABM de vuelos)
+        ├── pages/            pantallas (AdminVuelos y AdminVueloForm: ABM de vuelos; Reservas provisoria, Pagar, PagoResultado; Perfil con mis pagos)
         └── App.tsx           rutas: / (todos), /empleado/*, /admin/* (por rol)
 ```
 
@@ -140,7 +141,12 @@ POST /api/vuelos/                (admin) ✅ alta: origen, destino, horas y peri
 PATCH /api/vuelos/{id}/          (admin) ✅ edita una instancia activa que no salió (fecha, horas, ruta, avión, precios)
 POST /api/vuelos/{id}/cancelar/  (admin) ✅ estado = cancelado; la fila se conserva. Falta notificar por email (US16)
 GET  /api/aviones/               (admin) ✅ catálogo para el formulario
-POST /api/reservas/              compra + pago → emails con pasajes y factura
+GET  /api/pagos/reservas/        (pasajero) ✅ reservas demo del usuario (hasta la US06): vuelo, clase, cantidad, monto, estado
+GET  /api/pagos/                 (pasajero) ✅ sus pagos, del más nuevo al más viejo (estado guardado, no consulta a MP)
+GET  /api/pagos/{id}/            (pasajero) ✅ un pago; si es de MP y está pendiente, consulta la orden y lo actualiza
+POST /api/pagos/tarjeta/         (pasajero) ✅ {reserva_id, numero, titular, vencimiento MM/AA, cvv} → 201 pago (aprobado o rechazado)
+POST /api/pagos/mercadopago/     (pasajero) ✅ {reserva_id} → 201 {pago, checkout_url}; 502 si MP no responde
+POST /api/reservas/              reservar (US06)
 GET  /api/reservas/mias/
 GET  /api/pasajes/{codigo}/pdf/  descarga ticket electrónico
 GET  /api/reportes/ocupacion/?vuelo=&desde=&hasta=   (admin)
@@ -151,6 +157,17 @@ El registro público siempre asigna el rol `pasajero` y valida la contraseña co
 **Errores 400:** formato estándar de DRF, `{"parametro": ["mensaje"]}`, con mensajes en español (los mismos que muestra el front). Los errores de un período del alta llegan en `periodos` indexados por posición (`{"periodos": {"0": {"desde": ["mensaje"]}}}`); los que no son de un campo, en `non_field_errors`. Un parámetro vacío (`?hasta=`) cuenta como no enviado. El 404 es `{"detail": "..."}`. Si la respuesta no es JSON (error 500, hosting caído), el front muestra un mensaje fijo (`ApiError` en `src/lib/api.ts`).
 
 **Catálogo y datos de ejemplo:** `python manage.py seed` carga los aeropuertos, la flota (10 aviones) y el usuario `sistema`; corre en `build.sh` porque no tienen ABM. `python manage.py seed --vuelos [--dias 60]` agrega vuelos de ejemplo sobre los primeros 4 aviones, para desarrollo local. Es idempotente y no pisa lo existente.
+
+## Pagos
+
+Dos medios. Ninguno guarda el número completo de la tarjeta ni el CVV: solo `ultimos_4`.
+
+- **Tarjeta simulada** (`pagos/tarjeta.py`): valida como una pasarela real (Luhn, Visa/Mastercard/Amex, vencimiento, CVV de 3 o 4 dígitos) y decide el resultado por el número. Tarjetas de prueba (también en el botón "Tarjetas de prueba" de la pantalla de pago): `4242 4242 4242 4242` aprobada, `4000 0000 0000 0002` rechazada por el emisor, `4000 0000 0000 9995` fondos insuficientes, `4000 0000 0000 0119` error de procesamiento. Cualquier otra válida se aprueba (incluida la Mastercard de prueba de MP, que empieza con 50).
+- **Mercado Pago Checkout Pro** con la API de Orders (`pagos/mercadopago.py`, HTTP con urllib): se crea el pago pendiente, se pide la orden (`POST /v1/orders`, `external_reference` y `X-Idempotency-Key` = id del pago, vence en 30 min) y el pasajero va al `checkout_url`. MP lo devuelve a `FRONTEND_URL/pagos/{id}` y el backend consulta la orden (`GET /v1/orders/{id}`); nunca usa los parámetros de la URL de retorno. Sin webhook: un pendiente se actualiza al abrir su detalle o al intentar pagar de nuevo.
+- **Una reserva, un solo pago aprobado:** constraint parcial en `pagos` (`pago_un_aprobado_por_reserva`). Antes de un nuevo intento, una orden de MP sin pagar se cancela y una en proceso responde 409.
+- **Transacciones:** las llamadas a MP nunca van dentro de `transaction.atomic()`; el pago pendiente se commitea antes, así una falla de MP lo deja rechazado en vez de perderlo.
+- **Variables:** `MP_ACCESS_TOKEN` (Access Token de prueba de la app en developers.mercadopago.com; vacío = MP deshabilitado) y `FRONTEND_URL`. En Render: `FRONTEND_URL=https://fly-away-one.vercel.app`.
+- **Sandbox:** para pagar en MP se inicia sesión con el comprador de prueba (sus datos se comparten por fuera del repo) y se usa la Mastercard `5031 7557 3453 0604`, CVV `123`, vencimiento `11/30`, titular `APRO` (aprobada) u `OTHE` (rechazada).
 
 ## Emails
 
@@ -193,7 +210,7 @@ Si `backend/.env` tiene el `DATABASE_URL` de Supabase, los comandos de arriba tr
 - New → Web Service → repo, **Root Directory:** `backend`
 - Build command: `bash build.sh`
 - Start command: `gunicorn config.wsgi:application`
-- Env vars: `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS=<app>.onrender.com`, `DATABASE_URL`, `CORS_ALLOWED_ORIGINS=https://<app>.vercel.app`, `CSRF_TRUSTED_ORIGINS=https://<app>.onrender.com`, `PYTHON_VERSION=3.11.9`, variables de email.
+- Env vars: `SECRET_KEY`, `DEBUG=False`, `ALLOWED_HOSTS=<app>.onrender.com`, `DATABASE_URL`, `CORS_ALLOWED_ORIGINS=https://<app>.vercel.app`, `CSRF_TRUSTED_ORIGINS=https://<app>.onrender.com`, `PYTHON_VERSION=3.11.9`, variables de email, `MP_ACCESS_TOKEN`, `FRONTEND_URL=https://<app>.vercel.app`.
 - Health check path: `/api/health/`
 
 ### Vercel (frontend)

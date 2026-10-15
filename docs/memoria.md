@@ -4,6 +4,13 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-15 - US07, pago de pasajes (rama `feat/sprint2-pagos`)**
+- App `pagos`: tarjeta simulada y Mercado Pago Checkout Pro (API de Orders, sandbox). Detalle en la sección "Pagos" de arquitectura.md.
+- Pantallas: `/reservas` provisoria con 3 reservas demo, `/pagar/:reservaId` (tarjeta con panel de tarjetas de prueba, o MP), `/pagos/:id` (resultado) y "Mis pagos" en el perfil del pasajero.
+- Un pago aprobado todavía no descuenta asientos ni marca la reserva como pagada en el modelo: eso es la US08.
+- **Migraciones nuevas** (`token_blacklist` de la US23 y `pagos`): con `DATABASE_URL` de Supabase en el `.env`, el login falla con 500 hasta correr `migrate`, porque cada login guarda el token en `token_blacklist_outstandingtoken`. El deploy las aplica solo (`build.sh`); para trabajar local sin tocar Supabase, correr con `DATABASE_URL=` (SQLite).
+- **Render:** cargar `MP_ACCESS_TOKEN` y `FRONTEND_URL=https://fly-away-one.vercel.app` antes de probar MP en producción.
+
 **2026-10-15 - Inicio del Sprint 2: US23 y documentación oficial (rama `feat/sprint2-pagos`)**
 - US23 (cerrar sesión): el logout ya borraba los tokens del navegador; ahora además invalida el refresh en el servidor con `POST /api/auth/logout/` (`token_blacklist` de SimpleJWT). Un refresh cerrado ya no renueva; los de otros usuarios siguen andando (test en `usuarios/tests.py`). El access vigente vence solo (1 h).
 - `README.md` en la raíz como punto de entrada; `arquitectura.md` al día con lo implementado.
@@ -81,6 +88,8 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-10-15 | Mastercard acepta el prefijo 50 en la tarjeta simulada | La tarjeta de prueba de MP (5031...) también vale en el formulario propio |
+| 2026-10-15 | Antes de otro intento, una orden de MP sin pagar se cancela; una en proceso bloquea (409) | Evita cobrar dos veces la misma reserva |
 | 2026-10-15 | Pagos con Mercado Pago Checkout Pro (API de Orders, sandbox) y una pasarela de tarjetas simulada propia | MP es lo real del mercado local; Orders es lo que MP recomienda para integraciones nuevas. La tarjeta simulada anda sin internet ni credenciales (demo y tests). Visa/Mastercard no tienen un mock público para comercios |
 | 2026-10-15 | Reservas de pagos en una tabla temporal `reservas_demo` y `pagos.reserva_id` sin FK | La US06 la hace otro integrante; no se pisa su modelo y el contrato queda escrito en arquitectura.md |
 | 2026-10-15 | Logout con blacklist del refresh token (SimpleJWT), sin bajar la vida del access | Cumple "la sesión queda invalidada" sin dependencias nuevas; el access dura como mucho 1 h más |
@@ -119,6 +128,8 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Pendientes / a definir
 
+- [ ] **Webhook de Mercado Pago:** hoy el estado se consulta al volver del checkout; con webhook se confirmaría aunque el pasajero cierre la pestaña.
+- [ ] **Devoluciones:** un segundo pago aprobado de la misma reserva queda rechazado con "corresponde devolución", pero la devolución no se automatiza.
 - [ ] **Integrar US06 con pagos:** al crear `Reserva`/`Pasaje`, seguir el "Contrato entre reservas y pagos" de [arquitectura.md](arquitectura.md) (reescribir `pagos/reservas_mock.py`, FK en `pagos.reserva_id`, borrar `reservas_demo`).
 - [ ] **¿La reserva retiene asientos al crearse?** Definir entre US06 y US08; hoy el pago verifica disponibilidad antes de cobrar.
 - [ ] **Proveedor de email en prod:** verificar si el plan free de Render permite SMTP saliente; si no, usar la API HTTP de un proveedor (Resend, Brevo, etc.).
@@ -131,6 +142,6 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Próximos pasos
 
-1. Sprint 2: US06 reservar pasajes, US07 pago, US08 confirmar la venta, US09 ticket electrónico, US10 factura por email.
+1. Sprint 2: US08 confirmar la venta sobre el pago aprobado; US06 reservar pasajes (otro integrante; ver contrato en arquitectura.md); US09 ticket; US10 factura.
 2. Reportes de ocupación.
 3. Notificaciones por cambio de horario / cancelación (el ABM ya cancela y edita; falta avisar).
