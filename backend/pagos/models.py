@@ -63,3 +63,6 @@ class Pago(models.Model):
                 fields=['reserva_id'], condition=Q(estado='aprobado'), name='pago_un_aprobado_por_reserva'
             ),
         ]
+
+    def __str__(self):
+        return f'{self.get_metodo_pago_display()} {self.monto} ({self.estado})'

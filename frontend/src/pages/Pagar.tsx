@@ -13,6 +13,7 @@ import {
   NOMBRE_MARCA,
   pagarConMercadoPago,
   pagarConTarjeta,
+  pasajesDe,
   soloDigitos,
   TARJETAS_PRUEBA,
   vueloCorto,
@@ -23,7 +24,7 @@ import {
 
 const VACIA: DatosTarjeta = { numero: '', titular: '', vencimiento: '', cvv: '' }
 const CAMPOS = ['numero', 'titular', 'vencimiento', 'cvv'] as const
-const ESTILO_INPUT =
+const CAMPO =
   'mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-normal outline-none focus:border-marino focus:ring-2 focus:ring-marino/20'
 const COLOR_RESULTADO = { ok: 'text-emerald-700', error: 'text-red-700', aviso: 'text-amber-700' }
 
@@ -116,8 +117,7 @@ export default function Pagar() {
       <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <p className="font-bold text-marino">{vueloCorto(reserva.vuelo)}</p>
         <p className="mt-1 text-sm text-slate-500">
-          {fechaCorta(reserva.vuelo.fecha_operacion)} - {hora(reserva.vuelo.hora_partida)} - {reserva.cantidad}{' '}
-          {reserva.cantidad === 1 ? 'pasaje' : 'pasajes'} en {reserva.clase === 'primera' ? 'Primera' : 'Economy'}
+          {fechaCorta(reserva.vuelo.fecha_operacion)} - {hora(reserva.vuelo.hora_partida)} - {pasajesDe(reserva)}
         </p>
         <p className="mt-4 flex items-baseline justify-between border-t border-slate-100 pt-4">
           <span className="text-slate-500">Total</span>
@@ -182,7 +182,7 @@ export default function Pagar() {
                   autoComplete="cc-number"
                   placeholder="1234 5678 9012 3456"
                   aria-invalid={Boolean(errores.numero)}
-                  className={ESTILO_INPUT}
+                  className={CAMPO}
                 />
                 {errores.numero && <span className="mt-1 block font-medium text-red-700">{errores.numero}</span>}
               </label>
@@ -193,7 +193,7 @@ export default function Pagar() {
                   onChange={(e) => cambiar('titular', e.target.value)}
                   autoComplete="cc-name"
                   aria-invalid={Boolean(errores.titular)}
-                  className={ESTILO_INPUT}
+                  className={CAMPO}
                 />
                 {errores.titular && <span className="mt-1 block font-medium text-red-700">{errores.titular}</span>}
               </label>
@@ -207,7 +207,7 @@ export default function Pagar() {
                     autoComplete="cc-exp"
                     placeholder="MM/AA"
                     aria-invalid={Boolean(errores.vencimiento)}
-                    className={ESTILO_INPUT}
+                    className={CAMPO}
                   />
                   {errores.vencimiento && <span className="mt-1 block font-medium text-red-700">{errores.vencimiento}</span>}
                 </label>
@@ -220,7 +220,7 @@ export default function Pagar() {
                     autoComplete="cc-csc"
                     placeholder="123"
                     aria-invalid={Boolean(errores.cvv)}
-                    className={ESTILO_INPUT}
+                    className={CAMPO}
                   />
                   {errores.cvv && <span className="mt-1 block font-medium text-red-700">{errores.cvv}</span>}
                 </label>

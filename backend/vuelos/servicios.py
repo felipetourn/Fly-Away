@@ -1,4 +1,4 @@
-"""Reglas del ABM de vuelos (docs/superpowers/specs/2026-10-03-abm-vuelos-design.md)."""
+"""Reglas del ABM de vuelos (US01, US02, US03)."""
 import datetime as dt
 from collections import defaultdict
 

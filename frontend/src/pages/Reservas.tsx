@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import ChipEstado from '../components/ChipEstado'
 import { Esqueleto } from '../components/Esqueleto'
 import { fechaCorta, hora, precio } from '../lib/formato'
-import { getReservas, vueloCorto, type Reserva } from '../lib/pagos'
+import { getReservas, pasajesDe, vueloCorto, type Reserva } from '../lib/pagos'
 
 // ponytail: pantalla provisoria sobre las reservas demo; la reemplaza "Mis reservas" de la US06 (docs/arquitectura.md).
 export default function Reservas() {
@@ -36,8 +36,7 @@ export default function Reservas() {
             <div>
               <p className="font-bold text-marino">{vueloCorto(r.vuelo)}</p>
               <p className="mt-1 text-sm text-slate-500">
-                {fechaCorta(r.vuelo.fecha_operacion)} - {hora(r.vuelo.hora_partida)} - {r.cantidad}{' '}
-                {r.cantidad === 1 ? 'pasaje' : 'pasajes'} en {r.clase === 'primera' ? 'Primera' : 'Economy'}
+                {fechaCorta(r.vuelo.fecha_operacion)} - {hora(r.vuelo.hora_partida)} - {pasajesDe(r)}
               </p>
             </div>
             <div className="flex items-center justify-between gap-4 sm:justify-end">

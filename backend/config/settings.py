@@ -119,7 +119,8 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'Fly Away <no-reply@flyaway.local>')
 
-# --- Mercado Pago (Checkout Pro, API de Orders). Token vacío = MP deshabilitado. ---
+# --- Mercado Pago (Checkout Pro, API de Orders) ---
+# Token vacío = MP deshabilitado.
 MP_ACCESS_TOKEN = os.getenv('MP_ACCESS_TOKEN', '')
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173').rstrip('/')  # URLs de retorno del checkout
 

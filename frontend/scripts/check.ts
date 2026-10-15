@@ -114,6 +114,9 @@ assert.equal(precio(149990.4), '$ 149.990')
 assert.equal(duracion(85), '1 h 25 m')
 assert.equal(duracion(120), '2 h')
 
+// formato: fechaDeInstante: en hora de Buenos Aires, no UTC
+assert.equal(fechaDeInstante('2026-10-21T02:00:00Z'), fechaDeInstante('2026-10-20T23:00:00-03:00'))
+assert.match(fechaDeInstante('2026-10-21T02:00:00Z'), /^20 de oct/)
 console.log('busqueda + formato: OK')
 
 // vuelos: query string de GET /vuelos/buscar/ (nombres del backend, sin parámetros vacíos)
@@ -238,7 +241,4 @@ assert.ok(erroresTarjeta({ ...tarjetaOk, titular: ' ' }, octubre).titular)
 assert.ok(erroresTarjeta({ ...tarjetaOk, numero: '3782 822463 10005', cvv: '123' }, octubre).cvv, 'Amex pide 4')
 assert.equal(medioDePago({ metodo_pago: 'tarjeta', ultimos_4: '4242' }), 'Tarjeta •••• 4242')
 assert.equal(medioDePago({ metodo_pago: 'mercadopago', ultimos_4: null }), 'Mercado Pago')
-
-// fechaDeInstante: en hora de Buenos Aires, no UTC
-assert.equal(fechaDeInstante('2026-10-21T02:00:00Z'), fechaDeInstante('2026-10-20T23:00:00-03:00'))
-assert.match(fechaDeInstante('2026-10-21T02:00:00Z'), /^20 de oct/)
+console.log('pagos: OK')

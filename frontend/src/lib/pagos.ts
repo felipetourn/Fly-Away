@@ -1,5 +1,5 @@
 import { api } from './api.ts'
-import type { Clase } from './busqueda.ts'
+import { NOMBRE_CLASE, type Clase } from './busqueda.ts'
 
 // Tipos con la forma de /api/pagos/ (nombres de docs/modelo.dbml).
 export interface VueloResumen {
@@ -124,6 +124,10 @@ export function erroresTarjeta(t: DatosTarjeta, hoy = new Date()): ErroresTarjet
 export function medioDePago(p: Pick<Pago, 'metodo_pago' | 'ultimos_4'>): string {
   return p.metodo_pago === 'mercadopago' ? 'Mercado Pago' : `Tarjeta •••• ${p.ultimos_4}`
 }
+
+/** "2 pasajes en Primera" */
+export const pasajesDe = (r: Pick<Reserva, 'cantidad' | 'clase'>) =>
+  `${r.cantidad} ${r.cantidad === 1 ? 'pasaje' : 'pasajes'} en ${NOMBRE_CLASE[r.clase]}`
 
 /** "FA 1001, AEP → COR" */
 export const vueloCorto = (v: VueloResumen) => `${v.numero_vuelo}, ${v.origen} → ${v.destino}`

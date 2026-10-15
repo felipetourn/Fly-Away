@@ -24,7 +24,7 @@ class Conflicto(APIException):
     default_detail = 'La reserva ya está pagada.'
 
 
-class ErrorDeMercadoPago(APIException):
+class SinConexionMercadoPago(APIException):
     status_code = 502
     default_detail = SIN_CONEXION
 
@@ -143,7 +143,7 @@ def pagar_con_mercadopago(reserva):
         # Cualquier falla deja el pago rechazado: un pendiente sin orden bloquearía la reserva.
         guardar_resultado(pago, Pago.Estado.RECHAZADO, SIN_CONEXION)
         if isinstance(error, mercadopago.ErrorMercadoPago):
-            raise ErrorDeMercadoPago() from error
+            raise SinConexionMercadoPago() from error
         raise
     pago.transaccion_externa_id = order_id
     pago.save(update_fields=['transaccion_externa_id'])
