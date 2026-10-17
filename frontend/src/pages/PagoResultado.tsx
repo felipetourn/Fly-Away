@@ -77,6 +77,11 @@ export default function PagoResultado() {
               {actualizando ? 'Actualizando…' : 'Actualizar'}
             </button>
           )}
+          {pago.estado === 'aprobado' && (
+            <Link to="/reservas" className="rounded-xl bg-cielo px-5 py-2.5 font-bold text-white hover:bg-cielo/90">
+              Ver mis tickets
+            </Link>
+          )}
           <Link to="/perfil" className="rounded-xl border border-slate-300 px-5 py-2.5 font-bold text-marino hover:bg-slate-50">
             Ver mis pagos
           </Link>

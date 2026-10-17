@@ -291,3 +291,150 @@ class ReservasEndpointTests(ReservasBaseTestCase):
         self.vuelo.refresh_from_db()
         self.assertEqual(self.vuelo.asientos_disponibles_economy, 8)  # 10 - 2 = 8
 
+
+class TicketElectronicoTests(ReservasBaseTestCase):
+    """Pruebas de la US09: Generar ticket electrónico."""
+
+    def crear_reserva_con_pasaje(self):
+        res = self.client.post(
+            '/api/reservas/',
+            {
+                'vuelo_id': str(self.vuelo.id),
+                'clase': 'economy',
+                'cantidad_pasajes': 2,
+                'pasajeros': [
+                    {'nombre_pasajero': 'Juan', 'apellido_pasajero': 'Pérez', 'dni_pasajero': '12345678'},
+                    {'nombre_pasajero': 'Lucía', 'apellido_pasajero': 'Pérez', 'dni_pasajero': '87654321'},
+                ],
+            },
+            format='json',
+        )
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        reserva_id = res.data['id']
+        pasajes = res.data['pasajes']
+        p1 = next(p for p in pasajes if p['nombre_pasajero'] == 'Juan')
+        p2 = next(p for p in pasajes if p['nombre_pasajero'] == 'Lucía')
+        return reserva_id, p1['codigo_pasaje'], p2['codigo_pasaje']
+
+    def pagar_reserva(self, reserva_id, tarjeta_aprobada=True):
+        numero = '4242424242424242' if tarjeta_aprobada else '4000000000000002'
+        return self.client.post(
+            '/api/pagos/tarjeta/',
+            {
+                'reserva_id': reserva_id,
+                'numero': numero,
+                'titular': 'Juan Pérez',
+                'vencimiento': '12/30',
+                'cvv': '123',
+            },
+            format='json',
+        )
+
+    def test_ticket_no_se_genera_si_compra_no_confirmada(self):
+        # 1. Reserva recién creada (pendiente)
+        _, codigo, _ = self.crear_reserva_con_pasaje()
+
+        # Intentar descargar el PDF da 400
+        res_pdf = self.client.get(f'/api/pasajes/{codigo}/pdf/')
+        self.assertEqual(res_pdf.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('confirmadas', res_pdf.data['detail'].lower())
+
+        # Intentar ver el detalle JSON da 400
+        res_json = self.client.get(f'/api/pasajes/{codigo}/')
+        self.assertEqual(res_json.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_ticket_no_se_genera_ante_pago_rechazado(self):
+        reserva_id, codigo, _ = self.crear_reserva_con_pasaje()
+
+        # Pagar con tarjeta que rechaza
+        pago_res = self.pagar_reserva(reserva_id, tarjeta_aprobada=False)
+        self.assertEqual(pago_res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(pago_res.data['estado'], 'rechazado')
+
+        # El ticket no se genera
+        res = self.client.get(f'/api/pasajes/{codigo}/pdf/')
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        res_detalle = self.client.get(f'/api/pasajes/{codigo}/')
+        self.assertEqual(res_detalle.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_ticket_se_genera_y_descarga_tras_pago_aprobado(self):
+        reserva_id, codigo, _ = self.crear_reserva_con_pasaje()
+
+        # Pagar con tarjeta aprobada
+        pago_res = self.pagar_reserva(reserva_id, tarjeta_aprobada=True)
+        self.assertEqual(pago_res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(pago_res.data['estado'], 'aprobado')
+
+        # Descargar ticket en PDF
+        res = self.client.get(f'/api/pasajes/{codigo}/pdf/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res['Content-Type'], 'application/pdf')
+        self.assertIn(f'attachment; filename="ticket-{codigo}.pdf"', res.get('Content-Disposition', '') or res.headers.get('Content-Disposition', ''))
+
+        # Es un PDF real
+        contenido = res.content
+        self.assertTrue(contenido.startswith(b'%PDF'), 'El archivo generado debe ser un PDF válido')
+        self.assertGreater(len(contenido), 500)
+
+    def test_visualizar_ticket_detalle_json(self):
+        reserva_id, codigo, _ = self.crear_reserva_con_pasaje()
+        self.pagar_reserva(reserva_id, tarjeta_aprobada=True)
+
+        res = self.client.get(f'/api/pasajes/{codigo}/')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        data = res.data
+
+        # Criterio: incluye pasajero, vuelo, fecha, horario, origen, destino y clase
+        self.assertEqual(data['codigo_pasaje'], codigo)
+        self.assertEqual(data['nombre_pasajero'], 'Juan')
+        self.assertEqual(data['apellido_pasajero'], 'Pérez')
+        self.assertEqual(data['dni_pasajero'], '12345678')
+        self.assertEqual(data['clase'], 'economy')
+        self.assertEqual(data['estado_compra'], 'pagada')
+        self.assertEqual(data['vuelo']['numero_vuelo'], 'FA 1001')
+        self.assertEqual(data['vuelo']['origen'], 'AEP')
+        self.assertEqual(data['vuelo']['destino'], 'COR')
+        self.assertEqual(data['vuelo']['fecha_operacion'], str(self.vuelo.fecha_operacion))
+        self.assertEqual(data['vuelo']['fecha_llegada'], str(self.vuelo.fecha_llegada))
+        self.assertEqual(data['vuelo']['hora_partida'], '10:00:00')
+        self.assertEqual(data['vuelo']['hora_llegada'], '11:30:00')
+        self.assertEqual(data['ticket_pdf_url'], f'/api/pasajes/{codigo}/pdf/')
+
+    def test_ticket_ajeno_da_404(self):
+        reserva_id, codigo, _ = self.crear_reserva_con_pasaje()
+        self.pagar_reserva(reserva_id, tarjeta_aprobada=True)
+
+        # Otro pasajero no puede ver ni descargar el ticket
+        self.client.force_authenticate(self.otro_pasajero)
+
+        res_json = self.client.get(f'/api/pasajes/{codigo}/')
+        self.assertEqual(res_json.status_code, status.HTTP_404_NOT_FOUND)
+
+        res_pdf = self.client.get(f'/api/pasajes/{codigo}/pdf/')
+        self.assertEqual(res_pdf.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_ticket_sin_autenticar_da_401(self):
+        reserva_id, codigo, _ = self.crear_reserva_con_pasaje()
+        self.pagar_reserva(reserva_id, tarjeta_aprobada=True)
+
+        self.client.logout()
+
+        res_json = self.client.get(f'/api/pasajes/{codigo}/')
+        self.assertEqual(res_json.status_code, status.HTTP_401_UNAUTHORIZED)
+
+        res_pdf = self.client.get(f'/api/pasajes/{codigo}/pdf/')
+        self.assertEqual(res_pdf.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_cada_ticket_se_identifica_individualmente(self):
+        reserva_id, codigo_1, codigo_2 = self.crear_reserva_con_pasaje()
+        self.pagar_reserva(reserva_id, tarjeta_aprobada=True)
+
+        self.assertNotEqual(codigo_1, codigo_2)
+
+        # Pasaje 1: Juan
+        t1 = self.client.get(f'/api/pasajes/{codigo_1}/').data
+        self.assertEqual(t1['nombre_pasajero'], 'Juan')
+
+        # Pasaje 2: Lucía
+        t2 = self.client.get(f'/api/pasajes/{codigo_2}/').data
+        self.assertEqual(t2['nombre_pasajero'], 'Lucía')

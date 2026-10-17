@@ -1,4 +1,4 @@
-import { api } from './api.ts'
+import { api, apiBlob } from './api.ts'
 import type { Clase } from './busqueda.ts'
 import type { VueloResumen } from './pagos.ts'
 
@@ -12,6 +12,16 @@ export interface Pasaje {
   asiento: string | null
   precio: string
   ticket_electronico_url: string | null
+}
+
+export interface TicketElectronico extends Pasaje {
+  vuelo: VueloResumen & {
+    fecha_llegada: string
+    hora_llegada: string
+  }
+  reserva_id: string
+  estado_compra: 'pendiente' | 'pagada' | 'cancelada'
+  ticket_pdf_url: string
 }
 
 export interface Reserva {
@@ -72,3 +82,17 @@ export const getMisReservas = () => api<Reserva[]>('/reservas/')
 
 export const getReserva = (id: string) => api<Reserva>(`/reservas/${id}/`)
 
+export const getTicket = (codigo: string) =>
+  api<TicketElectronico>(`/pasajes/${encodeURIComponent(codigo)}/`)
+
+export async function descargarTicket(codigo: string): Promise<void> {
+  const pdf = await apiBlob(`/pasajes/${encodeURIComponent(codigo)}/pdf/`)
+  const url = URL.createObjectURL(pdf)
+  const enlace = document.createElement('a')
+  enlace.href = url
+  enlace.download = `ticket-${codigo}.pdf`
+  document.body.append(enlace)
+  enlace.click()
+  enlace.remove()
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+}

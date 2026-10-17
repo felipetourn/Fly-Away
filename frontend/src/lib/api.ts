@@ -56,15 +56,15 @@ function renovarAccessToken(): Promise<string | null> {
   return renovacionEnCurso
 }
 
-export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const solicitar = (token: string | null) => {
+async function solicitar(path: string, init: RequestInit): Promise<Response> {
+  const enviar = (token: string | null) => {
     const headers = new Headers(init.headers)
     if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
     if (token) headers.set('Authorization', `Bearer ${token}`)
     return fetch(`${import.meta.env.VITE_API_URL}${path}`, { ...init, headers })
   }
 
-  let res = await solicitar(localStorage.getItem(CLAVE_TOKEN))
+  let res = await enviar(localStorage.getItem(CLAVE_TOKEN))
   if (
     res.status === 401 &&
     !path.endsWith('/token/refresh/') &&
@@ -72,7 +72,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   ) {
     const access = await renovarAccessToken()
     if (access) {
-      res = await solicitar(access)
+      res = await enviar(access)
       if (res.status === 401) {
         localStorage.removeItem(CLAVE_TOKEN)
         localStorage.removeItem(CLAVE_REFRESH)
@@ -90,5 +90,15 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
     throw new ApiError(res.status, data)
   }
+  return res
+}
+
+export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const res = await solicitar(path, init)
   return res.json()
+}
+
+export async function apiBlob(path: string, init: RequestInit = {}): Promise<Blob> {
+  const res = await solicitar(path, init)
+  return res.blob()
 }

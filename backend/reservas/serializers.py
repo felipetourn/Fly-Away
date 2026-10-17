@@ -11,10 +11,21 @@ class VueloResumenSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Vuelo
-        fields = ['id', 'numero_vuelo', 'origen', 'destino', 'fecha_operacion', 'hora_partida']
+        fields = [
+            'id',
+            'numero_vuelo',
+            'origen',
+            'destino',
+            'fecha_operacion',
+            'fecha_llegada',
+            'hora_partida',
+            'hora_llegada',
+        ]
 
 
 class PasajeSerializer(serializers.ModelSerializer):
+    ticket_pdf_url = serializers.SerializerMethodField()
+
     class Meta:
         model = Pasaje
         fields = [
@@ -27,7 +38,38 @@ class PasajeSerializer(serializers.ModelSerializer):
             'asiento',
             'precio',
             'ticket_electronico_url',
+            'ticket_pdf_url',
         ]
+
+    def get_ticket_pdf_url(self, obj):
+        return f'/api/pasajes/{obj.codigo_pasaje}/pdf/'
+
+
+class PasajeDetalleSerializer(serializers.ModelSerializer):
+    vuelo = VueloResumenSerializer(source='reserva.vuelo', read_only=True)
+    ticket_pdf_url = serializers.SerializerMethodField()
+    estado_compra = serializers.CharField(source='reserva.estado', read_only=True)
+    reserva_id = serializers.UUIDField(source='reserva.id', read_only=True)
+
+    class Meta:
+        model = Pasaje
+        fields = [
+            'id',
+            'codigo_pasaje',
+            'nombre_pasajero',
+            'apellido_pasajero',
+            'dni_pasajero',
+            'clase',
+            'asiento',
+            'precio',
+            'vuelo',
+            'reserva_id',
+            'estado_compra',
+            'ticket_pdf_url',
+        ]
+
+    def get_ticket_pdf_url(self, obj):
+        return f'/api/pasajes/{obj.codigo_pasaje}/pdf/'
 
 
 class PasajeroInputSerializer(serializers.Serializer):
@@ -74,4 +116,3 @@ class ReservaSerializer(serializers.ModelSerializer):
 
     def get_monto(self, obj):
         return str(obj.monto)
-

@@ -54,11 +54,12 @@ class PagoSerializer(serializers.ModelSerializer):
 
     vuelo = serializers.SerializerMethodField()
     cantidad_pasajes = serializers.SerializerMethodField()
+    pasajes = serializers.SerializerMethodField()
 
     class Meta:
         model = Pago
         fields = [
-            'id', 'reserva_id', 'vuelo', 'cantidad_pasajes', 'metodo_pago', 'ultimos_4', 'marca', 'cuenta_mp',
+            'id', 'reserva_id', 'vuelo', 'cantidad_pasajes', 'pasajes', 'metodo_pago', 'ultimos_4', 'marca', 'cuenta_mp',
             'monto', 'estado', 'detalle', 'transaccion_externa_id', 'creado_en', 'procesado_en',
         ]
 
@@ -69,3 +70,12 @@ class PagoSerializer(serializers.ModelSerializer):
     def get_cantidad_pasajes(self, pago):
         reserva = self.context['reservas'].get(pago.reserva_id)
         return len(reservas_mock.pasajes_de(reserva)) if reserva else None
+
+    def get_pasajes(self, pago):
+        reserva = self.context['reservas'].get(pago.reserva_id)
+        if not reserva:
+            return []
+        if hasattr(reserva, 'pasajes'):
+            from reservas.serializers import PasajeSerializer
+            return PasajeSerializer(reserva.pasajes.all(), many=True).data
+        return []

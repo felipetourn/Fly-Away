@@ -54,6 +54,20 @@ export default function Reservas() {
                   Contacto: {r.contacto_nombre} ({r.contacto_email})
                 </p>
               )}
+              {r.estado === 'pagada' && r.pasajes.length > 0 && (
+                <ul className="mt-4 space-y-2 border-t border-slate-100 pt-3">
+                  {r.pasajes.map((pasaje) => (
+                    <li key={pasaje.id}>
+                      <Link
+                        to={`/pasajes/${encodeURIComponent(pasaje.codigo_pasaje)}`}
+                        className="text-sm font-bold text-cielo hover:underline"
+                      >
+                        Ver ticket de {pasaje.nombre_pasajero} {pasaje.apellido_pasajero} · {pasaje.codigo_pasaje}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
             <div className="flex items-center justify-between gap-4 sm:justify-end">
               <p className="text-lg font-extrabold">{precio(Number(r.monto))}</p>

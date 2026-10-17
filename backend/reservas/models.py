@@ -90,7 +90,7 @@ class Pasaje(models.Model):
 
     class Meta:
         db_table = 'pasajes'
-        ordering = ['id']
+        ordering = ['codigo_pasaje']
 
     def __str__(self):
         return f'{self.codigo_pasaje} - {self.nombre_pasajero} {self.apellido_pasajero}'

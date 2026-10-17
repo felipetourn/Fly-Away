@@ -4,6 +4,12 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-17 - US09, ticket electrónico**
+- Cada pasaje de una reserva tiene un código individual; el detalle del ticket y su PDF solo están disponibles para el pasajero dueño cuando la reserva está pagada. Un pago pendiente o rechazado no permite visualizarlos ni descargarlos.
+- El backend genera bajo demanda un PDF por pasaje con pasajero, vuelo, fechas y horarios, ruta, clase, asiento, código y datos de reserva. La respuesta fuerza la descarga del adjunto.
+- Frontend: las reservas confirmadas enlazan al detalle visual de cada ticket y desde allí se descarga el PDF autenticado. El resultado de pago aprobado enlaza a “Mis reservas”.
+- No requiere cambios de modelo ni migraciones: `Pasaje` ya relaciona cada ticket con su reserva y conserva los datos del viajero.
+
 **2026-10-17 - US06, reservar pasajes (rama `feat/sprint2-reservas`)**
 - App `reservas`: modelos `Reserva` y `Pasaje` con los nombres y constraints de `modelo.dbml` (`reservas`, `pasajes`).
 - Endpoints `POST /api/reservas/`, `GET /api/reservas/` y `GET /api/reservas/mias/`, protegidos para rol pasajero.
@@ -153,7 +159,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 - [x] **Integrar US06 con pagos:** al crear `Reserva`/`Pasaje`, seguir el "Contrato entre reservas y pagos" de [arquitectura.md](arquitectura.md) (completado: `pagos/reservas_mock.py` conectado con `Reserva`/`Pasaje`).
 - [x] **¿La reserva retiene asientos al crearse?** Resuelto: los asientos se descuentan únicamente al confirmarse el pago (US08); un pago rechazado no modifica disponibilidad.
 - [ ] **Proveedor de email en prod:** verificar si el plan free de Render permite SMTP saliente; si no, usar la API HTTP de un proveedor (Resend, Brevo, etc.).
-- [ ] **PDF de pasajes/factura:** elegir librería (p. ej. `reportlab`) cuando se implemente.
+- [ ] **PDF de factura:** definir formato e implementar (US10). El PDF de los tickets ya usa `reportlab` (US09).
 - [ ] **Periodo de venta:** el modelo lo toma como "fechas en que opera". Si la cátedra lo entiende como "desde cuándo se puede comprar", falta un campo (ej. `venta_desde`). Confirmar con el docente.
 - [ ] **Ida y vuelta:** son 2 reservas; si se pagan juntas, `pagos` hoy apunta a una sola reserva. Si el alcance es solo ida, no aplica.
 - [ ] **Ida y vuelta en la compra:** el front ya permite elegir ida + vuelta; al implementar la compra definir si son 2 reservas con un pago cada una o un pago para ambas (`pagos.reserva_id` hoy apunta a una sola).
@@ -162,6 +168,6 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Próximos pasos
 
-1. Sprint 2: US09 ticket; US10 factura.
+1. Sprint 2: US10 factura.
 2. Reportes de ocupación.
 3. Notificaciones por cambio de horario / cancelación (el ABM ya cancela y edita; falta avisar).
