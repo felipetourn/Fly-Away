@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'usuarios',
     'vuelos',
+    'reservas',
     'pagos',
 ]
 

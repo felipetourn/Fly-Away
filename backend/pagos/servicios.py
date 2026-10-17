@@ -36,7 +36,7 @@ def validar_reserva(reserva):
     """Chequeos para cobrar, con el vuelo bloqueado. Llamar dentro de transaction.atomic(). Devuelve el vuelo bloqueado."""
     vuelo = Vuelo.objects.select_for_update().get(id=reserva.vuelo_id)
     reserva.refresh_from_db(fields=['estado'])  # leída antes del lock
-    if reserva.estado == ReservaDemo.Estado.PAGADA:
+    if reserva.estado in (ReservaDemo.Estado.PAGADA, 'pagada'):
         raise Conflicto()
     pagos = Pago.objects.filter(reserva_id=reserva.id)
     if pagos.filter(estado=Pago.Estado.APROBADO).exists():
@@ -77,7 +77,7 @@ def _motivo_sin_lugar(reserva, vuelo):
 
 
 def _motivo_para_no_vender(reserva, vuelo):
-    if reserva.estado == ReservaDemo.Estado.PAGADA:
+    if reserva.estado in (ReservaDemo.Estado.PAGADA, 'pagada'):
         return YA_PAGADA
     if vuelo.estado == Vuelo.Estado.CANCELADO or ya_salio(vuelo):
         return VUELO_NO_DISPONIBLE

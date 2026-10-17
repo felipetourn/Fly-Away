@@ -7,11 +7,12 @@ Objetivo del sprint: el flujo de compra de pasajes (reservar, pagar, confirmar l
 | US | Nombre | Story points | Horas estimadas | Horas reales | Estado | Ficha |
 |---|---|---|---|---|---|---|
 | US23 | Cerrar sesión | 1 | 5 | 1 | Terminada | [us23.md](us23.md) |
-| US07 | Realizar pago de los pasajes reservados | 8 | 31 | 7 | Terminada (sobre reservas demo) | [us07.md](us07.md) |
-| US08 | Corroborar transacción y finalizar la venta | 5 | 18 | 4 | Terminada (sobre reservas demo) | [us08.md](us08.md) |
-| **Total** | | **14** | **54** | **12** | | |
+| US06 | Reservar pasajes | 3 | 22 | 5 | Terminada | [us06.md](us06.md) |
+| US07 | Realizar pago de los pasajes reservados | 8 | 31 | 7 | Terminada | [us07.md](us07.md) |
+| US08 | Corroborar transacción y finalizar la venta | 5 | 18 | 4 | Terminada | [us08.md](us08.md) |
+| **Total** | | **17** | **76** | **17** | | |
 
-Pendientes del sprint: **US06** reservar pasajes (otro integrante), **US09** ticket electrónico y **US10** factura por email.
+Pendientes del sprint: **US09** ticket electrónico y **US10** factura por email.
 
 ## Aclaraciones generales
 

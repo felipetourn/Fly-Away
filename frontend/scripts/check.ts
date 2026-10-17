@@ -7,6 +7,7 @@ import { duracion, fechaCompleta, fechaCorta, fechaDeInstante, fechaLarga, hora,
 import { cuentaDelPago, erroresTarjeta, formatearNumero, formatearVencimiento, luhnValido, marcaDe, medioDePago, mensajeCompra, TARJETAS_PRUEBA } from '../src/lib/pagos.ts'
 import { errorDePeriodo, erroresDe, fechasDePeriodo, paginasVisibles, primero, queryListado, yaSalio } from '../src/lib/adminVuelos.ts'
 import { ApiError } from '../src/lib/api.ts'
+import { validarReglasReserva } from '../src/lib/reservas.ts'
 import { duracionDe, estadoClase, llegaAlDiaSiguiente, queryBusqueda, vueltasPosibles, type ParamsBusqueda, type Vuelo } from '../src/lib/vuelos.ts'
 
 const hoy = '2026-10-02'
@@ -258,3 +259,14 @@ assert.equal(mensajeCompra({ estado: 'aprobado', vuelo: null, cantidad_pasajes: 
 assert.equal(mensajeCompra({ estado: 'rechazado', vuelo, cantidad_pasajes: 2 }), 'La compra no se confirmó.')
 assert.equal(mensajeCompra({ estado: 'pendiente', vuelo, cantidad_pasajes: 2 }), '')
 console.log('pagos: OK')
+
+// validarReglasReserva (US06)
+assert.equal(validarReglasReserva(1, 10), null, '1 pasaje con 10 disponibles es válido')
+assert.equal(validarReglasReserva(9, 10), null, '9 pasajes con 10 disponibles es válido')
+assert.equal(validarReglasReserva(5, 5), null, 'exactamente la cantidad de disponibles es válido')
+assert.ok(validarReglasReserva(0, 10), '0 pasajes es inválido')
+assert.ok(validarReglasReserva(10, 15), 'más de 9 pasajes es inválido')
+assert.ok(validarReglasReserva(4, 3), 'más pasajes que disponibles es inválido')
+assert.ok(validarReglasReserva(-1, 5), 'cantidad negativa es inválida')
+console.log('reservas: OK')
+

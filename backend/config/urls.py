@@ -11,5 +11,6 @@ urlpatterns = [
     path('api/auth/logout/', TokenBlacklistView.as_view()),
     path('api/auth/', include('usuarios.urls')),
     path('api/pagos/', include('pagos.urls')),
+    path('api/', include('reservas.urls')),
     path('api/', include('vuelos.urls')),
 ]

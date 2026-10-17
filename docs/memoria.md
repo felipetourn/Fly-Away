@@ -4,6 +4,15 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-17 - US06, reservar pasajes (rama `feat/sprint2-reservas`)**
+- App `reservas`: modelos `Reserva` y `Pasaje` con los nombres y constraints de `modelo.dbml` (`reservas`, `pasajes`).
+- Endpoints `POST /api/reservas/`, `GET /api/reservas/` y `GET /api/reservas/mias/`, protegidos para rol pasajero.
+- Reglas validadas en backend bajo transacción con `select_for_update()` sobre el vuelo: 1 a 9 pasajes, vuelo activo y futuro, y disponibilidad de asientos suficiente en la clase solicitada. Si no hay lugar, se rechaza informando el motivo.
+- La reserva persiste temporalmente en `estado = pendiente` y genera un pasaje individual por viajero con su código de pasaje único y precio congelado.
+- Integración con `pagos`: `reservas_mock.py` conecta directamente con `Reserva` y `Pasaje`. Al pagar una reserva con tarjeta o Mercado Pago, se confirma la compra y se descuentan los asientos del vuelo en su clase.
+- Frontend: `ModalReserva.tsx` abre desde "Tu viaje" tras seleccionar vuelo; pantalla `/reservas` muestra las reservas reales del usuario con estados y enlace directo de pago.
+- Migración `reservas/0001_initial`.
+
 **2026-10-15 - US08, confirmar la venta (rama `feat/sprint2-pagos`)**
 - Un pago aprobado confirma la compra: la reserva pasa a `pagada` y se descuentan los asientos de cada clase, en una transacción y una sola vez (`servicios.confirmar_compra`, usado por la tarjeta y por Mercado Pago).
 - Si al aprobarse un pago ya no se puede vender (reserva ya pagada, vuelo cancelado o que salió, sin asientos), el pago queda rechazado con "corresponde devolución".
@@ -96,6 +105,8 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-10-17 | La reserva de pasajes se crea en estado 'pendiente' y genera pasajes con precio congelado | Cumple que la reserva no es compra confirmada y asegura el precio al momento de reservar |
+| 2026-10-17 | `reservas_mock.py` opera transparentemente sobre `Reserva` y `Pasaje` | Permite el flujo completo US06 -> US07 -> US08 sin romper compatibilidad con los tests de pagos |
 | 2026-10-15 | Los asientos se descuentan solo al confirmarse el pago, no al iniciarlo ni al reservar | Cumple "un pago rechazado no modifica definitivamente la disponibilidad" sin retenciones que liberar; si con MP no quedan asientos al aprobarse, se marca para devolución |
 | 2026-10-15 | Mastercard acepta el prefijo 50 en la tarjeta simulada | La tarjeta de prueba de MP (5031...) también vale en el formulario propio |
 | 2026-10-15 | Antes de otro intento, una orden de MP sin pagar se cancela; una en proceso bloquea (409) | Evita cobrar dos veces la misma reserva |
@@ -139,8 +150,8 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 - [ ] **Webhook de Mercado Pago:** hoy el estado se consulta al volver del checkout; con webhook se confirmaría aunque el pasajero cierre la pestaña.
 - [ ] **Devoluciones:** un pago aprobado que no pudo confirmar la compra (reserva ya pagada, vuelo cancelado o sin asientos) queda rechazado con "corresponde devolución", pero la devolución no se automatiza.
-- [ ] **Integrar US06 con pagos:** al crear `Reserva`/`Pasaje`, seguir el "Contrato entre reservas y pagos" de [arquitectura.md](arquitectura.md) (reescribir `pagos/reservas_mock.py`, FK en `pagos.reserva_id`, borrar `reservas_demo`).
-- [ ] **¿La reserva retiene asientos al crearse?** Definir entre US06 y US08; hoy el pago verifica disponibilidad antes de cobrar.
+- [x] **Integrar US06 con pagos:** al crear `Reserva`/`Pasaje`, seguir el "Contrato entre reservas y pagos" de [arquitectura.md](arquitectura.md) (completado: `pagos/reservas_mock.py` conectado con `Reserva`/`Pasaje`).
+- [x] **¿La reserva retiene asientos al crearse?** Resuelto: los asientos se descuentan únicamente al confirmarse el pago (US08); un pago rechazado no modifica disponibilidad.
 - [ ] **Proveedor de email en prod:** verificar si el plan free de Render permite SMTP saliente; si no, usar la API HTTP de un proveedor (Resend, Brevo, etc.).
 - [ ] **PDF de pasajes/factura:** elegir librería (p. ej. `reportlab`) cuando se implemente.
 - [ ] **Periodo de venta:** el modelo lo toma como "fechas en que opera". Si la cátedra lo entiende como "desde cuándo se puede comprar", falta un campo (ej. `venta_desde`). Confirmar con el docente.
@@ -151,6 +162,6 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Próximos pasos
 
-1. Sprint 2: US08 confirmar la venta sobre el pago aprobado; US06 reservar pasajes (otro integrante; ver contrato en arquitectura.md); US09 ticket; US10 factura.
+1. Sprint 2: US09 ticket; US10 factura.
 2. Reportes de ocupación.
 3. Notificaciones por cambio de horario / cancelación (el ABM ya cancela y edita; falta avisar).

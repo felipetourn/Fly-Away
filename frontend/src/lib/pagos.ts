@@ -11,14 +11,15 @@ export interface VueloResumen {
   hora_partida: string // HH:MM:SS
 }
 
-/** Reserva demo hasta la US06 (docs/arquitectura.md, "Contrato entre reservas y pagos"). */
+/** Reserva de pasajes (US06, docs/modelo.dbml). */
 export interface Reserva {
   id: string
   vuelo: VueloResumen
   clase: Clase
   cantidad: number
+  cantidad_pasajes?: number
   monto: string // decimal como string
-  estado: 'pendiente' | 'pagada'
+  estado: 'pendiente' | 'pagada' | 'cancelada'
 }
 
 export type EstadoPago = 'pendiente' | 'aprobado' | 'rechazado'
@@ -159,7 +160,7 @@ export function mensajeCompra(p: Pick<Pago, 'estado' | 'vuelo' | 'cantidad_pasaj
     : `Tus ${p.cantidad_pasajes} pasajes para ${vueloCorto(p.vuelo)} están confirmados.`
 }
 
-export const getReservas = () => api<Reserva[]>('/pagos/reservas/')
+export const getReservas = () => api<Reserva[]>('/reservas/')
 export const getPagos = () => api<Pago[]>('/pagos/')
 export const getPago = (id: string) => api<Pago>(`/pagos/${id}/`)
 

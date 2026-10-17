@@ -4,6 +4,7 @@ import BuscadorVuelos from '../components/BuscadorVuelos'
 import FiltroPrecio from '../components/FiltroPrecio'
 import HeroCarrusel from '../components/HeroCarrusel'
 import ListaVuelos from '../components/ListaVuelos'
+import ModalReserva from '../components/ModalReserva'
 import { NOMBRE_CLASE, aParams, hoyISO, leerFiltros, validarBusqueda, type Clase, type Filtros } from '../lib/busqueda'
 import { fechaCorta, fechaLarga, hora, precio, rangoFechas } from '../lib/formato'
 import { useVuelos } from '../lib/useVuelos'
@@ -51,6 +52,7 @@ export default function Vuelos() {
   const [intentoAeropuertos, setIntentoAeropuertos] = useState(0)
   // Vuelta elegida, atada a la búsqueda (e ida) en la que se eligió. Se limpia al cambiar de búsqueda o de ida.
   const [vuelta, setVuelta] = useState<{ busqueda: string; vuelo: Vuelo } | null>(null)
+  const [vueloParaReservar, setVueloParaReservar] = useState<{ vuelo: Vuelo; clase: Clase; pasajeros: number } | null>(null)
 
   useEffect(() => {
     getAeropuertos().then(
@@ -213,15 +215,14 @@ export default function Vuelos() {
               <p className="text-sm text-slate-500">Total - {detalle}</p>
               <p className="text-3xl font-extrabold text-marino">{precio(totalPrecio)}</p>
             </div>
-            <div className="text-right">
+            <div>
               <button
                 type="button"
-                disabled
-                className="cursor-not-allowed rounded-xl bg-slate-300 px-6 py-3 font-bold text-white"
+                onClick={() => setVueloParaReservar({ vuelo: idaElegida, clase: f.clase, pasajeros: f.pasajeros })}
+                className="rounded-xl bg-naranja px-6 py-3 font-bold text-white hover:bg-naranja/90 transition-colors shadow-sm"
               >
-                Continuar
+                Reservar pasajes
               </button>
-              <p className="mt-1 text-xs text-slate-500">La compra llega pronto</p>
             </div>
           </div>
           <button type="button" onClick={cambiarIda} className="mt-4 text-sm font-bold text-cielo hover:underline">
@@ -259,6 +260,14 @@ export default function Vuelos() {
         )}
         {contenido}
       </main>
+      {vueloParaReservar && (
+        <ModalReserva
+          vuelo={vueloParaReservar.vuelo}
+          claseInicial={vueloParaReservar.clase}
+          pasajerosInicial={vueloParaReservar.pasajeros}
+          onCerrar={() => setVueloParaReservar(null)}
+        />
+      )}
     </>
   )
 }

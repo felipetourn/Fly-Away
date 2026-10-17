@@ -38,7 +38,8 @@ Fly Away/
 │   ├── config/               settings, urls, wsgi
 │   ├── usuarios/             modelo Usuario (tabla usuarios, login por email, rol)
 │   ├── vuelos/               aeropuertos, aviones, vuelos; búsqueda, detalle y ABM del administrador; comando seed
-│   └── pagos/                pagos (tarjeta simulada y Mercado Pago), reservas demo temporales
+│   ├── reservas/             reservas y pasajes (US06); selección de clase, cantidad (1..9), disponibilidad y pasajes
+│   └── pagos/                pagos (tarjeta simulada y Mercado Pago)
 └── frontend/
     ├── .env.local / .env.example
     ├── vercel.json           rewrite SPA
@@ -146,8 +147,8 @@ GET  /api/pagos/                 (pasajero) ✅ sus pagos, del más nuevo al má
 GET  /api/pagos/{id}/            (pasajero) ✅ un pago; si es de MP y está pendiente, consulta la orden y lo actualiza
 POST /api/pagos/tarjeta/         (pasajero) ✅ {reserva_id, numero, titular, vencimiento MM/AA, cvv} → 201 pago (aprobado o rechazado)
 POST /api/pagos/mercadopago/     (pasajero) ✅ {reserva_id} → 201 {pago, checkout_url}; 502 si MP no responde
-POST /api/reservas/              reservar (US06)
-GET  /api/reservas/mias/
+POST /api/reservas/              ✅ hecho — reservar (US06): vuelo, clase, cantidad (1..9), pasajeros
+GET  /api/reservas/mias/         ✅ hecho — (pasajero) sus reservas reales
 GET  /api/pasajes/{codigo}/pdf/  descarga ticket electrónico
 GET  /api/reportes/ocupacion/?vuelo=&desde=&hasta=   (admin)
 ```
