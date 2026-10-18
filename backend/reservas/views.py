@@ -1,8 +1,7 @@
 from django.core.exceptions import ValidationError
-from django.db import transaction
 from django.http import HttpResponse
 from rest_framework import status
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import APIException, NotFound
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -14,7 +13,7 @@ from .serializers import (
     PasajeDetalleSerializer,
     ReservaSerializer,
 )
-from .servicios import crear_reserva
+from .servicios import crear_reserva, crear_reservas_ida_vuelta
 from .tickets import generar_ticket_pdf
 
 
@@ -35,17 +34,7 @@ class ReservasView(APIView):
         """Crea una nueva reserva asociada al pasajero autenticado."""
         serializer = CrearReservaSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        datos = serializer.validated_data
-
-        reserva = crear_reserva(
-            usuario=request.user,
-            vuelo_id=datos['vuelo_id'],
-            clase=datos['clase'],
-            cantidad_pasajes=datos['cantidad_pasajes'],
-            pasajeros=datos.get('pasajeros'),
-            contacto_email=datos.get('contacto_email'),
-            contacto_nombre=datos.get('contacto_nombre'),
-        )
+        reserva = crear_reserva(usuario=request.user, **serializer.validated_data)
         return Response(ReservaSerializer(reserva).data, status=status.HTTP_201_CREATED)
 
 
@@ -55,25 +44,9 @@ class ReservaIdaVueltaView(APIView):
     def post(self, request):
         serializer = CrearReservaIdaVueltaSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        datos = serializer.validated_data
-
-        with transaction.atomic():
-            ida = crear_reserva(
-                usuario=request.user,
-                vuelo_id=datos['vuelo_ida'],
-                **datos['ida'],
-            )
-            vuelta = crear_reserva(
-                usuario=request.user,
-                vuelo_id=datos['vuelo_vuelta'],
-                **datos['vuelta'],
-            )
-
+        ida, vuelta = crear_reservas_ida_vuelta(request.user, **serializer.validated_data)
         return Response(
-            {
-                'ida': ReservaSerializer(ida).data,
-                'vuelta': ReservaSerializer(vuelta).data,
-            },
+            {'ida': ReservaSerializer(ida).data, 'vuelta': ReservaSerializer(vuelta).data},
             status=status.HTTP_201_CREATED,
         )
 
@@ -95,34 +68,36 @@ class ReservaDetalleView(APIView):
         return Response(ReservaSerializer(reserva).data)
 
 
+class TicketNoDisponible(APIException):
+    status_code = 400
+    default_detail = 'El ticket electrónico solo está disponible para compras confirmadas.'
+
+
+def pasaje_pagado_o_error(usuario, codigo):
+    """El pasaje si es del pasajero y la compra está confirmada; si no, 404 o 400 (el ticket no existe todavía)."""
+    pasaje = (
+        Pasaje.objects.select_related(
+            'reserva__pasajero',
+            'reserva__vuelo__avion',
+            'reserva__vuelo__aeropuerto_origen',
+            'reserva__vuelo__aeropuerto_destino',
+        )
+        .filter(codigo_pasaje=codigo, reserva__pasajero=usuario)
+        .first()
+    )
+    if not pasaje:
+        raise NotFound('No encontramos el pasaje.')
+    if pasaje.reserva.estado != Reserva.Estado.PAGADA:
+        raise TicketNoDisponible()
+    return pasaje
+
+
 class PasajeDetalleView(APIView):
     permission_classes = [EsPasajero]
 
     def get(self, request, codigo):
         """Detalle del pasaje para visualización del ticket electrónico."""
-        pasaje = (
-            Pasaje.objects.select_related(
-                'reserva__pasajero',
-                'reserva__vuelo__avion',
-                'reserva__vuelo__aeropuerto_origen',
-                'reserva__vuelo__aeropuerto_destino',
-            )
-            .filter(codigo_pasaje=codigo)
-            .first()
-        )
-        if not pasaje:
-            raise NotFound('No encontramos el pasaje.')
-
-        if pasaje.reserva.pasajero_id != request.user.id and not request.user.is_staff:
-            raise NotFound('No encontramos el pasaje.')
-
-        if pasaje.reserva.estado != Reserva.Estado.PAGADA:
-            return Response(
-                {'detail': 'El ticket electrónico solo está disponible para compras confirmadas.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        return Response(PasajeDetalleSerializer(pasaje).data)
+        return Response(PasajeDetalleSerializer(pasaje_pagado_o_error(request.user, codigo)).data)
 
 
 class TicketPdfView(APIView):
@@ -130,29 +105,7 @@ class TicketPdfView(APIView):
 
     def get(self, request, codigo):
         """Descarga del ticket electrónico en formato PDF."""
-        pasaje = (
-            Pasaje.objects.select_related(
-                'reserva__pasajero',
-                'reserva__vuelo__avion',
-                'reserva__vuelo__aeropuerto_origen',
-                'reserva__vuelo__aeropuerto_destino',
-            )
-            .filter(codigo_pasaje=codigo)
-            .first()
-        )
-        if not pasaje:
-            raise NotFound('No encontramos el pasaje.')
-
-        if pasaje.reserva.pasajero_id != request.user.id and not request.user.is_staff:
-            raise NotFound('No encontramos el pasaje.')
-
-        if pasaje.reserva.estado != Reserva.Estado.PAGADA:
-            return Response(
-                {'detail': 'El ticket electrónico solo está disponible para compras confirmadas.'},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        pdf_bytes = generar_ticket_pdf(pasaje)
-        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        pasaje = pasaje_pagado_o_error(request.user, codigo)
+        response = HttpResponse(generar_ticket_pdf(pasaje), content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="ticket-{pasaje.codigo_pasaje}.pdf"'
         return response

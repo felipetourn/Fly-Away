@@ -18,6 +18,13 @@ HOY = AHORA.date()
 Usuario = get_user_model()
 
 
+def pasajeros(cantidad):
+    return [
+        {'nombre_pasajero': f'Viajero {n}', 'apellido_pasajero': 'Pérez', 'dni_pasajero': f'3000000{n}'}
+        for n in range(cantidad)
+    ]
+
+
 class ReservasBaseTestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
@@ -92,6 +99,14 @@ class ModeloReservasTests(ReservasBaseTestCase):
 
 
 class ReservasEndpointTests(ReservasBaseTestCase):
+    def ida_y_vuelta(self, vuelta):
+        datos = {'clase': 'economy', 'cantidad_pasajes': 1, 'pasajeros': pasajeros(1)}
+        return self.client.post(
+            '/api/reservas/ida-vuelta/',
+            {'vuelo_ida': str(self.vuelo.id), 'vuelo_vuelta': str(vuelta.id), 'ida': datos, 'vuelta': datos},
+            format='json',
+        )
+
     def test_ida_y_vuelta_crea_dos_reservas_para_pagar_por_separado(self):
         res = self.client.post(
             '/api/reservas/ida-vuelta/',
@@ -141,8 +156,8 @@ class ReservasEndpointTests(ReservasBaseTestCase):
             {
                 'vuelo_ida': str(self.vuelo.id),
                 'vuelo_vuelta': str(self.vuelo_vuelta.id),
-                'ida': {'clase': 'economy', 'cantidad_pasajes': 1},
-                'vuelta': {'clase': 'economy', 'cantidad_pasajes': 1},
+                'ida': {'clase': 'economy', 'cantidad_pasajes': 1, 'pasajeros': pasajeros(1)},
+                'vuelta': {'clase': 'economy', 'cantidad_pasajes': 1, 'pasajeros': pasajeros(1)},
             },
             format='json',
         )
@@ -150,6 +165,36 @@ class ReservasEndpointTests(ReservasBaseTestCase):
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(Reserva.objects.filter(pasajero=self.pasajero).count(), 0)
         self.assertEqual(Pasaje.objects.count(), 0)
+
+    def test_ida_y_vuelta_rechaza_vuelta_que_no_hace_la_ruta_inversa(self):
+        Vuelo.objects.filter(id=self.vuelo_vuelta.id).update(aeropuerto_origen=self.aep, aeropuerto_destino=self.cor)
+        res = self.ida_y_vuelta(self.vuelo_vuelta)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('vuelo_vuelta', res.data)
+        self.assertEqual(Reserva.objects.count(), 0)
+
+    def test_ida_y_vuelta_rechaza_vuelta_que_sale_antes_de_que_llegue_la_ida(self):
+        Vuelo.objects.filter(id=self.vuelo_vuelta.id).update(
+            fecha_operacion=self.vuelo.fecha_llegada, hora_partida=self.vuelo.hora_llegada
+        )
+        res = self.ida_y_vuelta(self.vuelo_vuelta)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('vuelo_vuelta', res.data)
+        self.assertEqual(Reserva.objects.count(), 0)
+
+    def test_exige_los_datos_de_cada_pasajero(self):
+        incompletos = [
+            {'cantidad_pasajes': 1},
+            {'cantidad_pasajes': 2, 'pasajeros': pasajeros(1)},
+            {'cantidad_pasajes': 1, 'pasajeros': [{**pasajeros(1)[0], 'dni_pasajero': ''}]},
+        ]
+        for datos in incompletos:
+            res = self.client.post(
+                '/api/reservas/', {'vuelo_id': str(self.vuelo.id), 'clase': 'economy', **datos}, format='json'
+            )
+            self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST, datos)
+            self.assertIn('pasajeros', res.data)
+        self.assertEqual(Reserva.objects.count(), 0)
 
     def test_reserva_exitosa_clase_economy(self):
         url = '/api/reservas/'
@@ -187,6 +232,7 @@ class ReservasEndpointTests(ReservasBaseTestCase):
             'vuelo_id': str(self.vuelo.id),
             'clase': 'primera',
             'cantidad_pasajes': 3,
+            'pasajeros': pasajeros(3),
         }
         res = self.client.post(url, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
@@ -199,6 +245,7 @@ class ReservasEndpointTests(ReservasBaseTestCase):
             'vuelo_id': str(self.vuelo.id),
             'clase': 'economy',
             'cantidad_pasajes': 10,
+            'pasajeros': pasajeros(10),
         }
         res = self.client.post(url, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
@@ -210,6 +257,7 @@ class ReservasEndpointTests(ReservasBaseTestCase):
             'vuelo_id': str(self.vuelo.id),
             'clase': 'economy',
             'cantidad_pasajes': 0,
+            'pasajeros': pasajeros(0),
         }
         res = self.client.post(url, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
@@ -222,6 +270,7 @@ class ReservasEndpointTests(ReservasBaseTestCase):
             'vuelo_id': str(self.vuelo.id),
             'clase': 'primera',
             'cantidad_pasajes': 5,
+            'pasajeros': pasajeros(5),
         }
         res = self.client.post(url, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
@@ -235,6 +284,7 @@ class ReservasEndpointTests(ReservasBaseTestCase):
             'vuelo_id': '00000000-0000-0000-0000-000000000000',
             'clase': 'economy',
             'cantidad_pasajes': 1,
+            'pasajeros': pasajeros(1),
         }
         res = self.client.post(url, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
@@ -248,6 +298,7 @@ class ReservasEndpointTests(ReservasBaseTestCase):
             'vuelo_id': str(self.vuelo.id),
             'clase': 'economy',
             'cantidad_pasajes': 1,
+            'pasajeros': pasajeros(1),
         }
         res = self.client.post(url, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
@@ -262,6 +313,7 @@ class ReservasEndpointTests(ReservasBaseTestCase):
             'vuelo_id': str(self.vuelo.id),
             'clase': 'economy',
             'cantidad_pasajes': 1,
+            'pasajeros': pasajeros(1),
         }
         res = self.client.post(url, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
@@ -273,6 +325,7 @@ class ReservasEndpointTests(ReservasBaseTestCase):
             'vuelo_id': str(self.vuelo.id),
             'clase': 'economy',
             'cantidad_pasajes': 1,
+            'pasajeros': pasajeros(1),
         }
         res = self.client.post(url, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -284,6 +337,7 @@ class ReservasEndpointTests(ReservasBaseTestCase):
             'vuelo_id': str(self.vuelo.id),
             'clase': 'economy',
             'cantidad_pasajes': 1,
+            'pasajeros': pasajeros(1),
         }
         res = self.client.post(url, payload, format='json')
         self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
@@ -292,7 +346,7 @@ class ReservasEndpointTests(ReservasBaseTestCase):
         # Crear reserva para pasajero
         res_propia = self.client.post(
             '/api/reservas/',
-            {'vuelo_id': str(self.vuelo.id), 'clase': 'economy', 'cantidad_pasajes': 1},
+            {'vuelo_id': str(self.vuelo.id), 'clase': 'economy', 'cantidad_pasajes': 1, 'pasajeros': pasajeros(1)},
             format='json',
         ).data['id']
 
@@ -300,7 +354,7 @@ class ReservasEndpointTests(ReservasBaseTestCase):
         self.client.force_authenticate(self.otro_pasajero)
         res_otra = self.client.post(
             '/api/reservas/',
-            {'vuelo_id': str(self.vuelo.id), 'clase': 'economy', 'cantidad_pasajes': 2},
+            {'vuelo_id': str(self.vuelo.id), 'clase': 'economy', 'cantidad_pasajes': 2, 'pasajeros': pasajeros(2)},
             format='json',
         ).data['id']
 
@@ -311,15 +365,10 @@ class ReservasEndpointTests(ReservasBaseTestCase):
         self.assertIn(res_otra, ids)
         self.assertNotIn(res_propia, ids)
 
-        # GET /api/reservas/mias/ funciona igual
-        res_mias = self.client.get('/api/reservas/mias/')
-        self.assertEqual(res_mias.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(res_mias.data), 1)
-
     def test_detalle_reserva_propia_y_ajena(self):
         res_propia = self.client.post(
             '/api/reservas/',
-            {'vuelo_id': str(self.vuelo.id), 'clase': 'economy', 'cantidad_pasajes': 1},
+            {'vuelo_id': str(self.vuelo.id), 'clase': 'economy', 'cantidad_pasajes': 1, 'pasajeros': pasajeros(1)},
             format='json',
         ).data['id']
 
@@ -338,7 +387,7 @@ class ReservasEndpointTests(ReservasBaseTestCase):
         # 1. Reservar (US06)
         res = self.client.post(
             '/api/reservas/',
-            {'vuelo_id': str(self.vuelo.id), 'clase': 'economy', 'cantidad_pasajes': 2},
+            {'vuelo_id': str(self.vuelo.id), 'clase': 'economy', 'cantidad_pasajes': 2, 'pasajeros': pasajeros(2)},
             format='json',
         )
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)

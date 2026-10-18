@@ -1,5 +1,5 @@
 import secrets
-from django.core.exceptions import ValidationError
+
 from django.db import transaction
 from rest_framework.exceptions import ValidationError as DRFValidationError
 
@@ -49,7 +49,7 @@ def crear_reserva(
     vuelo_id,
     clase,
     cantidad_pasajes,
-    pasajeros=None,
+    pasajeros,
     contacto_email=None,
     contacto_nombre=None,
     vendido_por=None,
@@ -61,6 +61,8 @@ def crear_reserva(
         raise DRFValidationError({'vuelo_id': ['El vuelo seleccionado no existe.']})
 
     validar_datos_reserva(vuelo, clase, cantidad_pasajes)
+    if len(pasajeros) != cantidad_pasajes:
+        raise DRFValidationError({'pasajeros': ['Cargá los datos de cada pasajero.']})
 
     email = contacto_email or (usuario.email if usuario else '')
     nombre_contacto = contacto_nombre or (f'{usuario.nombre} {usuario.apellido}'.strip() if usuario else '')
@@ -68,32 +70,6 @@ def crear_reserva(
         raise DRFValidationError({'contacto_email': ['El correo de contacto es obligatorio.']})
 
     precio_unitario = getattr(vuelo, f'precio_{clase}')
-
-    # Preparar datos de viajeros para cada pasaje
-    lista_pasajeros = pasajeros or []
-    datos_pasajes = []
-    for i in range(cantidad_pasajes):
-        if i < len(lista_pasajeros) and isinstance(lista_pasajeros[i], dict):
-            p = lista_pasajeros[i]
-            nom = str(p.get('nombre_pasajero') or '').strip()
-            ape = str(p.get('apellido_pasajero') or '').strip()
-            dni = str(p.get('dni_pasajero') or '').strip()
-        else:
-            nom, ape, dni = '', '', ''
-
-        # Fallback al titular si no se completó
-        if not nom:
-            nom = usuario.nombre if usuario else f'Pasajero {i + 1}'
-        if not ape:
-            ape = usuario.apellido if usuario else ''
-        if not dni:
-            dni = 'S/D'
-
-        datos_pasajes.append({
-            'nombre_pasajero': nom,
-            'apellido_pasajero': ape,
-            'dni_pasajero': dni,
-        })
 
     with transaction.atomic():
         # Bloqueo del vuelo para validar disponibilidad concurrente
@@ -121,7 +97,7 @@ def crear_reserva(
             estado=Reserva.Estado.PENDIENTE,
         )
 
-        for i, datos in enumerate(datos_pasajes):
+        for i, datos in enumerate(pasajeros):
             # Asegurar código de pasaje único
             while True:
                 codigo = generar_codigo_pasaje(vuelo.numero_vuelo, i + 1)
@@ -140,3 +116,21 @@ def crear_reserva(
 
     return reserva
 
+
+def crear_reservas_ida_vuelta(usuario, vuelo_ida, vuelo_vuelta, ida, vuelta):
+    """Una reserva por tramo, las dos o ninguna. La vuelta hace la ruta inversa y sale después de que aterriza la ida."""
+    vuelos = Vuelo.objects.in_bulk([vuelo_ida, vuelo_vuelta])
+    v_ida, v_vuelta = vuelos.get(vuelo_ida), vuelos.get(vuelo_vuelta)
+    if v_ida and v_vuelta:
+        if (v_vuelta.aeropuerto_origen_id, v_vuelta.aeropuerto_destino_id) != (
+            v_ida.aeropuerto_destino_id, v_ida.aeropuerto_origen_id
+        ):
+            raise DRFValidationError({'vuelo_vuelta': ['La vuelta tiene que hacer la ruta inversa de la ida.']})
+        if (v_vuelta.fecha_operacion, v_vuelta.hora_partida) <= (v_ida.fecha_llegada, v_ida.hora_llegada):
+            raise DRFValidationError({'vuelo_vuelta': ['La vuelta tiene que salir después de que llega la ida.']})
+
+    with transaction.atomic():
+        return (
+            crear_reserva(usuario=usuario, vuelo_id=vuelo_ida, **ida),
+            crear_reserva(usuario=usuario, vuelo_id=vuelo_vuelta, **vuelta),
+        )
