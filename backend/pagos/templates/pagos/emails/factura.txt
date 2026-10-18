@@ -1,0 +1,16 @@
+Hola{% if reserva.pasajero %} {{ reserva.pasajero.nombre }}{% endif %}:
+
+Tu compra fue confirmada. Adjuntamos la factura electrónica {{ numero_factura }} en PDF.
+
+Vuelo: {{ vuelo.numero_vuelo }}
+Ruta: {{ vuelo.aeropuerto_origen.codigo_iata }} - {{ vuelo.aeropuerto_destino.codigo_iata }}
+Fecha de salida: {{ vuelo.fecha_operacion|date:"d/m/Y" }} a las {{ vuelo.hora_partida|time:"H:i" }}
+Fecha de compra: {{ fecha_pago|date:"d/m/Y H:i" }}
+Comprador: {{ comprador }}
+Medio de pago: {{ metodo_pago }}
+Total pagado: $ {{ pago.monto }}
+
+Detalle de pasajeros:
+{% for pasajero in pasajeros %}- {{ pasajero.nombre }} (DNI {{ pasajero.dni }}), {{ pasajero.clase }}: $ {{ pasajero.precio }}{% if pasajero.codigo != "—" %} · Ticket {{ pasajero.codigo }}{% endif %}
+{% endfor %}
+Gracias por viajar con Fly Away.

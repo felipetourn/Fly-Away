@@ -10,7 +10,7 @@ from rest_framework.exceptions import APIException
 from vuelos.models import Vuelo
 from vuelos.servicios import error_general, ya_salio
 
-from . import mercadopago, reservas_mock, tarjeta
+from . import factura, mercadopago, reservas_mock, tarjeta
 from .models import Pago, ReservaDemo
 
 YA_PAGADA = 'Reserva ya pagada con otro pago: corresponde devolución.'
@@ -110,7 +110,9 @@ def confirmar_compra(pago, detalle, **datos):
                     Vuelo.objects.filter(id=vuelo.id).update(**{campo: F(campo) - cantidad})
                 reservas_mock.marcar_pagada(reserva)
                 pago.estado, pago.detalle, pago.procesado_en = Pago.Estado.APROBADO, detalle, timezone.now()
+                pago.numero_factura = pago.numero_factura or factura.generar_numero_factura(pago)
                 pago.save()
+                transaction.on_commit(lambda pago_id=pago.id: factura.enviar_factura_confirmada(pago_id))
         except IntegrityError:
             guardar_resultado(pago, Pago.Estado.RECHAZADO, YA_PAGADA)
         return pago

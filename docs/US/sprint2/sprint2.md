@@ -11,9 +11,10 @@ Objetivo del sprint: el flujo de compra de pasajes (reservar, pagar, confirmar l
 | US07 | Realizar pago de los pasajes reservados | 8 | 31 | 7 | Terminada | [us07.md](us07.md) |
 | US08 | Corroborar transacción y finalizar la venta | 5 | 18 | 4 | Terminada | [us08.md](us08.md) |
 | US09 | Generar ticket electrónico | — | 17 | — | Terminada | [us09.md](us09.md) |
-| **Total** | | **17 + por estimar** | **93** | **17** | | |
+| US10 | Generar y enviar factura | — | — | — | Terminada | [us10.md](us10.md) |
+| **Total** | | **17 + por estimar** | **93 + por estimar** | **17 + por registrar** | | |
 
-Pendiente del sprint: **US10** factura por email.
+El email real en producción requiere configurar las credenciales SMTP del entorno.
 
 ## Aclaraciones generales
 

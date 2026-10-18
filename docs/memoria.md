@@ -4,6 +4,12 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-17 - US10, factura y envío por email**
+- Al aprobar una compra, `Pago.numero_factura` recibe un identificador único asociado al pago; no se asigna para pagos rechazados.
+- Se genera un PDF con datos del comprador, reserva, vuelo, pasajeros, medio, fecha e importe; se adjunta a un correo HTML/texto dirigido a `contacto_email` de la reserva.
+- El email se agenda con `transaction.on_commit()`. Fallos SMTP quedan registrados y no revierten la compra confirmada ni habilitan una segunda compra.
+- En local, Django imprime el correo por consola. En producción hay que configurar las credenciales SMTP protegidas en Render antes de verificar el envío real.
+
 **2026-10-17 - US09, ticket electrónico**
 - Cada pasaje de una reserva tiene un código individual; el detalle del ticket y su PDF solo están disponibles para el pasajero dueño cuando la reserva está pagada. Un pago pendiente o rechazado no permite visualizarlos ni descargarlos.
 - El backend genera bajo demanda un PDF por pasaje con pasajero, vuelo, fechas y horarios, ruta, clase, asiento, código y datos de reserva. La respuesta fuerza la descarga del adjunto.
@@ -158,8 +164,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 - [ ] **Devoluciones:** un pago aprobado que no pudo confirmar la compra (reserva ya pagada, vuelo cancelado o sin asientos) queda rechazado con "corresponde devolución", pero la devolución no se automatiza.
 - [x] **Integrar US06 con pagos:** al crear `Reserva`/`Pasaje`, seguir el "Contrato entre reservas y pagos" de [arquitectura.md](arquitectura.md) (completado: `pagos/reservas_mock.py` conectado con `Reserva`/`Pasaje`).
 - [x] **¿La reserva retiene asientos al crearse?** Resuelto: los asientos se descuentan únicamente al confirmarse el pago (US08); un pago rechazado no modifica disponibilidad.
-- [ ] **Proveedor de email en prod:** verificar si el plan free de Render permite SMTP saliente; si no, usar la API HTTP de un proveedor (Resend, Brevo, etc.).
-- [ ] **PDF de factura:** definir formato e implementar (US10). El PDF de los tickets ya usa `reportlab` (US09).
+- [ ] **Proveedor de email en prod:** configurar y verificar las credenciales de un SMTP/API permitido por Render; el sistema ya implementa el envío de facturas (US10).
 - [ ] **Periodo de venta:** el modelo lo toma como "fechas en que opera". Si la cátedra lo entiende como "desde cuándo se puede comprar", falta un campo (ej. `venta_desde`). Confirmar con el docente.
 - [ ] **Ida y vuelta:** son 2 reservas; si se pagan juntas, `pagos` hoy apunta a una sola reserva. Si el alcance es solo ida, no aplica.
 - [ ] **Ida y vuelta en la compra:** el front ya permite elegir ida + vuelta; al implementar la compra definir si son 2 reservas con un pago cada una o un pago para ambas (`pagos.reserva_id` hoy apunta a una sola).
@@ -168,6 +173,5 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Próximos pasos
 
-1. Sprint 2: US10 factura.
-2. Reportes de ocupación.
-3. Notificaciones por cambio de horario / cancelación (el ABM ya cancela y edita; falta avisar).
+1. Reportes de ocupación.
+2. Notificaciones por cambio de horario / cancelación (el ABM ya cancela y edita; falta avisar).

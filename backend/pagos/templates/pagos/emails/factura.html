@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+  <body style="margin:0;background:#f1f5f9;color:#0f172a;font-family:Arial,sans-serif">
+    <main style="max-width:600px;margin:24px auto;background:#fff;border-radius:16px;overflow:hidden">
+      <header style="padding:24px;background:#0f172a;color:#fff">
+        <p style="margin:0;color:#7dd3fc;font-size:12px;font-weight:bold;letter-spacing:2px">FLY AWAY</p>
+        <h1 style="margin:8px 0 0;font-size:22px">Compra confirmada</h1>
+      </header>
+      <section style="padding:24px">
+        <p>Hola{% if reserva.pasajero %} {{ reserva.pasajero.nombre }}{% endif %},</p>
+        <p>Adjuntamos tu factura electrónica en PDF.</p>
+        <p style="padding:12px;background:#f8fafc;border-radius:8px">
+          <strong>Factura:</strong> {{ numero_factura }}<br>
+          <strong>Vuelo:</strong> {{ vuelo.numero_vuelo }}<br>
+          <strong>Ruta:</strong> {{ vuelo.aeropuerto_origen.codigo_iata }} - {{ vuelo.aeropuerto_destino.codigo_iata }}<br>
+          <strong>Salida:</strong> {{ vuelo.fecha_operacion|date:"d/m/Y" }} · {{ vuelo.hora_partida|time:"H:i" }}<br>
+          <strong>Fecha de compra:</strong> {{ fecha_pago|date:"d/m/Y H:i" }}<br>
+          <strong>Comprador:</strong> {{ comprador }}<br>
+          <strong>Medio de pago:</strong> {{ metodo_pago }}
+        </p>
+        <h2 style="font-size:16px">Detalle de pasajeros</h2>
+        <ul>
+          {% for pasajero in pasajeros %}
+            <li>{{ pasajero.nombre }} (DNI {{ pasajero.dni }}), {{ pasajero.clase }}: $ {{ pasajero.precio }}{% if pasajero.codigo != "—" %} · Ticket {{ pasajero.codigo }}{% endif %}</li>
+          {% endfor %}
+        </ul>
+        <p style="font-size:20px;font-weight:bold">Total pagado: $ {{ pago.monto }}</p>
+        <p>Gracias por viajar con Fly Away.</p>
+      </section>
+    </main>
+  </body>
+</html>

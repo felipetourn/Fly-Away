@@ -1,6 +1,7 @@
 import datetime as dt
 import http.client
 import importlib
+import smtplib
 from decimal import Decimal
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
@@ -8,9 +9,11 @@ from zoneinfo import ZoneInfo
 from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.core import mail
 from django.db import IntegrityError, transaction
 from rest_framework.test import APITestCase
 
+from reservas.servicios import crear_reserva
 from vuelos.models import Aeropuerto, Avion, Vuelo
 
 from . import mercadopago, reservas_mock, servicios, tarjeta
@@ -371,6 +374,93 @@ class ConfirmacionTests(Datos):
         self.assertEqual(self.pagar(reserva).status_code, 409)
 
 
+class FacturacionTests(Datos):
+    def pagar(self, reserva_id, numero='4242424242424242'):
+        return self.client.post(
+            '/api/pagos/tarjeta/',
+            {
+                'reserva_id': str(reserva_id),
+                'numero': numero,
+                'titular': 'Ana',
+                'vencimiento': '12/30',
+                'cvv': '123',
+            },
+            format='json',
+        )
+
+    def test_compra_aprobada_asocia_y_envia_factura_pdf_al_correo_de_la_reserva(self):
+        reserva = crear_reserva(
+            usuario=self.pasajero,
+            vuelo_id=self.vuelos[0].id,
+            clase='economy',
+            cantidad_pasajes=1,
+            pasajeros=[{
+                'nombre_pasajero': 'Ana',
+                'apellido_pasajero': 'Pérez',
+                'dni_pasajero': '12345678',
+            }],
+            contacto_email='facturacion@mail.com',
+        )
+
+        with self.settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend'):
+            with self.captureOnCommitCallbacks(execute=True):
+                respuesta = self.pagar(reserva.id)
+
+        self.assertEqual((respuesta.status_code, respuesta.data['estado']), (201, 'aprobado'))
+        pago = Pago.objects.get(id=respuesta.data['id'])
+        self.assertTrue(pago.numero_factura.startswith('FA-2026-'))
+        self.assertEqual(mail.outbox[-1].to, ['facturacion@mail.com'])
+        self.assertIn(pago.numero_factura, mail.outbox[-1].subject)
+        self.assertEqual(len(mail.outbox[-1].attachments), 1)
+        nombre, contenido, tipo = mail.outbox[-1].attachments[0]
+        self.assertEqual((nombre, tipo), (f'factura-{pago.numero_factura}.pdf', 'application/pdf'))
+        self.assertTrue(contenido.startswith(b'%PDF'))
+        self.assertIn('12345678', mail.outbox[-1].alternatives[0][0])
+
+    def test_pago_rechazado_no_genera_factura_ni_envia_correo(self):
+        reserva = self.reserva()
+
+        with self.settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend'):
+            with self.captureOnCommitCallbacks(execute=True):
+                respuesta = self.pagar(reserva.id, numero='4000000000000002')
+
+        self.assertEqual(respuesta.data['estado'], 'rechazado')
+        pago = Pago.objects.get(id=respuesta.data['id'])
+        self.assertIsNone(pago.numero_factura)
+        self.assertEqual(mail.outbox, [])
+
+    def test_error_de_correo_no_revierte_ni_duplica_la_compra(self):
+        reserva = self.reserva(cantidad=2)
+
+        with patch('pagos.factura.EmailMultiAlternatives.send', side_effect=smtplib.SMTPException('Sin conexión')):
+            with self.assertLogs('pagos.factura', level='ERROR'):
+                with self.captureOnCommitCallbacks(execute=True):
+                    respuesta = self.pagar(reserva.id)
+
+        self.assertEqual((respuesta.status_code, respuesta.data['estado']), (201, 'aprobado'))
+        pago = Pago.objects.get(id=respuesta.data['id'])
+        self.assertTrue(pago.numero_factura)
+        reserva.refresh_from_db()
+        self.assertEqual(reserva.estado, 'pagada')
+        self.assertEqual(Pago.objects.filter(reserva_id=reserva.id, estado=Pago.Estado.APROBADO).count(), 1)
+        self.vuelos[0].refresh_from_db()
+        self.assertEqual(self.vuelos[0].asientos_disponibles_economy, 28)
+        self.assertEqual(self.pagar(reserva.id).status_code, 409)
+        self.assertEqual(Pago.objects.filter(reserva_id=reserva.id, estado=Pago.Estado.APROBADO).count(), 1)
+
+    def test_confirmar_compra_idempotente_no_reenvia_factura(self):
+        reserva = self.reserva()
+        with self.settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend'):
+            with self.captureOnCommitCallbacks(execute=True):
+                respuesta = self.pagar(reserva.id)
+
+            pago = Pago.objects.get(id=respuesta.data['id'])
+            with self.captureOnCommitCallbacks(execute=True):
+                servicios.confirmar_compra(pago, 'Pago aprobado.')
+
+        self.assertEqual(len(mail.outbox), 1)
+
+
 @patch('pagos.mercadopago.cuenta_del_comprador', new=lambda pago_id: None)
 @patch('pagos.mercadopago.cancelar_orden')
 @patch('pagos.mercadopago.consultar_orden')
@@ -394,6 +484,21 @@ class PagoMercadoPagoTests(Datos):
         self.vuelos[0].refresh_from_db()
         reserva.refresh_from_db()
         self.assertEqual((self.vuelos[0].asientos_disponibles_primera, reserva.estado), (10, 'pagada'))
+
+    def test_aprobacion_de_mp_tambien_envia_factura(self, crear, consultar, cancelar):
+        reserva = self.reserva()
+        pago_id = self.pagar(reserva).data['pago']['id']
+        consultar.return_value = self.APROBADA
+
+        with self.settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend'):
+            with self.captureOnCommitCallbacks(execute=True):
+                respuesta = self.client.get(f'/api/pagos/{pago_id}/')
+
+        self.assertEqual(respuesta.data['estado'], 'aprobado')
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, [self.pasajero.email])
+        pago = Pago.objects.get(id=pago_id)
+        self.assertIn(pago.numero_factura, mail.outbox[0].subject)
 
     def test_rechazado_de_mp_no_toca_asientos(self, crear, consultar, cancelar):
         reserva = self.reserva(cantidad=2)

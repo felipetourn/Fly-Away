@@ -23,7 +23,7 @@ def _reservas_demo(usuario):
 
 def _reservas_reales(usuario):
     return Reserva.objects.filter(pasajero=usuario).select_related(
-        'vuelo__aeropuerto_origen', 'vuelo__aeropuerto_destino'
+        'pasajero', 'vuelo__aeropuerto_origen', 'vuelo__aeropuerto_destino'
     ).prefetch_related('pasajes')
 
 
@@ -88,10 +88,19 @@ def monto_de(reserva):
 
 def reserva_de_pago(pago):
     """La reserva de un pago, sin filtrar por usuario (lo usa la confirmación de MP); None si no existe."""
-    reserva = Reserva.objects.select_related('vuelo').prefetch_related('pasajes').filter(id=pago.reserva_id).first()
+    reserva = (
+        Reserva.objects.select_related(
+            'pasajero', 'vuelo__aeropuerto_origen', 'vuelo__aeropuerto_destino'
+        )
+        .prefetch_related('pasajes')
+        .filter(id=pago.reserva_id)
+        .first()
+    )
     if reserva:
         return reserva
-    return ReservaDemo.objects.select_related('vuelo').filter(id=pago.reserva_id).first()
+    return ReservaDemo.objects.select_related(
+        'pasajero', 'vuelo__aeropuerto_origen', 'vuelo__aeropuerto_destino'
+    ).filter(id=pago.reserva_id).first()
 
 
 def marcar_pagada(reserva):
