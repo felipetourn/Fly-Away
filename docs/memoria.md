@@ -4,10 +4,15 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-18 - US10, factura por la API de Brevo (rama `feat/us10-brevo`)**
+- Los mails salen por la API HTTP de Brevo con `django-anymail` (`BREVO_API_KEY`); Render free bloquea el SMTP. Sin la clave, van a la consola.
+- `factura.py`: también ataja los errores de anymail (`AnymailError`), sin la rama muerta de reservas demo; los templates usan "-" en lugar de "·".
+- En Render: `BREVO_API_KEY`, `DEFAULT_FROM_EMAIL` con el remitente verificado en Brevo, y sin `EMAIL_BACKEND` smtp.
+
 **2026-10-18 - Timeout del SMTP (rama `fix/email-timeout`)**
 - En Render el pago con tarjeta se colgaba: la conexión SMTP de la factura nunca respondía (Render free bloquea los puertos SMTP salientes), gunicorn mataba el worker a los 30 s y el navegador mostraba "Failed to fetch" con el pago ya aprobado.
 - `EMAIL_TIMEOUT` (5 s por defecto): la conexión falla rápido, `factura.py` registra el error y el pago responde 201.
-- La factura no sale desde Render free por SMTP: hace falta un proveedor por API HTTP (Resend, Brevo, etc.), pendiente de la US10.
+- La factura no sale desde Render free por SMTP: se resolvió con la API de Brevo (ver la entrada de la US10).
 
 **2026-10-18 - Pago confirmado sin error visible**
 - Un error al armar o enviar la factura ya no devuelve 500 en el pago: el callback de `on_commit` es `robust=True`. El pago queda aprobado y la reserva pagada aunque falle la factura (antes el navegador mostraba "Failed to fetch" y, al reintentar, "La reserva ya está pagada").
@@ -189,7 +194,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 - [ ] **Devoluciones:** un pago aprobado que no pudo confirmar la compra (reserva ya pagada, vuelo cancelado o sin asientos) queda rechazado con "corresponde devolución", pero la devolución no se automatiza.
 - [x] **Integrar US06 con pagos:** `reservas_mock.py` sobre `Reserva`/`Pasaje`, FK en `pagos.reserva_id` y `reservas_demo` eliminada (migración `pagos/0004`).
 - [x] **¿La reserva retiene asientos al crearse?** Resuelto: los asientos se descuentan únicamente al confirmarse el pago (US08); un pago rechazado no modifica disponibilidad.
-- [ ] **Proveedor de email en prod:** configurar y verificar las credenciales de un SMTP/API permitido por Render; el sistema ya implementa el envío de facturas (US10).
+- [x] **Proveedor de email en prod:** API de Brevo con `django-anymail` (Render free bloquea el SMTP).
 - [ ] **Periodo de venta:** el modelo lo toma como "fechas en que opera". Si la cátedra lo entiende como "desde cuándo se puede comprar", falta un campo (ej. `venta_desde`). Confirmar con el docente.
 - [x] **Ida y vuelta en la compra:** resuelto, son 2 reservas con un pago cada una.
 - [ ] ¿El empleado de mostrador puede cancelar/modificar reservas?
