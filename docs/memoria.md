@@ -4,6 +4,11 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-18 - Pago confirmado sin error visible**
+- Un error al armar o enviar la factura ya no devuelve 500 en el pago: el callback de `on_commit` es `robust=True`. El pago queda aprobado y la reserva pagada aunque falle la factura (antes el navegador mostraba "Failed to fetch" y, al reintentar, "La reserva ya está pagada").
+- Al pagar con éxito, `/pagos/:id` abre un diálogo con los tickets de cada pasajero para descargar el PDF y la línea "Enviando la factura a tu correo…". Ese texto es fijo: el envío de la factura todavía no se verifica desde la pantalla (lo arregla la US10).
+- Pendiente de US10: el envío de la factura sigue dentro de la petición; sin `EMAIL_TIMEOUT` un SMTP colgado puede demorar la respuesta.
+
 **2026-10-18 - Revisión de las US06 y US09 e integración real con pagos (rama `fix/sprint2-integracion-reservas`)**
 - Pagos trabaja solo con reservas reales: se eliminaron `ReservaDemo`, el endpoint `/api/pagos/reservas/` y la creación de reservas de prueba al abrir "Mis pagos" (en producción permitía pagar reservas inventadas). `pagos.reserva_id` pasa a `ForeignKey`.
 - **Migraciones `reservas/0002`** (orden de `Pasaje`, faltaba desde la US09) y **`pagos/0004`** (borra los pagos de prueba de reservas demo, FK y elimina `reservas_demo`). Aplicarlas en Supabase al desplegar.

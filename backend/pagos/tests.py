@@ -383,6 +383,16 @@ class FacturacionTests(Datos):
         self.assertIsNone(pago.numero_factura)
         self.assertEqual(mail.outbox, [])
 
+    def test_error_al_armar_la_factura_no_tumba_la_compra(self):
+        reserva = self.reserva()
+        with patch('pagos.factura.render_to_string', side_effect=RuntimeError('template roto')):
+            with self.captureOnCommitCallbacks(execute=True):
+                respuesta = self.pagar(reserva.id)
+
+        self.assertEqual((respuesta.status_code, respuesta.data['estado']), (201, 'aprobado'))
+        reserva.refresh_from_db()
+        self.assertEqual(reserva.estado, 'pagada')
+
     def test_error_de_correo_no_revierte_ni_duplica_la_compra(self):
         reserva = self.reserva(cantidad=2)
 
