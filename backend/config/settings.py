@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
+    'anymail',
     'usuarios',
     'vuelos',
     'reservas',
@@ -111,15 +112,19 @@ CORS_ALLOWED_ORIGINS = env_list('CORS_ALLOWED_ORIGINS', 'http://localhost:5173')
 CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS')
 
 # --- Email (pasajes, facturas, notificaciones) ---
-# En local se imprimen en consola; en prod poner EMAIL_BACKEND smtp + credenciales.
-EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+# Con BREVO_API_KEY los mails salen por la API HTTP de Brevo (Render free bloquea el SMTP); sin ella, a la consola.
+# EMAIL_BACKEND explícito gana sobre las dos.
 EMAIL_HOST = os.getenv('EMAIL_HOST', '')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
-# Sin timeout, un SMTP que no responde (Render free bloquea los puertos salientes) cuelga el pago hasta que gunicorn mata el worker.
+# Sin timeout, un SMTP o una API de correo que no responde cuelga el pago hasta que gunicorn mata el worker.
 EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', '5'))
+ANYMAIL = {'BREVO_API_KEY': os.getenv('BREVO_API_KEY', ''), 'REQUESTS_TIMEOUT': EMAIL_TIMEOUT}
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND') or (
+    'anymail.backends.brevo.EmailBackend' if ANYMAIL['BREVO_API_KEY'] else 'django.core.mail.backends.console.EmailBackend'
+)
 DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'Fly Away <no-reply@flyaway.local>')
 
 # --- Mercado Pago (Checkout Pro, API de Orders) ---
