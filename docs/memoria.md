@@ -195,6 +195,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 - [x] **Integrar US06 con pagos:** `reservas_mock.py` sobre `Reserva`/`Pasaje`, FK en `pagos.reserva_id` y `reservas_demo` eliminada (migración `pagos/0004`).
 - [x] **¿La reserva retiene asientos al crearse?** Resuelto: los asientos se descuentan únicamente al confirmarse el pago (US08); un pago rechazado no modifica disponibilidad.
 - [x] **Proveedor de email en prod:** API de Brevo con `django-anymail` (Render free bloquea el SMTP).
+- [ ] **Estado real del envío de la factura:** el diálogo de tickets dice "Enviando la factura a tu correo…" fijo. Propuesta: guardar `pagos.factura_enviada_en` al aceptar Brevo el mail (migración y DBML) y mostrar "Te enviamos la factura a …" o "No pudimos enviar la factura".
 - [ ] **Periodo de venta:** el modelo lo toma como "fechas en que opera". Si la cátedra lo entiende como "desde cuándo se puede comprar", falta un campo (ej. `venta_desde`). Confirmar con el docente.
 - [x] **Ida y vuelta en la compra:** resuelto, son 2 reservas con un pago cada una.
 - [ ] ¿El empleado de mostrador puede cancelar/modificar reservas?
