@@ -13,7 +13,7 @@
           <strong>Factura:</strong> {{ numero_factura }}<br>
           <strong>Vuelo:</strong> {{ vuelo.numero_vuelo }}<br>
           <strong>Ruta:</strong> {{ vuelo.aeropuerto_origen.codigo_iata }} - {{ vuelo.aeropuerto_destino.codigo_iata }}<br>
-          <strong>Salida:</strong> {{ vuelo.fecha_operacion|date:"d/m/Y" }} · {{ vuelo.hora_partida|time:"H:i" }}<br>
+          <strong>Salida:</strong> {{ vuelo.fecha_operacion|date:"d/m/Y" }} - {{ vuelo.hora_partida|time:"H:i" }}<br>
           <strong>Fecha de compra:</strong> {{ fecha_pago|date:"d/m/Y H:i" }}<br>
           <strong>Comprador:</strong> {{ comprador }}<br>
           <strong>Medio de pago:</strong> {{ metodo_pago }}
@@ -21,7 +21,7 @@
         <h2 style="font-size:16px">Detalle de pasajeros</h2>
         <ul>
           {% for pasajero in pasajeros %}
-            <li>{{ pasajero.nombre }} (DNI {{ pasajero.dni }}), {{ pasajero.clase }}: $ {{ pasajero.precio }}{% if pasajero.codigo != "—" %} · Ticket {{ pasajero.codigo }}{% endif %}</li>
+            <li>{{ pasajero.nombre }} (DNI {{ pasajero.dni }}), {{ pasajero.clase }}: $ {{ pasajero.precio }} - Ticket {{ pasajero.codigo }}</li>
           {% endfor %}
         </ul>
         <p style="font-size:20px;font-weight:bold">Total pagado: $ {{ pago.monto }}</p>

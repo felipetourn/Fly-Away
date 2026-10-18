@@ -5,6 +5,7 @@ from decimal import Decimal
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+from anymail.exceptions import AnymailAPIError
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import mail
@@ -392,6 +393,15 @@ class FacturacionTests(Datos):
         self.assertEqual((respuesta.status_code, respuesta.data['estado']), (201, 'aprobado'))
         reserva.refresh_from_db()
         self.assertEqual(reserva.estado, 'pagada')
+
+    def test_error_de_la_api_de_correo_no_tumba_la_compra(self):
+        reserva = self.reserva()
+        with patch('pagos.factura.EmailMultiAlternatives.send', side_effect=AnymailAPIError('Brevo respondió 401')):
+            with self.assertLogs('pagos.factura', level='ERROR'):
+                with self.captureOnCommitCallbacks(execute=True):
+                    respuesta = self.pagar(reserva.id)
+
+        self.assertEqual((respuesta.status_code, respuesta.data['estado']), (201, 'aprobado'))
 
     def test_error_de_correo_no_revierte_ni_duplica_la_compra(self):
         reserva = self.reserva(cantidad=2)

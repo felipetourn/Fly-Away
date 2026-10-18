@@ -11,6 +11,6 @@ Medio de pago: {{ metodo_pago }}
 Total pagado: $ {{ pago.monto }}
 
 Detalle de pasajeros:
-{% for pasajero in pasajeros %}- {{ pasajero.nombre }} (DNI {{ pasajero.dni }}), {{ pasajero.clase }}: $ {{ pasajero.precio }}{% if pasajero.codigo != "—" %} · Ticket {{ pasajero.codigo }}{% endif %}
+{% for pasajero in pasajeros %}- {{ pasajero.nombre }} (DNI {{ pasajero.dni }}), {{ pasajero.clase }}: $ {{ pasajero.precio }} - Ticket {{ pasajero.codigo }}
 {% endfor %}
 Gracias por viajar con Fly Away.

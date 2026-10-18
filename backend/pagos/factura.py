@@ -3,6 +3,7 @@ import io
 import logging
 import smtplib
 
+from anymail.exceptions import AnymailError
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
@@ -10,8 +11,6 @@ from django.utils import timezone
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
-
-from reservas.models import Reserva
 
 from . import reservas_mock
 from .models import Pago
@@ -27,33 +26,19 @@ def generar_numero_factura(pago):
 
 def _datos_factura(pago, reserva):
     vuelo = reserva.vuelo
-    if isinstance(reserva, Reserva):
-        pasajeros = [
-            {
-                'nombre': f'{pasaje.nombre_pasajero} {pasaje.apellido_pasajero}'.strip(),
-                'dni': pasaje.dni_pasajero,
-                'clase': pasaje.get_clase_display(),
-                'codigo': pasaje.codigo_pasaje,
-                'precio': pasaje.precio,
-            }
-            for pasaje in reserva.pasajes.all()
-        ]
-        destinatario = reserva.contacto_email or (reserva.pasajero.email if reserva.pasajero_id else '')
-        comprador = reserva.contacto_nombre
-        if not comprador and reserva.pasajero_id:
-            comprador = f'{reserva.pasajero.nombre} {reserva.pasajero.apellido}'.strip()
-    else:
-        pasajeros = [
-            {
-                'nombre': f'Pasajero {indice}',
-                'dni': '—',
-                'clase': clase.title(),
-                'codigo': '—',
-                'precio': precio,
-            }
-            for indice, (clase, precio) in enumerate(reservas_mock.pasajes_de(reserva), start=1)
-        ]
-        destinatario = reserva.pasajero.email
+    pasajeros = [
+        {
+            'nombre': f'{pasaje.nombre_pasajero} {pasaje.apellido_pasajero}'.strip(),
+            'dni': pasaje.dni_pasajero,
+            'clase': pasaje.get_clase_display(),
+            'codigo': pasaje.codigo_pasaje,
+            'precio': pasaje.precio,
+        }
+        for pasaje in reserva.pasajes.all()
+    ]
+    destinatario = reserva.contacto_email or (reserva.pasajero.email if reserva.pasajero_id else '')
+    comprador = reserva.contacto_nombre
+    if not comprador and reserva.pasajero_id:
         comprador = f'{reserva.pasajero.nombre} {reserva.pasajero.apellido}'.strip()
 
     return {
@@ -189,7 +174,7 @@ def enviar_factura_confirmada(pago_id):
 
     try:
         enviados = correo.send(fail_silently=False)
-    except (OSError, smtplib.SMTPException):
+    except (OSError, smtplib.SMTPException, AnymailError):
         logger.exception('Falló el envío de la factura %s a %s.', pago.numero_factura, datos['destinatario'])
         return False
 

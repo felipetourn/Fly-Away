@@ -8,3 +8,4 @@ python-dotenv>=1.0
 gunicorn>=23
 whitenoise>=6.7
 reportlab>=4.0
+django-anymail[brevo]>=13
