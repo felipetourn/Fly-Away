@@ -32,7 +32,7 @@ export default function Ticket() {
     <main className="mx-auto max-w-3xl px-4 py-16">
       <article className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <header className="bg-marino px-6 py-6 text-white sm:px-8">
-          <p className="text-sm font-bold uppercase tracking-widest text-sky-300">Fly Away · Ticket electrónico</p>
+          <p className="text-sm font-bold uppercase tracking-widest text-sky-300">Fly Away - Ticket electrónico</p>
           <h1 className="mt-2 text-3xl font-extrabold">Ticket de {ticket.nombre_pasajero} {ticket.apellido_pasajero}</h1>
           <p className="mt-2 font-mono text-sm">{ticket.codigo_pasaje}</p>
         </header>
@@ -59,13 +59,13 @@ export default function Ticket() {
           <div>
             <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Salida</dt>
             <dd className="mt-1 font-semibold text-marino">
-              {fechaCorta(ticket.vuelo.fecha_operacion)} · {hora(ticket.vuelo.hora_partida)}
+              {fechaCorta(ticket.vuelo.fecha_operacion)} - {hora(ticket.vuelo.hora_partida)}
             </dd>
           </div>
           <div>
             <dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Llegada</dt>
             <dd className="mt-1 font-semibold text-marino">
-              {fechaCorta(ticket.vuelo.fecha_llegada)} · {hora(ticket.vuelo.hora_llegada)}
+              {fechaCorta(ticket.vuelo.fecha_llegada)} - {hora(ticket.vuelo.hora_llegada)}
             </dd>
           </div>
           {ticket.asiento && (
