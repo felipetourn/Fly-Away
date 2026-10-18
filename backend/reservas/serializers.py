@@ -20,6 +20,7 @@ class VueloResumenSerializer(serializers.ModelSerializer):
             'fecha_llegada',
             'hora_partida',
             'hora_llegada',
+            'estado',
         ]
 
 
@@ -73,19 +74,15 @@ class PasajeDetalleSerializer(serializers.ModelSerializer):
 
 
 class PasajeroInputSerializer(serializers.Serializer):
-    nombre_pasajero = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    apellido_pasajero = serializers.CharField(max_length=100, required=False, allow_blank=True)
-    dni_pasajero = serializers.CharField(max_length=30, required=False, allow_blank=True)
+    nombre_pasajero = serializers.CharField(max_length=100)
+    apellido_pasajero = serializers.CharField(max_length=100)
+    dni_pasajero = serializers.CharField(max_length=30)
 
 
 class DatosReservaSerializer(serializers.Serializer):
     clase = serializers.ChoiceField(choices=Pasaje.Clase.choices)
     cantidad_pasajes = serializers.IntegerField(min_value=1, max_value=9)
-    pasajeros = serializers.ListField(
-        child=PasajeroInputSerializer(),
-        required=False,
-        allow_empty=True,
-    )
+    pasajeros = serializers.ListField(child=PasajeroInputSerializer())
     contacto_email = serializers.EmailField(required=False, allow_blank=True)
     contacto_nombre = serializers.CharField(max_length=150, required=False, allow_blank=True)
 

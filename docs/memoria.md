@@ -4,6 +4,13 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-18 - Revisión de las US06 y US09 e integración real con pagos (rama `fix/sprint2-integracion-reservas`)**
+- Pagos trabaja solo con reservas reales: se eliminaron `ReservaDemo`, el endpoint `/api/pagos/reservas/` y la creación de reservas de prueba al abrir "Mis pagos" (en producción permitía pagar reservas inventadas). `pagos.reserva_id` pasa a `ForeignKey`.
+- **Migraciones `reservas/0002`** (orden de `Pasaje`, faltaba desde la US09) y **`pagos/0004`** (borra los pagos de prueba de reservas demo, FK y elimina `reservas_demo`). Aplicarlas en Supabase al desplegar.
+- El backend exige nombre, apellido y DNI de cada pasajero, uno por pasaje (antes completaba con el titular y DNI "S/D").
+- Ida y vuelta: el backend valida que la vuelta haga la ruta inversa y salga después de que llega la ida (misma regla que `vueltasPosibles` del front).
+- "Mis reservas" no ofrece pagar una reserva cuyo vuelo se canceló o ya salió. `GET /api/reservas/mias/` se quitó (duplicaba `GET /api/reservas/`).
+
 **2026-10-18 - Reservas de ida y vuelta con pagos separados**
 - La selección de ida y vuelta conserva ambos vuelos y muestra un panel de configuración independiente para cada tramo.
 - Ida y vuelta pueden tener distinta clase, cantidad y datos de pasajeros; el backend crea una reserva pendiente por tramo dentro de una transacción.
@@ -21,11 +28,11 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 - Cada pasaje de una reserva tiene un código individual; el detalle del ticket y su PDF solo están disponibles para el pasajero dueño cuando la reserva está pagada. Un pago pendiente o rechazado no permite visualizarlos ni descargarlos.
 - El backend genera bajo demanda un PDF por pasaje con pasajero, vuelo, fechas y horarios, ruta, clase, asiento, código y datos de reserva. La respuesta fuerza la descarga del adjunto.
 - Frontend: las reservas confirmadas enlazan al detalle visual de cada ticket y desde allí se descarga el PDF autenticado. El resultado de pago aprobado enlaza a “Mis reservas”.
-- No requiere cambios de modelo ni migraciones: `Pasaje` ya relaciona cada ticket con su reserva y conserva los datos del viajero.
+- `Pasaje` ya relaciona cada ticket con su reserva y conserva los datos del viajero. El orden de los pasajes por código necesitó la migración `reservas/0002`.
 
 **2026-10-17 - US06, reservar pasajes (rama `feat/sprint2-reservas`)**
 - App `reservas`: modelos `Reserva` y `Pasaje` con los nombres y constraints de `modelo.dbml` (`reservas`, `pasajes`).
-- Endpoints `POST /api/reservas/`, `GET /api/reservas/` y `GET /api/reservas/mias/`, protegidos para rol pasajero.
+- Endpoints `POST /api/reservas/` y `GET /api/reservas/`, protegidos para rol pasajero.
 - Reglas validadas en backend bajo transacción con `select_for_update()` sobre el vuelo: 1 a 9 pasajes, vuelo activo y futuro, y disponibilidad de asientos suficiente en la clase solicitada. Si no hay lugar, se rechaza informando el motivo.
 - La reserva persiste temporalmente en `estado = pendiente` y genera un pasaje individual por viajero con su código de pasaje único y precio congelado.
 - Integración con `pagos`: `reservas_mock.py` conecta directamente con `Reserva` y `Pasaje`. Al pagar una reserva con tarjeta o Mercado Pago, se confirma la compra y se descuentan los asientos del vuelo en su clase.
@@ -125,7 +132,8 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 | Fecha | Decisión | Motivo |
 |---|---|---|
 | 2026-10-17 | La reserva de pasajes se crea en estado 'pendiente' y genera pasajes con precio congelado | Cumple que la reserva no es compra confirmada y asegura el precio al momento de reservar |
-| 2026-10-17 | `reservas_mock.py` opera transparentemente sobre `Reserva` y `Pasaje` | Permite el flujo completo US06 -> US07 -> US08 sin romper compatibilidad con los tests de pagos |
+| 2026-10-18 | Se elimina `reservas_demo` y `pagos.reserva_id` pasa a FK; se borran los pagos de prueba | Con reservas reales, las demo dejaban pagar reservas inventadas en producción |
+| 2026-10-18 | Ida y vuelta = dos reservas, cada una con su pago | Cada tramo puede tener otra clase y cantidad; `pagos` sigue apuntando a una sola reserva |
 | 2026-10-15 | Los asientos se descuentan solo al confirmarse el pago, no al iniciarlo ni al reservar | Cumple "un pago rechazado no modifica definitivamente la disponibilidad" sin retenciones que liberar; si con MP no quedan asientos al aprobarse, se marca para devolución |
 | 2026-10-15 | Mastercard acepta el prefijo 50 en la tarjeta simulada | La tarjeta de prueba de MP (5031...) también vale en el formulario propio |
 | 2026-10-15 | Antes de otro intento, una orden de MP sin pagar se cancela; una en proceso bloquea (409) | Evita cobrar dos veces la misma reserva |
@@ -169,12 +177,11 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 - [ ] **Webhook de Mercado Pago:** hoy el estado se consulta al volver del checkout; con webhook se confirmaría aunque el pasajero cierre la pestaña.
 - [ ] **Devoluciones:** un pago aprobado que no pudo confirmar la compra (reserva ya pagada, vuelo cancelado o sin asientos) queda rechazado con "corresponde devolución", pero la devolución no se automatiza.
-- [x] **Integrar US06 con pagos:** al crear `Reserva`/`Pasaje`, seguir el "Contrato entre reservas y pagos" de [arquitectura.md](arquitectura.md) (completado: `pagos/reservas_mock.py` conectado con `Reserva`/`Pasaje`).
+- [x] **Integrar US06 con pagos:** `reservas_mock.py` sobre `Reserva`/`Pasaje`, FK en `pagos.reserva_id` y `reservas_demo` eliminada (migración `pagos/0004`).
 - [x] **¿La reserva retiene asientos al crearse?** Resuelto: los asientos se descuentan únicamente al confirmarse el pago (US08); un pago rechazado no modifica disponibilidad.
 - [ ] **Proveedor de email en prod:** configurar y verificar las credenciales de un SMTP/API permitido por Render; el sistema ya implementa el envío de facturas (US10).
 - [ ] **Periodo de venta:** el modelo lo toma como "fechas en que opera". Si la cátedra lo entiende como "desde cuándo se puede comprar", falta un campo (ej. `venta_desde`). Confirmar con el docente.
-- [ ] **Ida y vuelta:** son 2 reservas; si se pagan juntas, `pagos` hoy apunta a una sola reserva. Si el alcance es solo ida, no aplica.
-- [ ] **Ida y vuelta en la compra:** el front ya permite elegir ida + vuelta; al implementar la compra definir si son 2 reservas con un pago cada una o un pago para ambas (`pagos.reserva_id` hoy apunta a una sola).
+- [x] **Ida y vuelta en la compra:** resuelto, son 2 reservas con un pago cada una.
 - [ ] ¿El empleado de mostrador puede cancelar/modificar reservas?
 - [ ] **Extender un vuelo existente:** un alta nueva siempre recibe un número nuevo. Si hace falta sumar fechas a un número ya usado, agregar un campo opcional al alta.
 

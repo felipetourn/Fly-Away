@@ -1,38 +1,7 @@
 import uuid
 
-from django.conf import settings
 from django.db import models
 from django.db.models import Q
-
-
-class ReservaDemo(models.Model):
-    """ponytail: reserva temporal hasta la US06; la reemplaza `reservas` del DBML.
-
-    Ver "Contrato entre reservas (US06) y pagos" en docs/arquitectura.md. Se borra con una migración al integrar.
-    """
-
-    class Clase(models.TextChoices):
-        ECONOMY = 'economy', 'Economy'
-        PRIMERA = 'primera', 'Primera'
-
-    class Estado(models.TextChoices):
-        PENDIENTE = 'pendiente', 'Pendiente'
-        PAGADA = 'pagada', 'Pagada'  # compra confirmada (US08)
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    pasajero = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reservas_demo')
-    vuelo = models.ForeignKey('vuelos.Vuelo', on_delete=models.PROTECT, related_name='reservas_demo')
-    clase = models.CharField(max_length=10, choices=Clase.choices)
-    cantidad = models.IntegerField()
-    estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.PENDIENTE)
-    creado_en = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = 'reservas_demo'
-        ordering = ['vuelo__fecha_operacion', 'vuelo__hora_partida', 'id']
-        constraints = [
-            models.CheckConstraint(condition=Q(cantidad__gte=1, cantidad__lte=9), name='reserva_demo_cantidad_1_a_9'),
-        ]
 
 
 class Pago(models.Model):
@@ -48,8 +17,7 @@ class Pago(models.Model):
         MERCADOPAGO = 'mercadopago', 'Mercado Pago'
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    # ponytail: UUID sin FK mientras las reservas sean demo; pasa a ForeignKey a `reservas` con la US06.
-    reserva_id = models.UUIDField()
+    reserva = models.ForeignKey('reservas.Reserva', on_delete=models.PROTECT, related_name='pagos')
     monto = models.DecimalField(max_digits=10, decimal_places=2)
     estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.PENDIENTE)
     metodo_pago = models.CharField(max_length=20, choices=Metodo.choices)
@@ -67,7 +35,7 @@ class Pago(models.Model):
         ordering = ['-creado_en', 'id']
         constraints = [
             models.UniqueConstraint(
-                fields=['reserva_id'], condition=Q(estado='aprobado'), name='pago_un_aprobado_por_reserva'
+                fields=['reserva'], condition=Q(estado='aprobado'), name='pago_un_aprobado_por_reserva'
             ),
         ]
 

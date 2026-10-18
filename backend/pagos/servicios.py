@@ -11,7 +11,7 @@ from vuelos.models import Vuelo
 from vuelos.servicios import error_general, ya_salio
 
 from . import factura, mercadopago, reservas_mock, tarjeta
-from .models import Pago, ReservaDemo
+from .models import Pago
 
 YA_PAGADA = 'Reserva ya pagada con otro pago: corresponde devolución.'
 SIN_ASIENTOS = 'No quedaban asientos al confirmar el pago: corresponde devolución.'
@@ -36,7 +36,7 @@ def validar_reserva(reserva):
     """Chequeos para cobrar, con el vuelo bloqueado. Llamar dentro de transaction.atomic(). Devuelve el vuelo bloqueado."""
     vuelo = Vuelo.objects.select_for_update().get(id=reserva.vuelo_id)
     reserva.refresh_from_db(fields=['estado'])  # leída antes del lock
-    if reserva.estado in (ReservaDemo.Estado.PAGADA, 'pagada'):
+    if reservas_mock.esta_pagada(reserva):
         raise Conflicto()
     pagos = Pago.objects.filter(reserva_id=reserva.id)
     if pagos.filter(estado=Pago.Estado.APROBADO).exists():
@@ -47,7 +47,7 @@ def validar_reserva(reserva):
         raise error_general('El vuelo fue cancelado.')
     if ya_salio(vuelo):
         raise error_general('El vuelo ya salió.')
-    # ponytail: las reservas demo no retienen asientos; si la Reserva de la US06 los retiene, este chequeo cambia.
+    # ponytail: una reserva pendiente no retiene asientos, así que el lugar se vuelve a chequear al cobrar.
     if _motivo_sin_lugar(reserva, vuelo):
         raise error_general('No quedan asientos suficientes en el vuelo.')
     return vuelo
@@ -77,7 +77,7 @@ def _motivo_sin_lugar(reserva, vuelo):
 
 
 def _motivo_para_no_vender(reserva, vuelo):
-    if reserva.estado in (ReservaDemo.Estado.PAGADA, 'pagada'):
+    if reservas_mock.esta_pagada(reserva):
         return YA_PAGADA
     if vuelo.estado == Vuelo.Estado.CANCELADO or ya_salio(vuelo):
         return VUELO_NO_DISPONIBLE

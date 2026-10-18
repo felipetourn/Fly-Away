@@ -3,13 +3,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import AvionCargando from '../components/AvionCargando'
 import { EsqueletoPagina } from '../components/Esqueleto'
 import { erroresDe, primero } from '../lib/adminVuelos'
+import { ApiError } from '../lib/api'
 import { fechaCorta, hora, precio } from '../lib/formato'
 import {
   DATOS_PRUEBA,
   erroresTarjeta,
   formatearNumero,
   formatearVencimiento,
-  getReservas,
   marcaDe,
   NOMBRE_MARCA,
   pagarConMercadoPago,
@@ -20,8 +20,8 @@ import {
   vueloCorto,
   type DatosTarjeta,
   type ErroresTarjeta,
-  type Reserva,
 } from '../lib/pagos'
+import { getReserva, type Reserva } from '../lib/reservas'
 
 const VACIA: DatosTarjeta = { numero: '', titular: '', vencimiento: '', cvv: '' }
 const CAMPOS = ['numero', 'titular', 'vencimiento', 'cvv'] as const
@@ -42,11 +42,11 @@ export default function Pagar() {
   const [procesando, setProcesando] = useState(false)
 
   useEffect(() => {
-    getReservas()
-      .then((lista) => setReserva(lista.find((r) => r.id === reservaId) ?? null))
+    getReserva(reservaId ?? '')
+      .then(setReserva)
       .catch((e: Error) => {
         setReserva(null)
-        setError(e.message)
+        if (!(e instanceof ApiError && e.status === 404)) setError(e.message)
       })
   }, [reservaId])
 

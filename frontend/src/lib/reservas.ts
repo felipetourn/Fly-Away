@@ -26,7 +26,7 @@ export interface TicketElectronico extends Pasaje {
 
 export interface Reserva {
   id: string
-  vuelo: VueloResumen
+  vuelo: VueloResumen & { estado: 'activo' | 'cancelado' }
   clase: Clase
   cantidad: number
   cantidad_pasajes: number
@@ -39,16 +39,16 @@ export interface Reserva {
 }
 
 export interface PasajeroInput {
-  nombre_pasajero?: string
-  apellido_pasajero?: string
-  dni_pasajero?: string
+  nombre_pasajero: string
+  apellido_pasajero: string
+  dni_pasajero: string
 }
 
 export interface DatosCrearReserva {
   vuelo_id: string
   clase: Clase
   cantidad_pasajes: number
-  pasajeros?: PasajeroInput[]
+  pasajeros: PasajeroInput[]
   contacto_email?: string
   contacto_nombre?: string
 }

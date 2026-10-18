@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import ChipEstado from '../components/ChipEstado'
 import { Esqueleto } from '../components/Esqueleto'
+import { yaSalio } from '../lib/adminVuelos'
 import { fechaCorta, hora, precio } from '../lib/formato'
 import { pasajesDe, vueloCorto } from '../lib/pagos'
 import { getMisReservas, type Reserva } from '../lib/reservas'
@@ -62,7 +63,7 @@ export default function Reservas() {
                         to={`/pasajes/${encodeURIComponent(pasaje.codigo_pasaje)}`}
                         className="text-sm font-bold text-cielo hover:underline"
                       >
-                        Ver ticket de {pasaje.nombre_pasajero} {pasaje.apellido_pasajero} · {pasaje.codigo_pasaje}
+                        Ver ticket de {pasaje.nombre_pasajero} {pasaje.apellido_pasajero} - {pasaje.codigo_pasaje}
                       </Link>
                     </li>
                   ))}
@@ -75,6 +76,8 @@ export default function Reservas() {
                 <ChipEstado estado="aprobado" texto="Confirmada" />
               ) : r.estado === 'cancelada' ? (
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">Cancelada</span>
+              ) : r.vuelo.estado === 'cancelado' || yaSalio(r.vuelo) ? (
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">Vuelo no disponible</span>
               ) : (
                 <Link
                   to={`/pagar/${r.id}`}
