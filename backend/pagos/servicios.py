@@ -112,7 +112,8 @@ def confirmar_compra(pago, detalle, **datos):
                 pago.estado, pago.detalle, pago.procesado_en = Pago.Estado.APROBADO, detalle, timezone.now()
                 pago.numero_factura = pago.numero_factura or factura.generar_numero_factura(pago)
                 pago.save()
-                transaction.on_commit(lambda pago_id=pago.id: factura.enviar_factura_confirmada(pago_id))
+                # robust: un error al armar o enviar la factura se registra y no tumba la compra ya confirmada.
+                transaction.on_commit(lambda pago_id=pago.id: factura.enviar_factura_confirmada(pago_id), robust=True)
         except IntegrityError:
             guardar_resultado(pago, Pago.Estado.RECHAZADO, YA_PAGADA)
         return pago
