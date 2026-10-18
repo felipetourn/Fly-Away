@@ -56,24 +56,17 @@ class ReservaIdaVueltaView(APIView):
         serializer = CrearReservaIdaVueltaSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         datos = serializer.validated_data
-        datos_compartidos = {
-            'clase': datos['clase'],
-            'cantidad_pasajes': datos['cantidad_pasajes'],
-            'pasajeros': datos.get('pasajeros'),
-            'contacto_email': datos.get('contacto_email'),
-            'contacto_nombre': datos.get('contacto_nombre'),
-        }
 
         with transaction.atomic():
             ida = crear_reserva(
                 usuario=request.user,
                 vuelo_id=datos['vuelo_ida'],
-                **datos_compartidos,
+                **datos['ida'],
             )
             vuelta = crear_reserva(
                 usuario=request.user,
                 vuelo_id=datos['vuelo_vuelta'],
-                **datos_compartidos,
+                **datos['vuelta'],
             )
 
         return Response(

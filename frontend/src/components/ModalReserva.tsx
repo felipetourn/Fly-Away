@@ -21,6 +21,160 @@ interface Props {
   onCerrar: () => void
 }
 
+interface ConfiguracionTramo {
+  clase: Clase
+  cantidad: number
+  pasajeros: PasajeroInput[]
+}
+
+interface ConfiguradorTramoProps {
+  etiqueta: string
+  vuelo: Vuelo
+  configuracion: ConfiguracionTramo
+  onChange: (configuracion: ConfiguracionTramo) => void
+}
+
+function ConfiguradorTramo({ etiqueta, vuelo, configuracion, onChange }: ConfiguradorTramoProps) {
+  const disponibles = asientosDe(vuelo, configuracion.clase)
+  const errorValidacion = validarReglasReserva(configuracion.cantidad, disponibles)
+
+  function cambiarCantidad(cantidad: number) {
+    if (cantidad < MINIMO_PASAJES || cantidad > MAXIMO_PASAJES) return
+    const pasajeros = [...configuracion.pasajeros]
+    if (cantidad > pasajeros.length) {
+      for (let i = pasajeros.length; i < cantidad; i++) {
+        pasajeros.push({ nombre_pasajero: '', apellido_pasajero: '', dni_pasajero: '' })
+      }
+    } else {
+      pasajeros.length = cantidad
+    }
+    onChange({ ...configuracion, cantidad, pasajeros })
+  }
+
+  function actualizarPasajero(indice: number, campo: keyof PasajeroInput, valor: string) {
+    const pasajeros = [...configuracion.pasajeros]
+    pasajeros[indice] = { ...pasajeros[indice], [campo]: valor }
+    onChange({ ...configuracion, pasajeros })
+  }
+
+  return (
+    <section aria-label={`Reserva de ${etiqueta.toLowerCase()}`} className="rounded-2xl border border-slate-200 p-4 sm:p-5">
+      <div className="border-b border-slate-100 pb-4">
+        <h3 className="font-extrabold text-marino">Reserva de {etiqueta}</h3>
+        <p className="mt-1 text-sm font-semibold text-slate-700">
+          {vuelo.origen.ciudad} ({vuelo.origen.codigo_iata}) → {vuelo.destino.ciudad} ({vuelo.destino.codigo_iata})
+        </p>
+        <p className="mt-1 text-sm text-slate-500">
+          {fechaCompleta(vuelo.fecha_operacion)} - Salida: {hora(vuelo.hora_partida)} | Llegada: {hora(vuelo.hora_llegada)}
+        </p>
+      </div>
+
+      <fieldset className="mt-4">
+        <legend className="mb-2 text-sm font-bold text-slate-700">Clase para la {etiqueta.toLowerCase()}</legend>
+        <div className="grid grid-cols-2 gap-3">
+          {(['economy', 'primera'] as Clase[]).map((clase) => {
+            const asientos = asientosDe(vuelo, clase)
+            const seleccionada = configuracion.clase === clase
+            return (
+              <button
+                type="button"
+                key={clase}
+                aria-pressed={seleccionada}
+                onClick={() => onChange({ ...configuracion, clase })}
+                className={`rounded-2xl border p-3 text-left transition-all ${
+                  seleccionada ? 'border-marino bg-marino/5 ring-2 ring-marino' : 'border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <span className="flex items-center justify-between gap-2">
+                  <span className="font-extrabold text-marino">{NOMBRE_CLASE[clase]}</span>
+                  <span className="text-xs font-semibold text-slate-500">
+                    {asientos} {asientos === 1 ? 'disponible' : 'disponibles'}
+                  </span>
+                </span>
+                <span className="mt-2 block font-bold text-slate-900">{precio(precioDe(vuelo, clase))} por pasaje</span>
+              </button>
+            )
+          })}
+        </div>
+      </fieldset>
+
+      <div className="mt-4">
+        <div className="mb-2 flex items-center justify-between">
+          <label htmlFor={`cantidad-pasajes-${etiqueta}`} className="text-sm font-bold text-slate-700">
+            Pasajeros para la {etiqueta.toLowerCase()} (máx. 9)
+          </label>
+          <span className="text-xs text-slate-500">
+            Disponibles: <strong className="text-marino">{disponibles}</strong>
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => cambiarCantidad(configuracion.cantidad - 1)}
+            disabled={configuracion.cantidad <= MINIMO_PASAJES}
+            aria-label={`Quitar un pasajero de la ${etiqueta.toLowerCase()}`}
+            className="h-11 w-11 rounded-xl border border-slate-300 bg-white text-xl font-bold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            −
+          </button>
+          <input
+            id={`cantidad-pasajes-${etiqueta}`}
+            type="number"
+            min={MINIMO_PASAJES}
+            max={MAXIMO_PASAJES}
+            value={configuracion.cantidad}
+            onChange={(e) => cambiarCantidad(Number(e.target.value))}
+            className="h-11 w-20 rounded-xl border border-slate-300 text-center text-lg font-extrabold outline-none focus:border-marino focus:ring-1 focus:ring-marino"
+          />
+          <button
+            type="button"
+            onClick={() => cambiarCantidad(configuracion.cantidad + 1)}
+            disabled={configuracion.cantidad >= MAXIMO_PASAJES || configuracion.cantidad >= disponibles}
+            aria-label={`Agregar un pasajero a la ${etiqueta.toLowerCase()}`}
+            className="h-11 w-11 rounded-xl border border-slate-300 bg-white text-xl font-bold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            +
+          </button>
+        </div>
+        {errorValidacion && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{errorValidacion}</p>}
+      </div>
+
+      <div className="mt-4 border-t border-slate-100 pt-4">
+        <h4 className="mb-3 text-sm font-bold text-slate-700">Datos de los pasajeros de la {etiqueta.toLowerCase()}</h4>
+        <div className="space-y-3">
+          {configuracion.pasajeros.map((pasajero, indice) => (
+            <div key={indice} className="rounded-xl border border-slate-200 bg-white p-3">
+              <p className="mb-2 text-xs font-bold text-marino">Pasajero {indice + 1}</p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {([
+                  ['nombre_pasajero', 'Nombre', 'Ej. Juan'],
+                  ['apellido_pasajero', 'Apellido', 'Ej. Pérez'],
+                  ['dni_pasajero', 'DNI / Documento', 'Ej. 12345678'],
+                ] as const).map(([campo, titulo, placeholder]) => (
+                  <label key={campo} className="text-[11px] font-semibold text-slate-500">
+                    {titulo}
+                    <input
+                      type="text"
+                      required
+                      value={pasajero[campo] ?? ''}
+                      onChange={(e) => actualizarPasajero(indice, campo, e.target.value)}
+                      placeholder={placeholder}
+                      className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm font-normal text-slate-900 outline-none focus:border-marino"
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <p className="mt-4 text-right text-sm font-bold text-marino">
+        Subtotal {etiqueta.toLowerCase()}: {precio(precioDe(vuelo, configuracion.clase) * configuracion.cantidad)}
+      </p>
+    </section>
+  )
+}
+
 export default function ModalReserva({
   vuelo,
   vueloVuelta,
@@ -31,62 +185,38 @@ export default function ModalReserva({
   const dialogo = useRef<HTMLDialogElement>(null)
   const navigate = useNavigate()
   const { usuario } = useSesion()
-
-  const [clase, setClase] = useState<Clase>(claseInicial)
-  const [cantidad, setCantidad] = useState<number>(Math.max(MINIMO_PASAJES, Math.min(pasajerosInicial, MAXIMO_PASAJES)))
   const [cargando, setCargando] = useState(false)
   const [errorApi, setErrorApi] = useState<string | null>(null)
-
-  // Datos de cada pasajero
-  const [pasajeros, setPasajeros] = useState<PasajeroInput[]>(() => {
-    return Array.from({ length: cantidad }, (_, i) => ({
+  const cantidadInicial = Math.max(MINIMO_PASAJES, Math.min(pasajerosInicial, MAXIMO_PASAJES))
+  const crearConfiguracionInicial = (): ConfiguracionTramo => ({
+    clase: claseInicial,
+    cantidad: cantidadInicial,
+    pasajeros: Array.from({ length: cantidadInicial }, (_, i) => ({
       nombre_pasajero: i === 0 && usuario ? usuario.nombre : '',
       apellido_pasajero: i === 0 && usuario ? usuario.apellido : '',
       dni_pasajero: '',
-    }))
+    })),
   })
+  const [configuracionIda, setConfiguracionIda] = useState<ConfiguracionTramo>(crearConfiguracionInicial)
+  const [configuracionVuelta, setConfiguracionVuelta] = useState<ConfiguracionTramo>(crearConfiguracionInicial)
 
   useEffect(() => {
     const d = dialogo.current
     if (d && !d.open) d.showModal()
   }, [])
 
-  // Al cambiar la cantidad, ajustar el tamaño del array de pasajeros conservando lo escrito
-  function cambiarCantidad(nueva: number) {
-    if (nueva < MINIMO_PASAJES || nueva > MAXIMO_PASAJES) return
-    setCantidad(nueva)
-    setPasajeros((prev) => {
-      const actual = [...prev]
-      if (nueva > actual.length) {
-        for (let i = actual.length; i < nueva; i++) {
-          actual.push({ nombre_pasajero: '', apellido_pasajero: '', dni_pasajero: '' })
-        }
-      } else {
-        actual.length = nueva
-      }
-      return actual
-    })
-  }
-
-  function actualizarPasajero(indice: number, campo: keyof PasajeroInput, valor: string) {
-    setPasajeros((prev) => {
-      const nuevo = [...prev]
-      nuevo[indice] = { ...nuevo[indice], [campo]: valor }
-      return nuevo
-    })
-  }
-
-  const disponibles = vueloVuelta
-    ? Math.min(asientosDe(vuelo, clase), asientosDe(vueloVuelta, clase))
-    : asientosDe(vuelo, clase)
-  const precioUnitario = precioDe(vuelo, clase)
-  const total = (precioUnitario + (vueloVuelta ? precioDe(vueloVuelta, clase) : 0)) * cantidad
-  const errorValidacion = validarReglasReserva(cantidad, disponibles)
+  const errorIda = validarReglasReserva(configuracionIda.cantidad, asientosDe(vuelo, configuracionIda.clase))
+  const errorVuelta = vueloVuelta
+    ? validarReglasReserva(configuracionVuelta.cantidad, asientosDe(vueloVuelta, configuracionVuelta.clase))
+    : null
+  const totalIda = precioDe(vuelo, configuracionIda.clase) * configuracionIda.cantidad
+  const totalVuelta = vueloVuelta ? precioDe(vueloVuelta, configuracionVuelta.clase) * configuracionVuelta.cantidad : 0
+  const total = totalIda + totalVuelta
 
   async function confirmar(e: React.FormEvent) {
     e.preventDefault()
     if (!usuario) return
-    if (errorValidacion) return
+    if (errorIda || errorVuelta) return
 
     setCargando(true)
     setErrorApi(null)
@@ -96,16 +226,28 @@ export default function ModalReserva({
         await crearReservaIdaVuelta({
           vuelo_ida: vuelo.id,
           vuelo_vuelta: vueloVuelta.id,
-          clase,
-          cantidad_pasajes: cantidad,
-          pasajeros,
+          ida: {
+            clase: configuracionIda.clase,
+            cantidad_pasajes: configuracionIda.cantidad,
+            pasajeros: configuracionIda.pasajeros,
+          },
+          vuelta: {
+            clase: configuracionVuelta.clase,
+            cantidad_pasajes: configuracionVuelta.cantidad,
+            pasajeros: configuracionVuelta.pasajeros,
+          },
         })
         dialogo.current?.close()
         navigate('/reservas')
         return
       }
 
-      const reserva = await crearReserva({ vuelo_id: vuelo.id, clase, cantidad_pasajes: cantidad, pasajeros })
+      const reserva = await crearReserva({
+        vuelo_id: vuelo.id,
+        clase: configuracionIda.clase,
+        cantidad_pasajes: configuracionIda.cantidad,
+        pasajeros: configuracionIda.pasajeros,
+      })
       dialogo.current?.close()
       navigate(`/pagar/${reserva.id}`)
     } catch (err) {
@@ -143,152 +285,24 @@ export default function ModalReserva({
         </button>
       </div>
 
-      <form onSubmit={confirmar} className="p-5 sm:p-6 space-y-6">
-        {/* Resumen del vuelo */}
-        <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-          <p className="font-bold text-marino">
-            {vuelo.origen.ciudad} ({vuelo.origen.codigo_iata}) → {vuelo.destino.ciudad} ({vuelo.destino.codigo_iata})
-          </p>
-          <p className="mt-1 text-sm text-slate-600">
-            {fechaCompleta(vuelo.fecha_operacion)} - Salida: {hora(vuelo.hora_partida)} | Llegada: {hora(vuelo.hora_llegada)}
-          </p>
-          {vueloVuelta && (
-            <>
-              <p className="mt-3 font-bold text-marino">
-                Vuelta: {vueloVuelta.origen.ciudad} ({vueloVuelta.origen.codigo_iata}) → {vueloVuelta.destino.ciudad} ({vueloVuelta.destino.codigo_iata})
-              </p>
-              <p className="mt-1 text-sm text-slate-600">
-                {fechaCompleta(vueloVuelta.fecha_operacion)} - Salida: {hora(vueloVuelta.hora_partida)} | Llegada: {hora(vueloVuelta.hora_llegada)}
-              </p>
-              <p className="mt-3 text-sm font-medium text-slate-600">
-                Se crearán dos reservas independientes para pagar cada tramo por separado.
-              </p>
-            </>
-          )}
-        </div>
-
-        {/* Selección de clase */}
-        <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">Clase</label>
-          <div className="grid grid-cols-2 gap-3">
-            {(['economy', 'primera'] as Clase[]).map((c) => {
-              const asientos = asientosDe(vuelo, c)
-              const seleccionada = clase === c
-              return (
-                <button
-                  type="button"
-                  key={c}
-                  onClick={() => setClase(c)}
-                  className={`rounded-2xl border p-4 text-left transition-all ${
-                    seleccionada
-                      ? 'border-marino bg-marino/5 ring-2 ring-marino'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="font-extrabold text-marino">{NOMBRE_CLASE[c]}</span>
-                    <span className="text-xs font-semibold text-slate-500">
-                      {asientos} {asientos === 1 ? 'disponible' : 'disponibles'}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-base font-bold text-slate-900">{precio(precioDe(vuelo, c))}</p>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* Selección de cantidad */}
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <label htmlFor="cantidad-pasajes" className="text-sm font-bold text-slate-700">
-              Cantidad de pasajes (máx. 9)
-            </label>
-            <span className="text-xs text-slate-500">
-              {vueloVuelta ? 'Disponibles en ambos tramos' : 'Disponibles'}:{' '}
-              <strong className="text-marino">{disponibles}</strong>
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => cambiarCantidad(cantidad - 1)}
-              disabled={cantidad <= MINIMO_PASAJES}
-              className="h-11 w-11 rounded-xl border border-slate-300 bg-white text-xl font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              −
-            </button>
-            <input
-              id="cantidad-pasajes"
-              type="number"
-              min={MINIMO_PASAJES}
-              max={MAXIMO_PASAJES}
-              value={cantidad}
-              onChange={(e) => cambiarCantidad(Number(e.target.value))}
-              className="h-11 w-20 text-center font-extrabold text-lg rounded-xl border border-slate-300 focus:border-marino focus:ring-1 focus:ring-marino outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => cambiarCantidad(cantidad + 1)}
-              disabled={cantidad >= MAXIMO_PASAJES || cantidad >= disponibles}
-              className="h-11 w-11 rounded-xl border border-slate-300 bg-white text-xl font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              +
-            </button>
-          </div>
-          {errorValidacion && (
-            <p role="alert" className="mt-2 text-xs font-semibold text-red-600">
-              {errorValidacion}
-            </p>
-          )}
-        </div>
-
-        {/* Formulario de Pasajeros */}
-        <div className="border-t border-slate-100 pt-4">
-          <h3 className="text-sm font-bold text-slate-700 mb-3">Datos de los pasajeros</h3>
-          <div className="space-y-4">
-            {pasajeros.map((p, idx) => (
-              <div key={idx} className="rounded-xl border border-slate-200 p-3 bg-white">
-                <p className="text-xs font-bold text-marino mb-2">Pasajero {idx + 1}</p>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-500">Nombre</label>
-                    <input
-                      type="text"
-                      required
-                      value={p.nombre_pasajero ?? ''}
-                      onChange={(e) => actualizarPasajero(idx, 'nombre_pasajero', e.target.value)}
-                      placeholder="Ej. Juan"
-                      className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-marino outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-500">Apellido</label>
-                    <input
-                      type="text"
-                      required
-                      value={p.apellido_pasajero ?? ''}
-                      onChange={(e) => actualizarPasajero(idx, 'apellido_pasajero', e.target.value)}
-                      placeholder="Ej. Pérez"
-                      className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-marino outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-500">DNI / Documento</label>
-                    <input
-                      type="text"
-                      required
-                      value={p.dni_pasajero ?? ''}
-                      onChange={(e) => actualizarPasajero(idx, 'dni_pasajero', e.target.value)}
-                      placeholder="Ej. 12345678"
-                      className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm focus:border-marino outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+      <form onSubmit={confirmar} className="space-y-4 p-5 sm:p-6">
+        <p className="text-sm text-slate-600">
+          Configurá cada tramo por separado. Podés elegir distinta clase, cantidad de pasajeros y datos para la ida y la vuelta.
+        </p>
+        <ConfiguradorTramo
+          etiqueta="Ida"
+          vuelo={vuelo}
+          configuracion={configuracionIda}
+          onChange={setConfiguracionIda}
+        />
+        {vueloVuelta && (
+          <ConfiguradorTramo
+            etiqueta="Vuelta"
+            vuelo={vueloVuelta}
+            configuracion={configuracionVuelta}
+            onChange={setConfiguracionVuelta}
+          />
+        )}
 
         {/* Alerta de sesión */}
         {!usuario && (
@@ -312,7 +326,9 @@ export default function ModalReserva({
         <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-4">
           <div>
             <p className="text-xs text-slate-500">
-              Total ({cantidad} {cantidad === 1 ? 'pasaje' : 'pasajes'}, {NOMBRE_CLASE[clase]})
+              {vueloVuelta ? 'Total de ambas reservas' : `Total (${configuracionIda.cantidad} ${
+                configuracionIda.cantidad === 1 ? 'pasaje' : 'pasajes'
+              }, ${NOMBRE_CLASE[configuracionIda.clase]})`}
             </p>
             <p className="text-2xl font-extrabold text-marino">{precio(total)}</p>
           </div>
@@ -326,7 +342,7 @@ export default function ModalReserva({
             </button>
             <button
               type="submit"
-              disabled={cargando || !usuario || Boolean(errorValidacion)}
+              disabled={cargando || !usuario || Boolean(errorIda || errorVuelta)}
               className="rounded-xl bg-naranja px-6 py-2.5 font-bold text-white hover:bg-naranja/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {cargando ? 'Reservando...' : vueloVuelta ? 'Reservar ida y vuelta' : 'Confirmar reserva'}

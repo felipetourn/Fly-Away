@@ -53,9 +53,11 @@ export interface DatosCrearReserva {
   contacto_nombre?: string
 }
 
-export interface DatosCrearReservaIdaVuelta extends Omit<DatosCrearReserva, 'vuelo_id'> {
+export interface DatosCrearReservaIdaVuelta {
   vuelo_ida: string
   vuelo_vuelta: string
+  ida: Omit<DatosCrearReserva, 'vuelo_id'>
+  vuelta: Omit<DatosCrearReserva, 'vuelo_id'>
 }
 
 export const MINIMO_PASAJES = 1

@@ -94,9 +94,11 @@ class CrearReservaSerializer(DatosReservaSerializer):
     vuelo_id = serializers.UUIDField()
 
 
-class CrearReservaIdaVueltaSerializer(DatosReservaSerializer):
+class CrearReservaIdaVueltaSerializer(serializers.Serializer):
     vuelo_ida = serializers.UUIDField()
     vuelo_vuelta = serializers.UUIDField()
+    ida = DatosReservaSerializer()
+    vuelta = DatosReservaSerializer()
 
     def validate(self, attrs):
         if attrs['vuelo_ida'] == attrs['vuelo_vuelta']:

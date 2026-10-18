@@ -98,12 +98,21 @@ class ReservasEndpointTests(ReservasBaseTestCase):
             {
                 'vuelo_ida': str(self.vuelo.id),
                 'vuelo_vuelta': str(self.vuelo_vuelta.id),
-                'clase': 'economy',
-                'cantidad_pasajes': 2,
-                'pasajeros': [
-                    {'nombre_pasajero': 'Juan', 'apellido_pasajero': 'Pérez', 'dni_pasajero': '12345678'},
-                    {'nombre_pasajero': 'Lucía', 'apellido_pasajero': 'Pérez', 'dni_pasajero': '87654321'},
-                ],
+                'ida': {
+                    'clase': 'economy',
+                    'cantidad_pasajes': 2,
+                    'pasajeros': [
+                        {'nombre_pasajero': 'Juan', 'apellido_pasajero': 'Pérez', 'dni_pasajero': '12345678'},
+                        {'nombre_pasajero': 'Lucía', 'apellido_pasajero': 'Pérez', 'dni_pasajero': '87654321'},
+                    ],
+                },
+                'vuelta': {
+                    'clase': 'primera',
+                    'cantidad_pasajes': 1,
+                    'pasajeros': [
+                        {'nombre_pasajero': 'Juan', 'apellido_pasajero': 'Pérez', 'dni_pasajero': '12345678'},
+                    ],
+                },
             },
             format='json',
         )
@@ -113,11 +122,15 @@ class ReservasEndpointTests(ReservasBaseTestCase):
         self.assertEqual(res.data['ida']['vuelo']['id'], str(self.vuelo.id))
         self.assertEqual(res.data['vuelta']['vuelo']['id'], str(self.vuelo_vuelta.id))
         self.assertEqual(res.data['ida']['monto'], '200000.00')
-        self.assertEqual(res.data['vuelta']['monto'], '240000.00')
+        self.assertEqual(res.data['vuelta']['monto'], '270000.00')
+        self.assertEqual(res.data['ida']['clase'], 'economy')
+        self.assertEqual(res.data['vuelta']['clase'], 'primera')
+        self.assertEqual(res.data['ida']['cantidad_pasajes'], 2)
+        self.assertEqual(res.data['vuelta']['cantidad_pasajes'], 1)
         self.assertEqual(res.data['ida']['estado'], 'pendiente')
         self.assertEqual(res.data['vuelta']['estado'], 'pendiente')
         self.assertEqual(len(res.data['ida']['pasajes']), 2)
-        self.assertEqual(len(res.data['vuelta']['pasajes']), 2)
+        self.assertEqual(len(res.data['vuelta']['pasajes']), 1)
 
     def test_ida_y_vuelta_no_deja_reserva_si_el_segundo_vuelo_no_es_valido(self):
         self.vuelo_vuelta.estado = Vuelo.Estado.CANCELADO
@@ -128,8 +141,8 @@ class ReservasEndpointTests(ReservasBaseTestCase):
             {
                 'vuelo_ida': str(self.vuelo.id),
                 'vuelo_vuelta': str(self.vuelo_vuelta.id),
-                'clase': 'economy',
-                'cantidad_pasajes': 1,
+                'ida': {'clase': 'economy', 'cantidad_pasajes': 1},
+                'vuelta': {'clase': 'economy', 'cantidad_pasajes': 1},
             },
             format='json',
         )

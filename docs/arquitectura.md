@@ -148,7 +148,7 @@ GET  /api/pagos/{id}/            (pasajero) ✅ un pago; si es de MP y está pen
 POST /api/pagos/tarjeta/         (pasajero) ✅ {reserva_id, numero, titular, vencimiento MM/AA, cvv} → 201 pago (aprobado o rechazado)
 POST /api/pagos/mercadopago/     (pasajero) ✅ {reserva_id} → 201 {pago, checkout_url}; 502 si MP no responde
 POST /api/reservas/              ✅ hecho — reservar (US06): vuelo, clase, cantidad (1..9), pasajeros
-POST /api/reservas/ida-vuelta/   ✅ hecho — crea dos reservas pendientes en una transacción para pagar cada tramo por separado
+POST /api/reservas/ida-vuelta/   ✅ hecho — {vuelo_ida, vuelo_vuelta, ida:{clase,cantidad_pasajes,pasajeros}, vuelta:{clase,cantidad_pasajes,pasajeros}}; crea ambas reservas pendientes en una transacción
 GET /api/reservas/mias/         ✅ hecho — (pasajero) sus reservas reales
 GET  /api/pasajes/{codigo}/      ✅ hecho — (pasajero dueño) detalle del ticket, solo si la compra está pagada
 GET  /api/pasajes/{codigo}/pdf/  ✅ hecho — descarga ticket PDF, solo si la compra está pagada
