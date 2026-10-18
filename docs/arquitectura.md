@@ -175,7 +175,7 @@ Dos medios. Ninguno guarda el número completo de la tarjeta ni el CVV: solo `ul
 
 - Factura de compra: enviada después de confirmar el pago; incluye plantilla HTML y texto, con el comprobante PDF adjunto. Solo se asigna número y se envía para pagos aprobados.
 - Local: `EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend` (predeterminado) → se imprimen en la terminal de `runserver`.
-- Producción: configurar `EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` y `DEFAULT_FROM_EMAIL` en el entorno de Render. Las credenciales no se guardan en el repositorio.
+- Producción: configurar `EMAIL_BACKEND`, `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS`, `EMAIL_TIMEOUT` (segundos, 5 por defecto) y `DEFAULT_FROM_EMAIL` en el entorno de Render. Las credenciales no se guardan en el repositorio.
 - Cambio de horario y cancelación: email pendiente de implementar (US15/US16).
 
 ## Correr en local
