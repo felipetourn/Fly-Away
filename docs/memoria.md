@@ -4,6 +4,11 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-18 - Timeout del SMTP (rama `fix/email-timeout`)**
+- En Render el pago con tarjeta se colgaba: la conexión SMTP de la factura nunca respondía (Render free bloquea los puertos SMTP salientes), gunicorn mataba el worker a los 30 s y el navegador mostraba "Failed to fetch" con el pago ya aprobado.
+- `EMAIL_TIMEOUT` (5 s por defecto): la conexión falla rápido, `factura.py` registra el error y el pago responde 201.
+- La factura no sale desde Render free por SMTP: hace falta un proveedor por API HTTP (Resend, Brevo, etc.), pendiente de la US10.
+
 **2026-10-18 - Pago confirmado sin error visible**
 - Un error al armar o enviar la factura ya no devuelve 500 en el pago: el callback de `on_commit` es `robust=True`. El pago queda aprobado y la reserva pagada aunque falle la factura (antes el navegador mostraba "Failed to fetch" y, al reintentar, "La reserva ya está pagada").
 - Al pagar con éxito, `/pagos/:id` abre un diálogo con los tickets de cada pasajero para descargar el PDF y la línea "Enviando la factura a tu correo…". Ese texto es fijo: el envío de la factura todavía no se verifica desde la pantalla (lo arregla la US10).
