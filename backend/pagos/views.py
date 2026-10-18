@@ -6,7 +6,7 @@ from rest_framework.views import APIView
 from . import reservas_mock, servicios
 from .models import Pago
 from .permissions import EsPasajero
-from .serializers import PagoSerializer, ReservaIdSerializer, ReservaSerializer, TarjetaSerializer
+from .serializers import PagoSerializer, ReservaIdSerializer, TarjetaSerializer
 
 
 def reservas_por_id(usuario):
@@ -18,13 +18,6 @@ def reserva_o_404(usuario, reserva_id):
     if reserva is None:
         raise NotFound('No encontramos la reserva.')
     return reserva
-
-
-class ReservasView(APIView):
-    permission_classes = [EsPasajero]
-
-    def get(self, request):
-        return Response(ReservaSerializer(reservas_mock.reservas_de(request.user), many=True).data)
 
 
 class PagosView(APIView):

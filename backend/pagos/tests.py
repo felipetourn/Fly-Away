@@ -1,23 +1,22 @@
 import datetime as dt
 import http.client
-import importlib
 import smtplib
 from decimal import Decimal
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
-from django.apps import apps
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core import mail
 from django.db import IntegrityError, transaction
 from rest_framework.test import APITestCase
 
+from reservas.models import Pasaje, Reserva
 from reservas.servicios import crear_reserva
 from vuelos.models import Aeropuerto, Avion, Vuelo
 
 from . import mercadopago, reservas_mock, servicios, tarjeta
-from .models import Pago, ReservaDemo
+from .models import Pago
 
 BA = ZoneInfo('America/Argentina/Buenos_Aires')
 AHORA = dt.datetime(2026, 10, 20, 12, 0, tzinfo=BA)  # mediodía en Buenos Aires
@@ -66,18 +65,24 @@ class Datos(APITestCase):
         self.client.force_authenticate(self.pasajero)
 
     def reserva(self, clase='economy', cantidad=1, vuelo=None, pasajero=None):
-        return ReservaDemo.objects.create(
-            pasajero=pasajero or self.pasajero, vuelo=vuelo or self.vuelos[0], clase=clase, cantidad=cantidad
+        vuelo = vuelo or self.vuelos[0]
+        reserva = Reserva.objects.create(
+            pasajero=pasajero or self.pasajero, contacto_email='ana@mail.com', vuelo=vuelo, cantidad_pasajes=cantidad
         )
+        for i in range(cantidad):
+            Pasaje.objects.create(
+                reserva=reserva, codigo_pasaje=f'{reserva.id.hex[:8]}-{i}', nombre_pasajero='Ana',
+                apellido_pasajero='Pérez', dni_pasajero='12345678', clase=clase, precio=getattr(vuelo, f'precio_{clase}'),
+            )
+        return reserva
 
     def pago(self, reserva, estado=Pago.Estado.APROBADO, metodo=Pago.Metodo.TARJETA, **campos):
         return Pago.objects.create(reserva_id=reserva.id, monto=Decimal('100000.00'), estado=estado, metodo_pago=metodo, **campos)
 
 
 class ModeloTests(Datos):
-    def test_tablas_con_los_nombres_del_dbml(self):
+    def test_tabla_con_el_nombre_del_dbml(self):
         self.assertEqual(Pago._meta.db_table, 'pagos')
-        self.assertEqual(ReservaDemo._meta.db_table, 'reservas_demo')
 
     def test_una_reserva_no_admite_dos_pagos_aprobados(self):
         reserva = self.reserva()
@@ -92,30 +97,13 @@ class ModeloTests(Datos):
         self.pago(reserva)
         self.assertEqual(Pago.objects.filter(reserva_id=reserva.id).count(), 3)
 
-    def test_reserva_demo_entre_1_y_9_pasajes(self):
-        for cantidad in (0, 10):
-            with self.assertRaises(IntegrityError), transaction.atomic():
-                self.reserva(cantidad=cantidad)
 
-
-class ReservasDemoTests(Datos):
-    def test_la_primera_vez_crea_tres_reservas_en_vuelos_distintos(self):
-        reservas = reservas_mock.reservas_de(self.pasajero)
-        self.assertEqual([(r.clase, r.cantidad) for r in reservas], [('economy', 1), ('primera', 2), ('economy', 9)])
-        self.assertEqual([r.vuelo for r in reservas], self.vuelos[:3])
-
-    def test_despues_devuelve_siempre_las_mismas(self):
-        primeras = [r.id for r in reservas_mock.reservas_de(self.pasajero)]
-        Vuelo.objects.filter(id=self.vuelos[2].id).update(asientos_disponibles_economy=0)
-        self.crear_vuelo('FA 2000', HOY, hora_partida=dt.time(20, 0), hora_llegada=dt.time(21, 0))
-        self.assertEqual([r.id for r in reservas_mock.reservas_de(self.pasajero)], primeras)
-
-    def test_saltea_vuelos_cancelados_salidos_o_sin_lugar(self):
-        Vuelo.objects.filter(id=self.vuelos[0].id).update(estado=Vuelo.Estado.CANCELADO)
-        self.crear_vuelo('FA 2001', HOY, hora_partida=dt.time(9, 0), hora_llegada=dt.time(10, 0))  # ya salió
-        reservas = reservas_mock.reservas_de(self.pasajero)
-        self.assertNotIn(self.vuelos[0], [r.vuelo for r in reservas])
-        self.assertEqual(reservas[0].vuelo, self.vuelos[1])
+class ReservasTests(Datos):
+    def test_reservas_de_devuelve_solo_las_propias_sin_inventar_ninguna(self):
+        self.assertEqual(reservas_mock.reservas_de(self.pasajero), [])
+        propia = self.reserva()
+        self.reserva(pasajero=self.otro)
+        self.assertEqual(reservas_mock.reservas_de(self.pasajero), [propia])
 
     def test_monto_es_la_suma_de_los_pasajes(self):
         reserva = self.reserva(clase='primera', cantidad=2)
@@ -141,40 +129,6 @@ class EstadoReservaTests(Datos):
     def test_reserva_de_pago(self):
         reserva = self.reserva()
         self.assertEqual(reservas_mock.reserva_de_pago(self.pago(reserva)), reserva)
-
-    def test_la_migracion_marca_pagadas_las_reservas_con_pago_aprobado(self):
-        migracion = importlib.import_module('pagos.migrations.0003_reservademo_estado')
-        pagada = self.reserva()
-        self.pago(pagada)
-        pendiente = self.reserva(vuelo=self.vuelos[1])
-        self.pago(pendiente, estado=Pago.Estado.RECHAZADO)
-        migracion.marcar_reservas_pagadas(apps, None)
-        pagada.refresh_from_db()
-        pendiente.refresh_from_db()
-        self.assertEqual((pagada.estado, pendiente.estado), ('pagada', 'pendiente'))
-
-
-class ReservasApiTests(Datos):
-    def test_lista_las_reservas_con_monto_y_estado(self):
-        r = self.client.get('/api/pagos/reservas/')
-        self.assertEqual(r.status_code, 200)
-        self.assertEqual(len(r.data), 3)
-        primera = r.data[0]
-        self.assertEqual(primera['vuelo']['numero_vuelo'], 'FA 1000')
-        self.assertEqual(primera['vuelo']['origen'], 'AEP')
-        self.assertEqual(primera['monto'], '100000.00')
-        self.assertEqual(primera['estado'], 'pendiente')
-
-    def test_una_reserva_con_pago_aprobado_figura_pagada(self):
-        reserva = reservas_mock.reservas_de(self.pasajero)[0]
-        reservas_mock.marcar_pagada(reserva)
-        self.assertEqual(self.client.get('/api/pagos/reservas/').data[0]['estado'], 'pagada')
-
-    def test_solo_pasajeros(self):
-        self.client.force_authenticate(None)
-        self.assertEqual(self.client.get('/api/pagos/reservas/').status_code, 401)
-        self.client.force_authenticate(self.admin)
-        self.assertEqual(self.client.get('/api/pagos/reservas/').status_code, 403)
 
 
 class TarjetaTests(Datos):

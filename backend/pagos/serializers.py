@@ -4,7 +4,7 @@ from rest_framework import serializers
 from vuelos.models import Vuelo
 
 from . import reservas_mock, tarjeta
-from .models import Pago, ReservaDemo
+from .models import Pago
 
 
 class VueloResumenSerializer(serializers.ModelSerializer):
@@ -14,18 +14,6 @@ class VueloResumenSerializer(serializers.ModelSerializer):
     class Meta:
         model = Vuelo
         fields = ['id', 'numero_vuelo', 'origen', 'destino', 'fecha_operacion', 'hora_partida']
-
-
-class ReservaSerializer(serializers.ModelSerializer):
-    vuelo = VueloResumenSerializer()
-    monto = serializers.SerializerMethodField()
-
-    class Meta:
-        model = ReservaDemo
-        fields = ['id', 'vuelo', 'clase', 'cantidad', 'monto', 'estado']
-
-    def get_monto(self, reserva):
-        return str(reservas_mock.monto_de(reserva))
 
 
 class ReservaIdSerializer(serializers.Serializer):
@@ -50,16 +38,15 @@ class TarjetaSerializer(ReservaIdSerializer):
 
 
 class PagoSerializer(serializers.ModelSerializer):
-    """`context['reservas']`: {reserva_id: ReservaDemo} del usuario, para el resumen del vuelo."""
+    """`context['reservas']`: {reserva_id: Reserva} del usuario, para el resumen del vuelo."""
 
     vuelo = serializers.SerializerMethodField()
     cantidad_pasajes = serializers.SerializerMethodField()
-    pasajes = serializers.SerializerMethodField()
 
     class Meta:
         model = Pago
         fields = [
-            'id', 'reserva_id', 'vuelo', 'cantidad_pasajes', 'pasajes', 'metodo_pago', 'ultimos_4', 'marca', 'cuenta_mp',
+            'id', 'reserva_id', 'vuelo', 'cantidad_pasajes', 'metodo_pago', 'ultimos_4', 'marca', 'cuenta_mp',
             'monto', 'estado', 'detalle', 'transaccion_externa_id', 'creado_en', 'procesado_en',
         ]
 
@@ -70,12 +57,3 @@ class PagoSerializer(serializers.ModelSerializer):
     def get_cantidad_pasajes(self, pago):
         reserva = self.context['reservas'].get(pago.reserva_id)
         return len(reservas_mock.pasajes_de(reserva)) if reserva else None
-
-    def get_pasajes(self, pago):
-        reserva = self.context['reservas'].get(pago.reserva_id)
-        if not reserva:
-            return []
-        if hasattr(reserva, 'pasajes'):
-            from reservas.serializers import PasajeSerializer
-            return PasajeSerializer(reserva.pasajes.all(), many=True).data
-        return []
