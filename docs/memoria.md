@@ -4,6 +4,12 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-18 - Reservas de ida y vuelta con pagos separados**
+- La selección de ida y vuelta ahora conserva ambos vuelos al abrir el modal de reserva.
+- El backend crea una reserva pendiente por cada tramo dentro de una transacción; si cualquiera no se puede reservar, no queda creada ninguna.
+- Luego se muestra “Mis reservas”, donde ida y vuelta aparecen como reservas separadas y cada una se paga por separado.
+- Agregado `POST /api/reservas/ida-vuelta/` y pruebas de creación doble y rollback ante vuelo de vuelta no disponible.
+
 **2026-10-17 - US10, factura y envío por email**
 - Al aprobar una compra, `Pago.numero_factura` recibe un identificador único asociado al pago; no se asigna para pagos rechazados.
 - Se genera un PDF con datos del comprador, reserva, vuelo, pasajeros, medio, fecha e importe; se adjunta a un correo HTML/texto dirigido a `contacto_email` de la reserva.

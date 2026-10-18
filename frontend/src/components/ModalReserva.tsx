@@ -2,18 +2,32 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { NOMBRE_CLASE, type Clase } from '../lib/busqueda'
 import { fechaCompleta, hora, precio } from '../lib/formato'
-import { crearReserva, MAXIMO_PASAJES, MINIMO_PASAJES, validarReglasReserva, type PasajeroInput } from '../lib/reservas'
+import {
+  crearReserva,
+  crearReservaIdaVuelta,
+  MAXIMO_PASAJES,
+  MINIMO_PASAJES,
+  validarReglasReserva,
+  type PasajeroInput,
+} from '../lib/reservas'
 import { useSesion } from '../lib/sesion'
 import { asientosDe, precioDe, type Vuelo } from '../lib/vuelos'
 
 interface Props {
   vuelo: Vuelo
+  vueloVuelta?: Vuelo
   claseInicial?: Clase
   pasajerosInicial?: number
   onCerrar: () => void
 }
 
-export default function ModalReserva({ vuelo, claseInicial = 'economy', pasajerosInicial = 1, onCerrar }: Props) {
+export default function ModalReserva({
+  vuelo,
+  vueloVuelta,
+  claseInicial = 'economy',
+  pasajerosInicial = 1,
+  onCerrar,
+}: Props) {
   const dialogo = useRef<HTMLDialogElement>(null)
   const navigate = useNavigate()
   const { usuario } = useSesion()
@@ -62,9 +76,11 @@ export default function ModalReserva({ vuelo, claseInicial = 'economy', pasajero
     })
   }
 
-  const disponibles = asientosDe(vuelo, clase)
+  const disponibles = vueloVuelta
+    ? Math.min(asientosDe(vuelo, clase), asientosDe(vueloVuelta, clase))
+    : asientosDe(vuelo, clase)
   const precioUnitario = precioDe(vuelo, clase)
-  const total = precioUnitario * cantidad
+  const total = (precioUnitario + (vueloVuelta ? precioDe(vueloVuelta, clase) : 0)) * cantidad
   const errorValidacion = validarReglasReserva(cantidad, disponibles)
 
   async function confirmar(e: React.FormEvent) {
@@ -76,12 +92,20 @@ export default function ModalReserva({ vuelo, claseInicial = 'economy', pasajero
     setErrorApi(null)
 
     try {
-      const reserva = await crearReserva({
-        vuelo_id: vuelo.id,
-        clase,
-        cantidad_pasajes: cantidad,
-        pasajeros,
-      })
+      if (vueloVuelta) {
+        await crearReservaIdaVuelta({
+          vuelo_ida: vuelo.id,
+          vuelo_vuelta: vueloVuelta.id,
+          clase,
+          cantidad_pasajes: cantidad,
+          pasajeros,
+        })
+        dialogo.current?.close()
+        navigate('/reservas')
+        return
+      }
+
+      const reserva = await crearReserva({ vuelo_id: vuelo.id, clase, cantidad_pasajes: cantidad, pasajeros })
       dialogo.current?.close()
       navigate(`/pagar/${reserva.id}`)
     } catch (err) {
@@ -103,7 +127,7 @@ export default function ModalReserva({ vuelo, claseInicial = 'economy', pasajero
       <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
         <div>
           <h2 id="titulo-reserva" className="text-xl font-extrabold text-marino">
-            Reservar pasajes
+            {vueloVuelta ? 'Reservar ida y vuelta' : 'Reservar pasajes'}
           </h2>
           <p className="text-xs text-slate-500">
             Vuelo {vuelo.numero_vuelo} - {vuelo.origen.codigo_iata} → {vuelo.destino.codigo_iata}
@@ -128,6 +152,19 @@ export default function ModalReserva({ vuelo, claseInicial = 'economy', pasajero
           <p className="mt-1 text-sm text-slate-600">
             {fechaCompleta(vuelo.fecha_operacion)} - Salida: {hora(vuelo.hora_partida)} | Llegada: {hora(vuelo.hora_llegada)}
           </p>
+          {vueloVuelta && (
+            <>
+              <p className="mt-3 font-bold text-marino">
+                Vuelta: {vueloVuelta.origen.ciudad} ({vueloVuelta.origen.codigo_iata}) → {vueloVuelta.destino.ciudad} ({vueloVuelta.destino.codigo_iata})
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                {fechaCompleta(vueloVuelta.fecha_operacion)} - Salida: {hora(vueloVuelta.hora_partida)} | Llegada: {hora(vueloVuelta.hora_llegada)}
+              </p>
+              <p className="mt-3 text-sm font-medium text-slate-600">
+                Se crearán dos reservas independientes para pagar cada tramo por separado.
+              </p>
+            </>
+          )}
         </div>
 
         {/* Selección de clase */}
@@ -168,7 +205,8 @@ export default function ModalReserva({ vuelo, claseInicial = 'economy', pasajero
               Cantidad de pasajes (máx. 9)
             </label>
             <span className="text-xs text-slate-500">
-              Disponibles: <strong className="text-marino">{disponibles}</strong>
+              {vueloVuelta ? 'Disponibles en ambos tramos' : 'Disponibles'}:{' '}
+              <strong className="text-marino">{disponibles}</strong>
             </span>
           </div>
           <div className="flex items-center gap-3">
@@ -291,7 +329,7 @@ export default function ModalReserva({ vuelo, claseInicial = 'economy', pasajero
               disabled={cargando || !usuario || Boolean(errorValidacion)}
               className="rounded-xl bg-naranja px-6 py-2.5 font-bold text-white hover:bg-naranja/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {cargando ? 'Reservando...' : 'Confirmar reserva'}
+              {cargando ? 'Reservando...' : vueloVuelta ? 'Reservar ida y vuelta' : 'Confirmar reserva'}
             </button>
           </div>
         </div>
@@ -299,4 +337,3 @@ export default function ModalReserva({ vuelo, claseInicial = 'economy', pasajero
     </dialog>
   )
 }
-

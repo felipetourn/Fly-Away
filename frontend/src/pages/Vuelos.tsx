@@ -52,7 +52,12 @@ export default function Vuelos() {
   const [intentoAeropuertos, setIntentoAeropuertos] = useState(0)
   // Vuelta elegida, atada a la búsqueda (e ida) en la que se eligió. Se limpia al cambiar de búsqueda o de ida.
   const [vuelta, setVuelta] = useState<{ busqueda: string; vuelo: Vuelo } | null>(null)
-  const [vueloParaReservar, setVueloParaReservar] = useState<{ vuelo: Vuelo; clase: Clase; pasajeros: number } | null>(null)
+  const [vueloParaReservar, setVueloParaReservar] = useState<{
+    vuelo: Vuelo
+    vuelta?: Vuelo
+    clase: Clase
+    pasajeros: number
+  } | null>(null)
 
   useEffect(() => {
     getAeropuertos().then(
@@ -218,7 +223,14 @@ export default function Vuelos() {
             <div>
               <button
                 type="button"
-                onClick={() => setVueloParaReservar({ vuelo: idaElegida, clase: f.clase, pasajeros: f.pasajeros })}
+                onClick={() =>
+                  setVueloParaReservar({
+                    vuelo: idaElegida,
+                    vuelta: vueltaElegida ?? undefined,
+                    clase: f.clase,
+                    pasajeros: f.pasajeros,
+                  })
+                }
                 className="rounded-xl bg-naranja px-6 py-3 font-bold text-white hover:bg-naranja/90 transition-colors shadow-sm"
               >
                 Reservar pasajes
@@ -263,6 +275,7 @@ export default function Vuelos() {
       {vueloParaReservar && (
         <ModalReserva
           vuelo={vueloParaReservar.vuelo}
+          vueloVuelta={vueloParaReservar.vuelta}
           claseInicial={vueloParaReservar.clase}
           pasajerosInicial={vueloParaReservar.pasajeros}
           onCerrar={() => setVueloParaReservar(null)}

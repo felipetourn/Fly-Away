@@ -78,8 +78,7 @@ class PasajeroInputSerializer(serializers.Serializer):
     dni_pasajero = serializers.CharField(max_length=30, required=False, allow_blank=True)
 
 
-class CrearReservaSerializer(serializers.Serializer):
-    vuelo_id = serializers.UUIDField()
+class DatosReservaSerializer(serializers.Serializer):
     clase = serializers.ChoiceField(choices=Pasaje.Clase.choices)
     cantidad_pasajes = serializers.IntegerField(min_value=1, max_value=9)
     pasajeros = serializers.ListField(
@@ -89,6 +88,20 @@ class CrearReservaSerializer(serializers.Serializer):
     )
     contacto_email = serializers.EmailField(required=False, allow_blank=True)
     contacto_nombre = serializers.CharField(max_length=150, required=False, allow_blank=True)
+
+
+class CrearReservaSerializer(DatosReservaSerializer):
+    vuelo_id = serializers.UUIDField()
+
+
+class CrearReservaIdaVueltaSerializer(DatosReservaSerializer):
+    vuelo_ida = serializers.UUIDField()
+    vuelo_vuelta = serializers.UUIDField()
+
+    def validate(self, attrs):
+        if attrs['vuelo_ida'] == attrs['vuelo_vuelta']:
+            raise serializers.ValidationError('La ida y la vuelta deben ser vuelos distintos.')
+        return attrs
 
 
 class ReservaSerializer(serializers.ModelSerializer):

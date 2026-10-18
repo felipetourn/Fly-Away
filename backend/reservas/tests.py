@@ -44,6 +44,21 @@ class ReservasBaseTestCase(APITestCase):
             asientos_disponibles_primera=4,
             creado_por=cls.admin,
         )
+        cls.vuelo_vuelta = Vuelo.objects.create(
+            numero_vuelo='FA 1002',
+            avion=cls.avion,
+            aeropuerto_origen=cls.cor,
+            aeropuerto_destino=cls.aep,
+            fecha_operacion=HOY + dt.timedelta(days=5),
+            fecha_llegada=HOY + dt.timedelta(days=5),
+            hora_partida=dt.time(14, 0),
+            hora_llegada=dt.time(15, 30),
+            precio_economy=Decimal('120000.00'),
+            precio_primera=Decimal('270000.00'),
+            asientos_disponibles_economy=10,
+            asientos_disponibles_primera=4,
+            creado_por=cls.admin,
+        )
 
     def setUp(self):
         reloj = patch('django.utils.timezone.now', return_value=AHORA)
@@ -77,6 +92,52 @@ class ModeloReservasTests(ReservasBaseTestCase):
 
 
 class ReservasEndpointTests(ReservasBaseTestCase):
+    def test_ida_y_vuelta_crea_dos_reservas_para_pagar_por_separado(self):
+        res = self.client.post(
+            '/api/reservas/ida-vuelta/',
+            {
+                'vuelo_ida': str(self.vuelo.id),
+                'vuelo_vuelta': str(self.vuelo_vuelta.id),
+                'clase': 'economy',
+                'cantidad_pasajes': 2,
+                'pasajeros': [
+                    {'nombre_pasajero': 'Juan', 'apellido_pasajero': 'Pérez', 'dni_pasajero': '12345678'},
+                    {'nombre_pasajero': 'Lucía', 'apellido_pasajero': 'Pérez', 'dni_pasajero': '87654321'},
+                ],
+            },
+            format='json',
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Reserva.objects.filter(pasajero=self.pasajero).count(), 2)
+        self.assertEqual(res.data['ida']['vuelo']['id'], str(self.vuelo.id))
+        self.assertEqual(res.data['vuelta']['vuelo']['id'], str(self.vuelo_vuelta.id))
+        self.assertEqual(res.data['ida']['monto'], '200000.00')
+        self.assertEqual(res.data['vuelta']['monto'], '240000.00')
+        self.assertEqual(res.data['ida']['estado'], 'pendiente')
+        self.assertEqual(res.data['vuelta']['estado'], 'pendiente')
+        self.assertEqual(len(res.data['ida']['pasajes']), 2)
+        self.assertEqual(len(res.data['vuelta']['pasajes']), 2)
+
+    def test_ida_y_vuelta_no_deja_reserva_si_el_segundo_vuelo_no_es_valido(self):
+        self.vuelo_vuelta.estado = Vuelo.Estado.CANCELADO
+        self.vuelo_vuelta.save()
+
+        res = self.client.post(
+            '/api/reservas/ida-vuelta/',
+            {
+                'vuelo_ida': str(self.vuelo.id),
+                'vuelo_vuelta': str(self.vuelo_vuelta.id),
+                'clase': 'economy',
+                'cantidad_pasajes': 1,
+            },
+            format='json',
+        )
+
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Reserva.objects.filter(pasajero=self.pasajero).count(), 0)
+        self.assertEqual(Pasaje.objects.count(), 0)
+
     def test_reserva_exitosa_clase_economy(self):
         url = '/api/reservas/'
         payload = {

@@ -53,6 +53,11 @@ export interface DatosCrearReserva {
   contacto_nombre?: string
 }
 
+export interface DatosCrearReservaIdaVuelta extends Omit<DatosCrearReserva, 'vuelo_id'> {
+  vuelo_ida: string
+  vuelo_vuelta: string
+}
+
 export const MINIMO_PASAJES = 1
 export const MAXIMO_PASAJES = 9
 
@@ -74,6 +79,12 @@ export function validarReglasReserva(cantidad: number, asientosDisponibles: numb
 
 export const crearReserva = (datos: DatosCrearReserva) =>
   api<Reserva>('/reservas/', {
+    method: 'POST',
+    body: JSON.stringify(datos),
+  })
+
+export const crearReservaIdaVuelta = (datos: DatosCrearReservaIdaVuelta) =>
+  api<{ ida: Reserva; vuelta: Reserva }>('/reservas/ida-vuelta/', {
     method: 'POST',
     body: JSON.stringify(datos),
   })

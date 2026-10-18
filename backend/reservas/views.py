@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.http import HttpResponse
 from rest_framework import status
 from rest_framework.exceptions import NotFound
@@ -7,7 +8,12 @@ from rest_framework.views import APIView
 
 from .models import Pasaje, Reserva
 from .permissions import EsPasajero
-from .serializers import CrearReservaSerializer, PasajeDetalleSerializer, ReservaSerializer
+from .serializers import (
+    CrearReservaIdaVueltaSerializer,
+    CrearReservaSerializer,
+    PasajeDetalleSerializer,
+    ReservaSerializer,
+)
 from .servicios import crear_reserva
 from .tickets import generar_ticket_pdf
 
@@ -41,6 +47,42 @@ class ReservasView(APIView):
             contacto_nombre=datos.get('contacto_nombre'),
         )
         return Response(ReservaSerializer(reserva).data, status=status.HTTP_201_CREATED)
+
+
+class ReservaIdaVueltaView(APIView):
+    permission_classes = [EsPasajero]
+
+    def post(self, request):
+        serializer = CrearReservaIdaVueltaSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        datos = serializer.validated_data
+        datos_compartidos = {
+            'clase': datos['clase'],
+            'cantidad_pasajes': datos['cantidad_pasajes'],
+            'pasajeros': datos.get('pasajeros'),
+            'contacto_email': datos.get('contacto_email'),
+            'contacto_nombre': datos.get('contacto_nombre'),
+        }
+
+        with transaction.atomic():
+            ida = crear_reserva(
+                usuario=request.user,
+                vuelo_id=datos['vuelo_ida'],
+                **datos_compartidos,
+            )
+            vuelta = crear_reserva(
+                usuario=request.user,
+                vuelo_id=datos['vuelo_vuelta'],
+                **datos_compartidos,
+            )
+
+        return Response(
+            {
+                'ida': ReservaSerializer(ida).data,
+                'vuelta': ReservaSerializer(vuelta).data,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class ReservaDetalleView(APIView):
@@ -121,4 +163,3 @@ class TicketPdfView(APIView):
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="ticket-{pasaje.codigo_pasaje}.pdf"'
         return response
-
