@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { NOMBRE_CLASE, type Clase } from '../lib/busqueda'
 import { fechaCompleta, hora, precio } from '../lib/formato'
 import {
   crearReserva,
   crearReservaIdaVuelta,
+  erroresPasajero,
   MAXIMO_PASAJES,
   MINIMO_PASAJES,
   validarReglasReserva,
@@ -31,10 +32,14 @@ interface ConfiguradorTramoProps {
   etiqueta: string
   vuelo: Vuelo
   configuracion: ConfiguracionTramo
+  // Tras intentar confirmar también se marcan los campos vacíos; antes, solo lo mal escrito.
+  mostrarErrores: boolean
   onChange: (configuracion: ConfiguracionTramo) => void
 }
 
-function ConfiguradorTramo({ etiqueta, vuelo, configuracion, onChange }: ConfiguradorTramoProps) {
+const pasajerosValidos = (c: ConfiguracionTramo) => c.pasajeros.every((p) => Object.keys(erroresPasajero(p)).length === 0)
+
+function ConfiguradorTramo({ etiqueta, vuelo, configuracion, mostrarErrores, onChange }: ConfiguradorTramoProps) {
   const disponibles = asientosDe(vuelo, configuracion.clase)
   const errorValidacion = validarReglasReserva(configuracion.cantidad, disponibles)
 
@@ -142,30 +147,40 @@ function ConfiguradorTramo({ etiqueta, vuelo, configuracion, onChange }: Configu
       <div className="mt-4 border-t border-slate-100 pt-4">
         <h4 className="mb-3 text-sm font-bold text-slate-700">Datos de los pasajeros de la {etiqueta.toLowerCase()}</h4>
         <div className="space-y-3">
-          {configuracion.pasajeros.map((pasajero, indice) => (
-            <div key={indice} className="rounded-xl border border-slate-200 bg-white p-3">
-              <p className="mb-2 text-xs font-bold text-marino">Pasajero {indice + 1}</p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                {([
-                  ['nombre_pasajero', 'Nombre', 'Ej. Juan'],
-                  ['apellido_pasajero', 'Apellido', 'Ej. Pérez'],
-                  ['dni_pasajero', 'DNI / Documento', 'Ej. 12345678'],
-                ] as const).map(([campo, titulo, placeholder]) => (
-                  <label key={campo} className="text-[11px] font-semibold text-slate-500">
-                    {titulo}
-                    <input
-                      type="text"
-                      required
-                      value={pasajero[campo] ?? ''}
-                      onChange={(e) => actualizarPasajero(indice, campo, e.target.value)}
-                      placeholder={placeholder}
-                      className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm font-normal text-slate-900 outline-none focus:border-marino"
-                    />
-                  </label>
-                ))}
+          {configuracion.pasajeros.map((pasajero, indice) => {
+            const errores = erroresPasajero(pasajero)
+            return (
+              <div key={indice} className="rounded-xl border border-slate-200 bg-white p-3">
+                <p className="mb-2 text-xs font-bold text-marino">Pasajero {indice + 1}</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                  {([
+                    ['nombre_pasajero', 'Nombre', 'Ej. Juan'],
+                    ['apellido_pasajero', 'Apellido', 'Ej. Pérez'],
+                    ['dni_pasajero', 'DNI', 'Ej. 12345678'],
+                  ] as const).map(([campo, titulo, placeholder]) => {
+                    const error = mostrarErrores || pasajero[campo].trim() ? errores[campo] : undefined
+                    return (
+                      <label key={campo} className="text-[11px] font-semibold text-slate-500">
+                        {titulo}
+                        <input
+                          type="text"
+                          required
+                          value={pasajero[campo] ?? ''}
+                          onChange={(e) => actualizarPasajero(indice, campo, e.target.value)}
+                          placeholder={placeholder}
+                          aria-invalid={Boolean(error)}
+                          className={`mt-1 w-full rounded-lg border px-2.5 py-1.5 text-sm font-normal text-slate-900 outline-none focus:border-marino ${
+                            error ? 'border-red-400' : 'border-slate-200'
+                          }`}
+                        />
+                        {error && <span role="alert" className="mt-1 block font-medium text-red-600">{error}</span>}
+                      </label>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
       <p className="mt-4 text-right text-sm font-bold text-marino">
@@ -184,9 +199,11 @@ export default function ModalReserva({
 }: Props) {
   const dialogo = useRef<HTMLDialogElement>(null)
   const navigate = useNavigate()
+  const { pathname, search } = useLocation()
   const { usuario } = useSesion()
   const [cargando, setCargando] = useState(false)
   const [errorApi, setErrorApi] = useState<string | null>(null)
+  const [intentado, setIntentado] = useState(false)
   const cantidadInicial = Math.max(MINIMO_PASAJES, Math.min(pasajerosInicial, MAXIMO_PASAJES))
   const crearConfiguracionInicial = (): ConfiguracionTramo => ({
     clase: claseInicial,
@@ -217,6 +234,8 @@ export default function ModalReserva({
     e.preventDefault()
     if (!usuario) return
     if (errorIda || errorVuelta) return
+    setIntentado(true)
+    if (!pasajerosValidos(configuracionIda) || (vueloVuelta && !pasajerosValidos(configuracionVuelta))) return
 
     setCargando(true)
     setErrorApi(null)
@@ -285,7 +304,7 @@ export default function ModalReserva({
         </button>
       </div>
 
-      <form onSubmit={confirmar} className="space-y-4 p-5 sm:p-6">
+      <form onSubmit={confirmar} noValidate className="space-y-4 p-5 sm:p-6">
         <p className="text-sm text-slate-600">
           Configurá cada tramo por separado. Podés elegir distinta clase, cantidad de pasajeros y datos para la ida y la vuelta.
         </p>
@@ -293,6 +312,7 @@ export default function ModalReserva({
           etiqueta="Ida"
           vuelo={vuelo}
           configuracion={configuracionIda}
+          mostrarErrores={intentado}
           onChange={setConfiguracionIda}
         />
         {vueloVuelta && (
@@ -300,6 +320,7 @@ export default function ModalReserva({
             etiqueta="Vuelta"
             vuelo={vueloVuelta}
             configuracion={configuracionVuelta}
+            mostrarErrores={intentado}
             onChange={setConfiguracionVuelta}
           />
         )}
@@ -309,7 +330,8 @@ export default function ModalReserva({
           <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             <p className="font-bold">Iniciá sesión para reservar</p>
             <p className="mt-1">Para completar la reserva de pasajes necesitás ingresar con tu cuenta de pasajero.</p>
-            <Link to="/login" className="mt-2 inline-block font-bold text-marino underline">
+            {/* La URL tiene la búsqueda y los vuelos elegidos: tras el login se vuelve a ellos. */}
+            <Link to="/login" state={{ desde: pathname + search }} className="mt-2 inline-block font-bold text-marino underline">
               Iniciar sesión
             </Link>
           </div>

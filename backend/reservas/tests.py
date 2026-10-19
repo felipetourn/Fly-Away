@@ -20,7 +20,7 @@ Usuario = get_user_model()
 
 def pasajeros(cantidad):
     return [
-        {'nombre_pasajero': f'Viajero {n}', 'apellido_pasajero': 'Pérez', 'dni_pasajero': f'3000000{n}'}
+        {'nombre_pasajero': f'Viajero {"ABCDEFGHIJKL"[n]}', 'apellido_pasajero': 'Pérez', 'dni_pasajero': f'3000000{n}'}
         for n in range(cantidad)
     ]
 
@@ -96,6 +96,21 @@ class ModeloReservasTests(ReservasBaseTestCase):
                 vuelo=self.vuelo,
                 cantidad_pasajes=10,
             )
+
+
+    def test_pasajes_en_el_orden_de_los_pasajeros(self):
+        # El código lleva una parte aleatoria por pasajero: el orden lo da el índice final, no el código entero.
+        reserva = Reserva.objects.create(
+            pasajero=self.pasajero, contacto_email='test@mail.com', vuelo=self.vuelo, cantidad_pasajes=3,
+        )
+        for codigo in ['FA1001-000000-03', 'FA1001-FFFFFF-01', 'FA1001-888888-02']:
+            Pasaje.objects.create(
+                reserva=reserva, codigo_pasaje=codigo, nombre_pasajero='A', apellido_pasajero='B',
+                dni_pasajero='1', clase='economy', precio=Decimal('1.00'),
+            )
+        self.assertEqual(
+            [p.codigo_pasaje[-2:] for p in reserva.pasajes.all()], ['01', '02', '03'],
+        )
 
 
 class ReservasEndpointTests(ReservasBaseTestCase):
@@ -195,6 +210,37 @@ class ReservasEndpointTests(ReservasBaseTestCase):
             self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST, datos)
             self.assertIn('pasajeros', res.data)
         self.assertEqual(Reserva.objects.count(), 0)
+
+    def test_rechaza_nombre_apellido_o_dni_invalidos(self):
+        invalidos = [
+            ('nombre_pasajero', '30111222'),
+            ('nombre_pasajero', 'Juan2'),
+            ('apellido_pasajero', '-Pérez'),
+            ('apellido_pasajero', '@@'),
+            ('dni_pasajero', '1234567'),
+            ('dni_pasajero', '123456789'),
+            ('dni_pasajero', 'AB123456'),
+            ('dni_pasajero', '30$11122'),
+        ]
+        for campo, valor in invalidos:
+            res = self.client.post('/api/reservas/', {
+                'vuelo_id': str(self.vuelo.id), 'clase': 'economy', 'cantidad_pasajes': 1,
+                'pasajeros': [{**pasajeros(1)[0], campo: valor}],
+            }, format='json')
+            self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST, (campo, valor))
+            self.assertIn(campo, res.data['pasajeros'][0], (campo, valor))
+        self.assertEqual(Reserva.objects.count(), 0)
+
+    def test_acepta_nombres_compuestos_y_normaliza_el_dni(self):
+        res = self.client.post('/api/reservas/', {
+            'vuelo_id': str(self.vuelo.id), 'clase': 'economy', 'cantidad_pasajes': 1,
+            'pasajeros': [{'nombre_pasajero': 'María José', 'apellido_pasajero': "D'Alessandro-Muñoz",
+                           'dni_pasajero': '30.111 222'}],
+        }, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED, res.data)
+        pasaje = Pasaje.objects.get()
+        self.assertEqual(pasaje.dni_pasajero, '30111222')
+        self.assertEqual(pasaje.apellido_pasajero, "D'Alessandro-Muñoz")
 
     def test_reserva_exitosa_clase_economy(self):
         url = '/api/reservas/'

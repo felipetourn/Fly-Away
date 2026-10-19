@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { startTransition, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import ChipEstado from '../components/ChipEstado'
 import DetalleVuelo from '../components/DetalleVuelo'
@@ -133,8 +133,10 @@ export default function Perfil() {
       <button
         type="button"
         onClick={() => {
-          logout()
-          navigate('/')
+          // react-router navega dentro de una transición: el logout va en la misma para que la guarda de /perfil
+          // no vea la sesión cerrada antes de salir de la ruta (si no, redirige a /login).
+          navigate('/', { replace: true })
+          startTransition(logout)
         }}
         className="mt-8 w-full rounded-xl border border-slate-300 px-5 py-2.5 font-bold text-marino hover:bg-slate-50"
       >

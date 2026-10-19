@@ -50,8 +50,6 @@ export default function Vuelos() {
   const [aeropuertos, setAeropuertos] = useState<Aeropuerto[]>([])
   const [errorAeropuertos, setErrorAeropuertos] = useState(false)
   const [intentoAeropuertos, setIntentoAeropuertos] = useState(0)
-  // Vuelta elegida, atada a la búsqueda (e ida) en la que se eligió. Se limpia al cambiar de búsqueda o de ida.
-  const [vuelta, setVuelta] = useState<{ busqueda: string; vuelo: Vuelo } | null>(null)
   const [vueloParaReservar, setVueloParaReservar] = useState<{
     vuelo: Vuelo
     vuelta?: Vuelo
@@ -75,7 +73,7 @@ export default function Vuelos() {
   const erroresUrl = filtros && listos ? validarBusqueda(filtros, hoyISO(), aeropuertos) : {}
   // Solo se busca con filtros válidos: la URL puede venir editada o ser de otro día.
   const f = filtros && listos && Object.keys(erroresUrl).length === 0 ? filtros : null
-  // Cambia con cada búsqueda (sin idaId): remonta el buscador con los valores de la URL.
+  // Cambia con cada búsqueda (sin idaId ni vueltaId): remonta el buscador con los valores de la URL.
   const claveFiltros = filtros ? aParams(filtros).toString() : ''
 
   const busquedaIda = useVuelos(
@@ -106,29 +104,34 @@ export default function Vuelos() {
         }
       : null,
   )
-  const vueltaElegida = vuelta?.busqueda === params.toString() ? vuelta.vuelo : null
+  const vueltasValidas = idaElegida ? vueltasPosibles(busquedaVuelta.vuelos, idaElegida) : []
+  // Como la ida, la vuelta elegida va en la URL: al volver atrás o recargar no queda la ida sola.
+  const vueltaElegida = vueltasValidas.find((v) => v.id === params.get('vueltaId')) ?? null
 
   const ciudad = (iata: string) => aeropuertos.find((a) => a.codigo_iata === iata)?.ciudad ?? iata
 
-  function irA(p: URLSearchParams) {
-    setVuelta(null)
-    setParams(p)
-  }
   function buscar(nuevos: Filtros) {
-    irA(aParams(nuevos))
+    setParams(aParams(nuevos))
   }
   function filtrarPrecio(min: number | null, max: number | null) {
-    if (filtros) irA(aParams({ ...filtros, precioMin: min, precioMax: max }))
+    if (filtros) setParams(aParams({ ...filtros, precioMin: min, precioMax: max }))
   }
   function elegirIda(v: Vuelo) {
     const p = new URLSearchParams(params)
     p.set('idaId', v.id)
-    irA(p)
+    p.delete('vueltaId')
+    setParams(p)
+  }
+  function elegirVuelta(v: Vuelo) {
+    const p = new URLSearchParams(params)
+    p.set('vueltaId', v.id)
+    setParams(p)
   }
   function cambiarIda() {
     const p = new URLSearchParams(params)
     p.delete('idaId')
-    irA(p)
+    p.delete('vueltaId')
+    setParams(p)
   }
 
   let contenido = null
@@ -196,11 +199,11 @@ export default function Vuelos() {
             titulo={`${ciudad(f.destino)} → ${ciudad(f.origen)}`}
             subtitulo={`${f.vueltaHasta ? rangoFechas(f.vuelta, f.vueltaHasta) : fechaLarga(f.vuelta)} - ${detalle}`}
             estado={busquedaVuelta.estado}
-            vuelos={vueltasPosibles(busquedaVuelta.vuelos, idaElegida)}
+            vuelos={vueltasValidas}
             clase={f.clase}
             pasajeros={f.pasajeros}
             sugerencia={sugerencia}
-            onElegir={(v) => setVuelta({ busqueda: params.toString(), vuelo: v })}
+            onElegir={elegirVuelta}
             onReintentar={busquedaVuelta.reintentar}
           />
         </>

@@ -1,3 +1,5 @@
+import re
+
 from rest_framework import serializers
 
 from vuelos.models import Vuelo
@@ -73,10 +75,36 @@ class PasajeDetalleSerializer(serializers.ModelSerializer):
         return f'/api/pasajes/{obj.codigo_pasaje}/pdf/'
 
 
+# Empieza con letra; después letras, espacios, apóstrofos, guiones o puntos (María José, D'Alessandro-Muñoz).
+NOMBRE_VALIDO = re.compile(r"[^\W\d_](?:[^\W\d_]|[ '’.\-])*")
+# DNI: 8 dígitos, sin los puntos o espacios con que se suele escribir (12.345.678).
+DNI_VALIDO = re.compile(r'\d{8}')
+
+
+def _validar_nombre(valor, campo):
+    if not NOMBRE_VALIDO.fullmatch(valor):
+        raise serializers.ValidationError(
+            f'El {campo} solo puede tener letras, espacios, apóstrofos, guiones y puntos.'
+        )
+    return valor
+
+
 class PasajeroInputSerializer(serializers.Serializer):
     nombre_pasajero = serializers.CharField(max_length=100)
     apellido_pasajero = serializers.CharField(max_length=100)
     dni_pasajero = serializers.CharField(max_length=30)
+
+    def validate_nombre_pasajero(self, valor):
+        return _validar_nombre(valor, 'nombre')
+
+    def validate_apellido_pasajero(self, valor):
+        return _validar_nombre(valor, 'apellido')
+
+    def validate_dni_pasajero(self, valor):
+        dni = re.sub(r'[\s.\-]', '', valor)
+        if not DNI_VALIDO.fullmatch(dni):
+            raise serializers.ValidationError('El DNI debe tener 8 dígitos.')
+        return dni
 
 
 class DatosReservaSerializer(serializers.Serializer):

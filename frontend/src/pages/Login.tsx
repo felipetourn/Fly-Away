@@ -1,12 +1,15 @@
 import { useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { EsqueletoPagina } from '../components/Esqueleto'
 import { ApiError } from '../lib/api'
+import { destinoTrasLogin } from '../lib/auth'
 import { useSesion } from '../lib/sesion'
 
 export default function Login() {
   const { usuario, login, cargando } = useSesion()
   const navigate = useNavigate()
+  const { state } = useLocation()
+  const destino = destinoTrasLogin(state)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [verPassword, setVerPassword] = useState(false)
@@ -14,7 +17,8 @@ export default function Login() {
   const [enviando, setEnviando] = useState(false)
 
   if (cargando) return <EsqueletoPagina angosta />
-  if (usuario) return <Navigate to="/" replace />
+  // Al iniciar sesión este componente se vuelve a renderizar con usuario: también va al destino.
+  if (usuario) return <Navigate to={destino} replace />
 
   const enviar = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -22,7 +26,7 @@ export default function Login() {
     setEnviando(true)
     try {
       await login(email, password)
-      navigate('/', { replace: true })
+      navigate(destino, { replace: true })
     } catch (e) {
       // El backend responde 401 tanto si el email no existe como si la contraseña es incorrecta.
       setError(
@@ -91,7 +95,7 @@ export default function Login() {
       </form>
       <p className="mt-6 text-sm text-slate-600">
         ¿No tenés cuenta?{' '}
-        <Link to="/registro" className="font-semibold text-marino underline">Registrate</Link>
+        <Link to="/registro" state={state} className="font-semibold text-marino underline">Registrate</Link>
       </p>
     </main>
   )

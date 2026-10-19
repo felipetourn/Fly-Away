@@ -1,4 +1,4 @@
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { EsqueletoPagina } from './components/Esqueleto'
 import Header from './components/Header'
@@ -18,8 +18,10 @@ import Vuelos from './pages/Vuelos'
 
 function RutaProtegida({ roles, children }: { roles: Usuario['rol'][]; children: ReactNode }) {
   const { usuario, cargando } = useSesion()
+  const { pathname, search } = useLocation()
   if (cargando) return <EsqueletoPagina />
-  if (!usuario) return <Navigate to="/login" replace />
+  // Tras el login se vuelve a esta página (destinoTrasLogin).
+  if (!usuario) return <Navigate to="/login" replace state={{ desde: pathname + search }} />
   if (!roles.includes(usuario.rol)) return <Navigate to="/" replace />
   return children
 }

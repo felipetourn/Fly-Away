@@ -1,11 +1,14 @@
 import { useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { EsqueletoPagina } from '../components/Esqueleto'
+import { destinoTrasLogin } from '../lib/auth'
 import { useSesion } from '../lib/sesion'
 
 export default function Registro() {
   const { usuario, registrarse, cargando } = useSesion()
   const navigate = useNavigate()
+  const { state } = useLocation()
+  const destino = destinoTrasLogin(state)
   const [email, setEmail] = useState('')
   const [nombre, setNombre] = useState('')
   const [apellido, setApellido] = useState('')
@@ -15,7 +18,7 @@ export default function Registro() {
   const [enviando, setEnviando] = useState(false)
 
   if (cargando) return <EsqueletoPagina angosta />
-  if (usuario) return <Navigate to="/" replace />
+  if (usuario) return <Navigate to={destino} replace />
 
   const enviar = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -27,7 +30,7 @@ export default function Registro() {
     setEnviando(true)
     try {
       await registrarse({ email, nombre, apellido, password })
-      navigate('/', { replace: true })
+      navigate(destino, { replace: true })
     } catch (e) {
       setError(e instanceof Error ? e.message : 'No se pudo crear la cuenta.')
     } finally {
@@ -66,7 +69,7 @@ export default function Registro() {
         </button>
       </form>
       <p className="mt-6 text-sm text-slate-600">
-        ¿Ya tenés cuenta? <Link to="/login" className="font-semibold text-marino underline">Iniciá sesión</Link>
+        ¿Ya tenés cuenta? <Link to="/login" state={state} className="font-semibold text-marino underline">Iniciá sesión</Link>
       </p>
     </main>
   )
