@@ -141,7 +141,7 @@ export function leerFiltros(p: URLSearchParams): Filtros | null {
   }
 }
 
-/** Filtros → query string. Nunca incluye `idaId`: una búsqueda nueva empieza de cero. */
+/** Filtros → query string. Nunca incluye `idaId` ni `vueltaId`: una búsqueda nueva empieza de cero. */
 export function aParams(f: Filtros): URLSearchParams {
   const p = new URLSearchParams()
   if (f.origen) p.set('origen', f.origen)
