@@ -1,3 +1,5 @@
+import re
+
 from rest_framework import serializers
 
 from vuelos.models import Vuelo
@@ -73,10 +75,36 @@ class PasajeDetalleSerializer(serializers.ModelSerializer):
         return f'/api/pasajes/{obj.codigo_pasaje}/pdf/'
 
 
+# Empieza con letra; después letras, espacios, apóstrofos, guiones o puntos (María José, D'Alessandro-Muñoz).
+NOMBRE_VALIDO = re.compile(r"[^\W\d_](?:[^\W\d_]|[ '’.\-])*")
+# DNI o pasaporte: 6 a 15 letras o números, sin los separadores con que se suele escribir.
+DOCUMENTO_VALIDO = re.compile(r'[A-Z0-9]{6,15}')
+
+
+def _validar_nombre(valor, campo):
+    if not NOMBRE_VALIDO.fullmatch(valor):
+        raise serializers.ValidationError(
+            f'El {campo} solo puede tener letras, espacios, apóstrofos, guiones y puntos.'
+        )
+    return valor
+
+
 class PasajeroInputSerializer(serializers.Serializer):
     nombre_pasajero = serializers.CharField(max_length=100)
     apellido_pasajero = serializers.CharField(max_length=100)
     dni_pasajero = serializers.CharField(max_length=30)
+
+    def validate_nombre_pasajero(self, valor):
+        return _validar_nombre(valor, 'nombre')
+
+    def validate_apellido_pasajero(self, valor):
+        return _validar_nombre(valor, 'apellido')
+
+    def validate_dni_pasajero(self, valor):
+        documento = re.sub(r'[\s.\-]', '', valor).upper()
+        if not DOCUMENTO_VALIDO.fullmatch(documento):
+            raise serializers.ValidationError('Ingresá un DNI o documento de 6 a 15 letras o números.')
+        return documento
 
 
 class DatosReservaSerializer(serializers.Serializer):
