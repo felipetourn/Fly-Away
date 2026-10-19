@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
+from django.db.models.functions import Right
 from django.db.models import Q
 
 
@@ -90,7 +91,8 @@ class Pasaje(models.Model):
 
     class Meta:
         db_table = 'pasajes'
-        ordering = ['codigo_pasaje']
+        # El código termina en el número de pasajero (-01, -02…); el resto tiene una parte aleatoria.
+        ordering = [Right('codigo_pasaje', 2), 'codigo_pasaje']
 
     def __str__(self):
         return f'{self.codigo_pasaje} - {self.nombre_pasajero} {self.apellido_pasajero}'

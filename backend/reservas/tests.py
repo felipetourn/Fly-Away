@@ -98,6 +98,21 @@ class ModeloReservasTests(ReservasBaseTestCase):
             )
 
 
+    def test_pasajes_en_el_orden_de_los_pasajeros(self):
+        # El código lleva una parte aleatoria por pasajero: el orden lo da el índice final, no el código entero.
+        reserva = Reserva.objects.create(
+            pasajero=self.pasajero, contacto_email='test@mail.com', vuelo=self.vuelo, cantidad_pasajes=3,
+        )
+        for codigo in ['FA1001-000000-03', 'FA1001-FFFFFF-01', 'FA1001-888888-02']:
+            Pasaje.objects.create(
+                reserva=reserva, codigo_pasaje=codigo, nombre_pasajero='A', apellido_pasajero='B',
+                dni_pasajero='1', clase='economy', precio=Decimal('1.00'),
+            )
+        self.assertEqual(
+            [p.codigo_pasaje[-2:] for p in reserva.pasajes.all()], ['01', '02', '03'],
+        )
+
+
 class ReservasEndpointTests(ReservasBaseTestCase):
     def ida_y_vuelta(self, vuelta):
         datos = {'clase': 'economy', 'cantidad_pasajes': 1, 'pasajeros': pasajeros(1)}
