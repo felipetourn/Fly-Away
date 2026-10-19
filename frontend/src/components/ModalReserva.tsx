@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { NOMBRE_CLASE, type Clase } from '../lib/busqueda'
 import { fechaCompleta, hora, precio } from '../lib/formato'
 import {
@@ -184,6 +184,7 @@ export default function ModalReserva({
 }: Props) {
   const dialogo = useRef<HTMLDialogElement>(null)
   const navigate = useNavigate()
+  const { pathname, search } = useLocation()
   const { usuario } = useSesion()
   const [cargando, setCargando] = useState(false)
   const [errorApi, setErrorApi] = useState<string | null>(null)
@@ -309,7 +310,8 @@ export default function ModalReserva({
           <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             <p className="font-bold">Iniciá sesión para reservar</p>
             <p className="mt-1">Para completar la reserva de pasajes necesitás ingresar con tu cuenta de pasajero.</p>
-            <Link to="/login" className="mt-2 inline-block font-bold text-marino underline">
+            {/* La URL tiene la búsqueda y los vuelos elegidos: tras el login se vuelve a ellos. */}
+            <Link to="/login" state={{ desde: pathname + search }} className="mt-2 inline-block font-bold text-marino underline">
               Iniciar sesión
             </Link>
           </div>

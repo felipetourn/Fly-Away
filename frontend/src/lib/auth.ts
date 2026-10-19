@@ -30,3 +30,14 @@ export const MENU: Record<Usuario['rol'], { to: string; texto: string }[]> = {
     { to: '/admin/vuelos', texto: 'Gestión de vuelos' },
   ],
 }
+
+/**
+ * Adónde ir después de iniciar sesión o registrarse: la página desde la que se pidió el login
+ * (`state.desde`, la ponen las guardas y el diálogo de reserva) o el inicio.
+ */
+export function destinoTrasLogin(state: unknown): string {
+  const desde = (state as { desde?: unknown } | null)?.desde
+  if (typeof desde !== 'string' || !desde.startsWith('/') || desde.startsWith('//')) return '/'
+  if (/^\/(login|registro)(\/|\?|#|$)/.test(desde)) return '/'
+  return desde
+}

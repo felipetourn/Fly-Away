@@ -7,6 +7,7 @@ import { duracion, fechaCompleta, fechaCorta, fechaDeInstante, fechaLarga, hora,
 import { cuentaDelPago, erroresTarjeta, formatearNumero, formatearVencimiento, luhnValido, marcaDe, medioDePago, mensajeCompra, TARJETAS_PRUEBA } from '../src/lib/pagos.ts'
 import { errorDePeriodo, erroresDe, fechasDePeriodo, paginasVisibles, primero, queryListado, yaSalio } from '../src/lib/adminVuelos.ts'
 import { ApiError } from '../src/lib/api.ts'
+import { destinoTrasLogin } from '../src/lib/auth.ts'
 import { validarReglasReserva } from '../src/lib/reservas.ts'
 import { duracionDe, estadoClase, llegaAlDiaSiguiente, queryBusqueda, vueltasPosibles, type ParamsBusqueda, type Vuelo } from '../src/lib/vuelos.ts'
 
@@ -270,3 +271,15 @@ assert.ok(validarReglasReserva(4, 3), 'más pasajes que disponibles es inválido
 assert.ok(validarReglasReserva(-1, 5), 'cantidad negativa es inválida')
 console.log('reservas: OK')
 
+
+// auth: adónde volver tras iniciar sesión (solo rutas internas; nunca de vuelta al login o al registro)
+assert.equal(destinoTrasLogin(undefined), '/')
+assert.equal(destinoTrasLogin(null), '/')
+assert.equal(destinoTrasLogin({ desde: '/?origen=EZE&idaId=1&vueltaId=2' }), '/?origen=EZE&idaId=1&vueltaId=2')
+assert.equal(destinoTrasLogin({ desde: '/reservas' }), '/reservas')
+assert.equal(destinoTrasLogin({ desde: '//otro-sitio.com' }), '/')
+assert.equal(destinoTrasLogin({ desde: 'https://otro-sitio.com' }), '/')
+assert.equal(destinoTrasLogin({ desde: '/login' }), '/')
+assert.equal(destinoTrasLogin({ desde: '/registro?x=1' }), '/')
+assert.equal(destinoTrasLogin({ desde: 42 }), '/')
+console.log('auth: OK')
