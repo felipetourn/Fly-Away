@@ -15,14 +15,18 @@ export class ApiError extends Error {
 function mensajeError(data: unknown, status: number): string {
   // La API siempre responde JSON: un texto es la página de error de Django o del hosting, no un mensaje para mostrar.
   if (typeof data === 'string') return 'No pudimos conectar con el servidor. Probá de nuevo en unos minutos.'
-  if (data && typeof data === 'object') {
-    const errores = Object.values(data).flatMap((valor) =>
-      Array.isArray(valor) ? valor : [valor],
-    )
-    const mensaje = errores.find((valor): valor is string => typeof valor === 'string')
+  return primerMensaje(data) ?? `Error ${status}`
+}
+
+// DRF anida los errores como el pedido ({ pasajeros: [{}, { dni_pasajero: ['…'] }] }): el primer texto que aparezca.
+function primerMensaje(valor: unknown): string | undefined {
+  if (typeof valor === 'string') return valor
+  if (!valor || typeof valor !== 'object') return undefined
+  for (const hijo of Object.values(valor)) {
+    const mensaje = primerMensaje(hijo)
     if (mensaje) return mensaje
   }
-  return `Error ${status}`
+  return undefined
 }
 
 let renovacionEnCurso: Promise<string | null> | null = null

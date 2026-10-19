@@ -79,6 +79,28 @@ export function validarReglasReserva(cantidad: number, asientosDisponibles: numb
   return null
 }
 
+// Mismas reglas que PasajeroInputSerializer del backend.
+const NOMBRE_VALIDO = /^\p{L}[\p{L} '’.-]*$/u
+const DOCUMENTO_VALIDO = /^[A-Z0-9]{6,15}$/
+
+export type ErroresPasajero = Partial<Record<keyof PasajeroInput, string>>
+
+/** Errores de los datos de un pasajero; vacío = válido. El DNI se acepta con puntos, espacios o guiones. */
+export function erroresPasajero(p: PasajeroInput): ErroresPasajero {
+  const errores: ErroresPasajero = {}
+  const nombre = (campo: 'nombre_pasajero' | 'apellido_pasajero', texto: string) => {
+    const valor = p[campo].trim()
+    if (!valor) errores[campo] = `Ingresá el ${texto}.`
+    else if (!NOMBRE_VALIDO.test(valor)) errores[campo] = `El ${texto} solo puede tener letras, espacios, apóstrofos, guiones y puntos.`
+  }
+  nombre('nombre_pasajero', 'nombre')
+  nombre('apellido_pasajero', 'apellido')
+  const documento = p.dni_pasajero.replace(/[\s.-]/g, '').toUpperCase()
+  if (!documento) errores.dni_pasajero = 'Ingresá el DNI o documento.'
+  else if (!DOCUMENTO_VALIDO.test(documento)) errores.dni_pasajero = 'Ingresá un DNI o documento de 6 a 15 letras o números.'
+  return errores
+}
+
 export const crearReserva = (datos: DatosCrearReserva) =>
   api<Reserva>('/reservas/', {
     method: 'POST',

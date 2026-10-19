@@ -8,7 +8,7 @@ import { cuentaDelPago, erroresTarjeta, formatearNumero, formatearVencimiento, l
 import { errorDePeriodo, erroresDe, fechasDePeriodo, paginasVisibles, primero, queryListado, yaSalio } from '../src/lib/adminVuelos.ts'
 import { ApiError } from '../src/lib/api.ts'
 import { destinoTrasLogin } from '../src/lib/auth.ts'
-import { validarReglasReserva } from '../src/lib/reservas.ts'
+import { erroresPasajero, validarReglasReserva } from '../src/lib/reservas.ts'
 import { duracionDe, estadoClase, llegaAlDiaSiguiente, queryBusqueda, vueltasPosibles, type ParamsBusqueda, type Vuelo } from '../src/lib/vuelos.ts'
 
 const hoy = '2026-10-02'
@@ -215,6 +215,9 @@ assert.equal(new ApiError(502, '').message, SIN_SERVIDOR)
 assert.equal(new ApiError(400, { origen: ['No conocemos el aeropuerto "ZZZ".'] }).message, 'No conocemos el aeropuerto "ZZZ".')
 assert.equal(new ApiError(404, { detail: 'No encontrado.' }).message, 'No encontrado.')
 assert.equal(new ApiError(500, {}).message, 'Error 500')
+// errores anidados de DRF (un pasajero dentro de la lista, un tramo de ida y vuelta)
+assert.equal(new ApiError(400, { pasajeros: [{}, { dni_pasajero: ['DNI inválido.'] }] }).message, 'DNI inválido.')
+assert.equal(new ApiError(400, { vuelta: { pasajeros: [{ nombre_pasajero: ['Nombre inválido.'] }] } }).message, 'Nombre inválido.')
 
 console.log('api: OK')
 
@@ -283,3 +286,16 @@ assert.equal(destinoTrasLogin({ desde: '/login' }), '/')
 assert.equal(destinoTrasLogin({ desde: '/registro?x=1' }), '/')
 assert.equal(destinoTrasLogin({ desde: 42 }), '/')
 console.log('auth: OK')
+
+// reservas: datos de cada pasajero (mismas reglas que el backend)
+const pasajeroOk = { nombre_pasajero: 'María José', apellido_pasajero: "D'Alessandro-Muñoz", dni_pasajero: '30.111 222' }
+assert.deepEqual(erroresPasajero(pasajeroOk), {})
+assert.deepEqual(erroresPasajero({ ...pasajeroOk, dni_pasajero: 'ab123456' }), {}, 'pasaporte alfanumérico')
+assert.ok(erroresPasajero({ ...pasajeroOk, nombre_pasajero: '' }).nombre_pasajero, 'nombre vacío')
+assert.ok(erroresPasajero({ ...pasajeroOk, nombre_pasajero: '30111222' }).nombre_pasajero, 'nombre con números')
+assert.ok(erroresPasajero({ ...pasajeroOk, nombre_pasajero: 'Juan2' }).nombre_pasajero, 'nombre con un número')
+assert.ok(erroresPasajero({ ...pasajeroOk, apellido_pasajero: '-Pérez' }).apellido_pasajero, 'apellido que no empieza con letra')
+assert.ok(erroresPasajero({ ...pasajeroOk, dni_pasajero: '123' }).dni_pasajero, 'documento corto')
+assert.ok(erroresPasajero({ ...pasajeroOk, dni_pasajero: '1234567890123456' }).dni_pasajero, 'documento largo')
+assert.ok(erroresPasajero({ ...pasajeroOk, dni_pasajero: '30$111' }).dni_pasajero, 'documento con símbolos')
+console.log('pasajeros: OK')
