@@ -156,7 +156,7 @@ function ConfiguradorTramo({ etiqueta, vuelo, configuracion, mostrarErrores, onC
                   {([
                     ['nombre_pasajero', 'Nombre', 'Ej. Juan'],
                     ['apellido_pasajero', 'Apellido', 'Ej. Pérez'],
-                    ['dni_pasajero', 'DNI / Documento', 'Ej. 12345678'],
+                    ['dni_pasajero', 'DNI', 'Ej. 12345678'],
                   ] as const).map(([campo, titulo, placeholder]) => {
                     const error = mostrarErrores || pasajero[campo].trim() ? errores[campo] : undefined
                     return (

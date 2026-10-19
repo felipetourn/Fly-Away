@@ -217,9 +217,10 @@ class ReservasEndpointTests(ReservasBaseTestCase):
             ('nombre_pasajero', 'Juan2'),
             ('apellido_pasajero', '-Pérez'),
             ('apellido_pasajero', '@@'),
-            ('dni_pasajero', '123'),
-            ('dni_pasajero', '1234567890123456'),
-            ('dni_pasajero', '30$111'),
+            ('dni_pasajero', '1234567'),
+            ('dni_pasajero', '123456789'),
+            ('dni_pasajero', 'AB123456'),
+            ('dni_pasajero', '30$11122'),
         ]
         for campo, valor in invalidos:
             res = self.client.post('/api/reservas/', {

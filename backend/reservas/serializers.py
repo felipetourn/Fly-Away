@@ -77,8 +77,8 @@ class PasajeDetalleSerializer(serializers.ModelSerializer):
 
 # Empieza con letra; después letras, espacios, apóstrofos, guiones o puntos (María José, D'Alessandro-Muñoz).
 NOMBRE_VALIDO = re.compile(r"[^\W\d_](?:[^\W\d_]|[ '’.\-])*")
-# DNI o pasaporte: 6 a 15 letras o números, sin los separadores con que se suele escribir.
-DOCUMENTO_VALIDO = re.compile(r'[A-Z0-9]{6,15}')
+# DNI: 8 dígitos, sin los puntos o espacios con que se suele escribir (12.345.678).
+DNI_VALIDO = re.compile(r'\d{8}')
 
 
 def _validar_nombre(valor, campo):
@@ -101,10 +101,10 @@ class PasajeroInputSerializer(serializers.Serializer):
         return _validar_nombre(valor, 'apellido')
 
     def validate_dni_pasajero(self, valor):
-        documento = re.sub(r'[\s.\-]', '', valor).upper()
-        if not DOCUMENTO_VALIDO.fullmatch(documento):
-            raise serializers.ValidationError('Ingresá un DNI o documento de 6 a 15 letras o números.')
-        return documento
+        dni = re.sub(r'[\s.\-]', '', valor)
+        if not DNI_VALIDO.fullmatch(dni):
+            raise serializers.ValidationError('El DNI debe tener 8 dígitos.')
+        return dni
 
 
 class DatosReservaSerializer(serializers.Serializer):

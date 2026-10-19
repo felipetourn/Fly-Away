@@ -142,7 +142,7 @@ POST /api/pagos/tarjeta/         (pasajero) ✅ {reserva_id, numero, titular, ve
 POST /api/pagos/mercadopago/     (pasajero) ✅ {reserva_id} → 201 {pago, checkout_url}; 502 si MP no responde
 POST /api/reservas/              (pasajero) ✅ reservar (US06): {vuelo_id, clase, cantidad_pasajes (1..9), pasajeros[{nombre_pasajero, apellido_pasajero, dni_pasajero}]};
                                  un pasajero por pasaje, todos los datos obligatorios; nombre y apellido con letras, espacios,
-                                 apóstrofos, guiones o puntos; documento de 6 a 15 letras o números (se guarda sin separadores).
+                                 apóstrofos, guiones o puntos; DNI de 8 dígitos (se acepta con puntos y se guarda sin ellos).
                                  Los pasajes salen en el orden de los pasajeros (número final del código)
 GET  /api/reservas/              (pasajero) ✅ sus reservas, de la más nueva a la más vieja
 GET  /api/reservas/{id}/         (pasajero) ✅ una reserva propia; 404 si es ajena
