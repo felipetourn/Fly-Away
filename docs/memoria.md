@@ -4,6 +4,14 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-19 - Cerrar sesión no deja la búsqueda a medias (rama `fix/sesion-y-detalles-sprint2`)**
+- Al cerrar sesión desde el perfil se terminaba en `/login` en vez de `/`: react-router navega dentro de una transición y el logout (urgente) se renderizaba antes, así la guarda de `/perfil` redirigía a `/login`. Con "Atrás" se volvía a la búsqueda anterior. Ahora el logout va en la misma transición (`startTransition`) y se llega a `/`.
+- La vuelta elegida pasa a la URL (`vueltaId`, como `idaId`). Antes vivía en el estado de la pantalla: al volver atrás, recargar o reingresar quedaba la ida sola y había que elegir la vuelta otra vez.
+- Iniciar sesión (o registrarse) vuelve a la página desde la que se pidió: las guardas, el diálogo de reserva y el header pasan `state.desde`, y `destinoTrasLogin` (`lib/auth.ts`) acepta solo rutas internas. Quien inicia sesión para reservar vuelve a "Tu viaje" con la ida y la vuelta.
+- Los pasajes se ordenan por el número de pasajero del código (`-01`, `-02`…); antes, por el código entero, cuya parte aleatoria mezclaba el orden. **Migración `reservas/0003`** (solo opciones del modelo, no cambia tablas).
+- Nombre, apellido y documento de cada pasajero se validan en el backend y el diálogo los repite con error por campo. El documento se guarda sin puntos, espacios ni guiones. `lib/api` muestra los errores anidados de DRF (antes, "Error 400").
+- Recorrido completo verificado en local con Playwright: reserva ida y vuelta, pago aprobado de cada tramo con tickets, pago rechazado sin ticket, logout que invalida el refresh y pide login en rutas protegidas.
+
 **2026-10-18 - US10, factura por la API de Brevo (rama `feat/us10-brevo`)**
 - Los mails salen por la API HTTP de Brevo con `django-anymail` (`BREVO_API_KEY`); Render free bloquea el SMTP. Sin la clave, van a la consola.
 - `factura.py`: también ataja los errores de anymail (`AnymailError`), sin la rama muerta de reservas demo; los templates usan "-" en lugar de "·".
