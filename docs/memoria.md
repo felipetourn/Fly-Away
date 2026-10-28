@@ -4,6 +4,12 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-28 - Pantalla post-compra, aviso de factura y modales fluidos (rama `fix/sesion-y-detalles-sprint2`)**
+- `/pagos/:id` ya no abre un diálogo con los tickets: en la tarjeta de "¡Compra confirmada!" hay una sección "Tus tickets" con "Ver ticket" y "Descargar PDF" por pasajero, siempre disponible. Se sacó "Ver mis tickets" (llevaba a la lista de reservas).
+- `pagos.factura_enviada_en` (**migración `pagos/0005`**): `factura.py` la completa cuando el proveedor de correo acepta el mail; null si no salió. Viaja en `/api/pagos/`. Como el mail se intenta en el mismo pedido que aprueba el pago (tarjeta: el POST; MP: el GET que sincroniza), un pago aprobado con null significa "no salió".
+- Al llegar recién pagado (`?recien=1`, desde `Pagar` y en la URL de retorno de MP), un toast avisa "Te enviamos la factura a …" o "No pudimos enviar la factura por mail." y se va a los 6 s. El parámetro se borra al mostrarlo: recargar no lo repite.
+- El modal de reserva iba a ~23 fps sobre la portada: el `backdrop-blur` del `<dialog>` obligaba a redesenfocar toda la pantalla en cada cuadro del zoom del carrusel. Sin blur (modal de reserva y detalle de vuelo), 60 fps.
+
 **2026-10-19 - Cerrar sesión no deja la búsqueda a medias (rama `fix/sesion-y-detalles-sprint2`)**
 - Al cerrar sesión desde el perfil se terminaba en `/login` en vez de `/`: react-router navega dentro de una transición y el logout (urgente) se renderizaba antes, así la guarda de `/perfil` redirigía a `/login`. Con "Atrás" se volvía a la búsqueda anterior. Ahora el logout va en la misma transición (`startTransition`) y se llega a `/`.
 - La vuelta elegida pasa a la URL (`vueltaId`, como `idaId`). Antes vivía en el estado de la pantalla: al volver atrás, recargar o reingresar quedaba la ida sola y había que elegir la vuelta otra vez.
@@ -24,7 +30,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 **2026-10-18 - Pago confirmado sin error visible**
 - Un error al armar o enviar la factura ya no devuelve 500 en el pago: el callback de `on_commit` es `robust=True`. El pago queda aprobado y la reserva pagada aunque falle la factura (antes el navegador mostraba "Failed to fetch" y, al reintentar, "La reserva ya está pagada").
-- Al pagar con éxito, `/pagos/:id` abre un diálogo con los tickets de cada pasajero para descargar el PDF y la línea "Enviando la factura a tu correo…". Ese texto es fijo: el envío de la factura todavía no se verifica desde la pantalla (lo arregla la US10).
+- Al pagar con éxito, `/pagos/:id` muestra los tickets de cada pasajero para descargar el PDF (antes en un diálogo; ver la entrada del 2026-10-28).
 - Pendiente de US10: el envío de la factura sigue dentro de la petición; sin `EMAIL_TIMEOUT` un SMTP colgado puede demorar la respuesta.
 
 **2026-10-18 - Revisión de las US06 y US09 e integración real con pagos (rama `fix/sprint2-integracion-reservas`)**
@@ -203,7 +209,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 - [x] **Integrar US06 con pagos:** `reservas_mock.py` sobre `Reserva`/`Pasaje`, FK en `pagos.reserva_id` y `reservas_demo` eliminada (migración `pagos/0004`).
 - [x] **¿La reserva retiene asientos al crearse?** Resuelto: los asientos se descuentan únicamente al confirmarse el pago (US08); un pago rechazado no modifica disponibilidad.
 - [x] **Proveedor de email en prod:** API de Brevo con `django-anymail` (Render free bloquea el SMTP).
-- [ ] **Estado real del envío de la factura:** el diálogo de tickets dice "Enviando la factura a tu correo…" fijo. Propuesta: guardar `pagos.factura_enviada_en` al aceptar Brevo el mail (migración y DBML) y mostrar "Te enviamos la factura a …" o "No pudimos enviar la factura".
+- [x] **Estado real del envío de la factura:** `pagos.factura_enviada_en` y un toast al llegar recién pagado.
 - [ ] **Periodo de venta:** el modelo lo toma como "fechas en que opera". Si la cátedra lo entiende como "desde cuándo se puede comprar", falta un campo (ej. `venta_desde`). Confirmar con el docente.
 - [x] **Ida y vuelta en la compra:** resuelto, son 2 reservas con un pago cada una.
 - [ ] ¿El empleado de mostrador puede cancelar/modificar reservas?
