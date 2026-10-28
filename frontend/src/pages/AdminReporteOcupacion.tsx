@@ -6,6 +6,7 @@ import { POR_PAGINA, erroresDe, paginasVisibles, primero } from '../lib/adminVue
 import { NOMBRE_CLASE, type Clase } from '../lib/busqueda'
 import { fechaCorta, hora } from '../lib/formato'
 import { FALTA_CRITERIO, faltaCriterio, getReporte, porcentaje, type FiltrosReporte, type Reporte } from '../lib/ocupacion'
+import { getAeropuertos, type Aeropuerto } from '../lib/vuelos'
 
 const CAMPO = 'mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-normal outline-none focus:border-marino focus:ring-2 focus:ring-marino/20'
 const PAGINA = 'grid h-10 min-w-10 place-items-center rounded-xl border border-slate-300 bg-white px-2 font-bold text-marino hover:border-cielo disabled:cursor-not-allowed disabled:opacity-40'
@@ -17,6 +18,8 @@ function leerFiltros(params: URLSearchParams): FiltrosReporte {
     vuelo: params.get('vuelo') ?? '',
     desde: params.get('desde') ?? '',
     hasta: params.get('hasta') ?? '',
+    origen: params.get('origen') ?? '',
+    destino: params.get('destino') ?? '',
     clase: clase === 'economy' || clase === 'primera' ? clase : '',
     page: Math.max(1, Number(params.get('page')) || 1),
   }
@@ -25,7 +28,7 @@ function leerFiltros(params: URLSearchParams): FiltrosReporte {
 /** El primer error del backend: de un campo del formulario o general. */
 function mensajeDe(e: unknown): string {
   const errores = erroresDe(e)
-  for (const campo of ['non_field_errors', 'vuelo', 'desde', 'hasta', 'clase']) {
+  for (const campo of ['non_field_errors', 'vuelo', 'desde', 'hasta', 'origen', 'destino', 'clase']) {
     const mensaje = primero(errores[campo])
     if (mensaje) return mensaje
   }
@@ -56,6 +59,12 @@ export default function AdminReporteOcupacion() {
   const textoAviso = aviso.clave === clave ? aviso.texto : ''
   // Generar de nuevo con los mismos filtros vuelve a pedir el reporte (pudo haber ventas nuevas).
   const [pedido, setPedido] = useState(0)
+  const [aeropuertos, setAeropuertos] = useState<Aeropuerto[]>([])
+
+  useEffect(() => {
+    // Sin la lista, origen y destino quedan solo con "Todos": el resto del reporte funciona igual.
+    getAeropuertos().then(setAeropuertos, () => {})
+  }, [])
 
   useEffect(() => {
     const f = leerFiltros(new URLSearchParams(clave))
@@ -77,6 +86,12 @@ export default function AdminReporteOcupacion() {
   const cargando = !sinCriterio && resultado.clave !== clave
   const { reporte, error } = resultado.clave === clave ? resultado : { reporte: null, error: '' }
   const clases = filtros.clase ? [filtros.clase] : CLASES
+
+  const opciones = aeropuertos.map((a) => (
+    <option key={a.id} value={a.codigo_iata}>
+      {a.ciudad} ({a.codigo_iata})
+    </option>
+  ))
 
   function generar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -105,10 +120,24 @@ export default function AdminReporteOcupacion() {
       <h1 className="text-3xl font-extrabold text-marino">Reporte de ocupación</h1>
 
       {/* key: al cambiar la URL (atrás, adelante) el formulario toma los valores de la URL. */}
-      <form key={clave} onSubmit={generar} noValidate className="mt-6 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-5">
+      <form key={clave} onSubmit={generar} noValidate className="mt-6 grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-7">
         <label className="text-sm font-semibold text-slate-700 sm:col-span-2">
           ID o número de vuelo
           <input name="vuelo" defaultValue={filtros.vuelo} placeholder="FA 1020" className={CAMPO} />
+        </label>
+        <label className="text-sm font-semibold text-slate-700">
+          Origen
+          <select name="origen" defaultValue={filtros.origen} className={CAMPO}>
+            <option value="">Todos</option>
+            {opciones}
+          </select>
+        </label>
+        <label className="text-sm font-semibold text-slate-700">
+          Destino
+          <select name="destino" defaultValue={filtros.destino} className={CAMPO}>
+            <option value="">Todos</option>
+            {opciones}
+          </select>
         </label>
         <label className="text-sm font-semibold text-slate-700">
           Desde
@@ -126,7 +155,7 @@ export default function AdminReporteOcupacion() {
             <option value="primera">Primera</option>
           </select>
         </label>
-        <div className="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-5">
+        <div className="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-7">
           <button type="submit" className="rounded-xl bg-marino px-5 py-2 text-sm font-bold text-white hover:bg-cielo">
             Generar reporte
           </button>
@@ -137,7 +166,7 @@ export default function AdminReporteOcupacion() {
         </div>
       </form>
 
-      {sinCriterio && !textoAviso && <p className="mt-6 text-sm text-slate-500">Elegí un vuelo o un rango de fechas para generar el reporte.</p>}
+      {sinCriterio && !textoAviso && <p className="mt-6 text-sm text-slate-500">Elegí un vuelo, fechas, origen o destino para generar el reporte.</p>}
       {error && <p role="alert" className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
       {cargando && (
         <div role="status" aria-label="Generando reporte" className="mt-6">

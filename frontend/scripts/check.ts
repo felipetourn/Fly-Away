@@ -332,12 +332,15 @@ assert.equal(porcentaje(2, 3), 67)
 assert.equal(porcentaje(5, 0), 0, 'clase sin capacidad')
 console.log('ocupacion: OK')
 
-// reporte de ocupación: hace falta un vuelo o una fecha (misma regla que el backend)
-const sinFiltros: FiltrosReporte = { vuelo: '', desde: '', hasta: '', clase: '', page: 1 }
+// reporte de ocupación: hace falta un vuelo, una fecha, el origen o el destino (misma regla que el backend)
+const sinFiltros: FiltrosReporte = { vuelo: '', desde: '', hasta: '', origen: '', destino: '', clase: '', page: 1 }
 assert.equal(faltaCriterio({ ...sinFiltros, clase: 'primera' }), true, 'la clase sola no alcanza')
 assert.equal(faltaCriterio({ ...sinFiltros, vuelo: '   ' }), true, 'espacios no cuentan')
 assert.equal(faltaCriterio({ ...sinFiltros, vuelo: ' FA 1000 ' }), false)
 assert.equal(faltaCriterio({ ...sinFiltros, hasta: '2026-11-30' }), false, 'solo hasta')
+assert.equal(faltaCriterio({ ...sinFiltros, origen: 'BRC' }), false, 'solo origen')
+assert.equal(faltaCriterio({ ...sinFiltros, destino: 'COR' }), false, 'solo destino')
 assert.equal(queryReporte({ ...sinFiltros, desde: '2026-11-01' }).toString(), 'desde=2026-11-01')
 assert.equal(queryReporte({ ...sinFiltros, vuelo: ' FA 1000 ', clase: 'economy', page: 3 }).toString(), 'vuelo=FA+1000&clase=economy&page=3')
+assert.equal(queryReporte({ ...sinFiltros, origen: 'AEP', destino: 'COR', desde: '2026-11-01' }).toString(), 'desde=2026-11-01&origen=AEP&destino=COR')
 console.log('reporte: OK')

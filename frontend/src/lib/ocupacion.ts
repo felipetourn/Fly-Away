@@ -32,11 +32,13 @@ export function porcentaje(vendidos: number, capacidad: number): number {
 
 export const getOcupacion = (id: string) => api<OcupacionDeVuelo>(`/reportes/ocupacion/${encodeURIComponent(id)}/`)
 
-/** Filtros del reporte (US13). '' = sin filtrar. `vuelo` = id de la instancia o parte del número. */
+/** Filtros del reporte (US13). '' = sin filtrar. `vuelo` = id de la instancia o parte del número; origen y destino, código IATA. */
 export interface FiltrosReporte {
   vuelo: string
   desde: string
   hasta: string
+  origen: string
+  destino: string
   clase: '' | Clase
   page: number
 }
@@ -50,14 +52,14 @@ export interface Reporte extends Pagina<FilaReporte> {
   totales: Ocupacion
 }
 
-export const FALTA_CRITERIO = 'Elegí un vuelo o un rango de fechas.'
+export const FALTA_CRITERIO = 'Elegí al menos un criterio: vuelo, fechas, origen o destino.'
 
-/** La clase sola no alcanza: hace falta un vuelo o una fecha (la misma regla que el backend). */
-export const faltaCriterio = (f: FiltrosReporte) => !f.vuelo.trim() && !f.desde && !f.hasta
+/** La clase sola no alcanza: hace falta un vuelo, una fecha, el origen o el destino (la misma regla que el backend). */
+export const faltaCriterio = (f: FiltrosReporte) => !f.vuelo.trim() && !f.desde && !f.hasta && !f.origen && !f.destino
 
 export function queryReporte(f: FiltrosReporte): URLSearchParams {
   const params = new URLSearchParams()
-  for (const clave of ['vuelo', 'desde', 'hasta', 'clase'] as const) {
+  for (const clave of ['vuelo', 'desde', 'hasta', 'origen', 'destino', 'clase'] as const) {
     const valor = f[clave].trim()
     if (valor) params.set(clave, valor)
   }

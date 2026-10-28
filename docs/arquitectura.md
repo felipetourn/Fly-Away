@@ -153,9 +153,9 @@ GET  /api/pasajes/{codigo}/      ✅ hecho — (pasajero dueño) detalle del tic
 GET  /api/pasajes/{codigo}/pdf/  ✅ hecho — descarga ticket PDF, solo si la compra está pagada
 GET  /api/reportes/ocupacion/{id}/   (admin) ✅ ocupación de una instancia (US12): {vuelo, clases[{clase, capacidad, vendidos, disponibles}], total};
                                  incluye cancelados y pasados; id inexistente o malformado: 404
-GET  /api/reportes/ocupacion/?vuelo=&desde=&hasta=&clase=&page=   (admin) ✅ reporte (US13): una fila por instancia {vuelo, clases, total},
+GET  /api/reportes/ocupacion/?vuelo=&desde=&hasta=&origen=&destino=&clase=&page=   (admin) ✅ reporte (US13): una fila por instancia {vuelo, clases, total},
                                  de a 50, más `totales` de todo el filtro. Hace falta `vuelo` (id o parte del número) o una fecha;
-                                 si no, 400 "Elegí un vuelo o un rango de fechas.". `clase` deja solo esa clase. Incluye cancelados
+                                 origen y destino (código IATA) también alcanzan solos; si no, 400 "Elegí al menos un criterio: vuelo, fechas, origen o destino.". `clase` deja solo esa clase. Incluye cancelados
 ```
 
 El registro público siempre asigna el rol `pasajero` y valida la contraseña con los validadores de Django. Las cuentas de administrador y empleado se provisionan desde Django Admin por un administrador; las contraseñas se ingresan como texto en el formulario y se guardan hasheadas. Solo los usuarios activos con rol `administrador` son staff y acceden a Django Admin; empleados y pasajeros no acceden. El frontend renueva el access token con el refresh al recibir un 401 y descarta la sesión si la renovación falla. Cerrar sesión borra los tokens del navegador y manda el refresh a `/api/auth/logout/`, que lo invalida en el servidor (`token_blacklist` de SimpleJWT): ese refresh ya no renueva, y el access vigente vence solo (1 h). Las sesiones de otros usuarios o dispositivos no se tocan. Las rutas `/admin/*` (React) y `/empleado/*` exigen administrador y empleado, respectivamente (cualquier otro rol vuelve a `/`); las búsquedas públicas de vuelos siguen abiertas. Cualquier nueva operación de negocio exclusiva por rol debe validar el permiso también en su endpoint de backend.

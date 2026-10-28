@@ -35,7 +35,7 @@ class PaginacionReporte(PageNumberPagination):
 
 
 class ReporteOcupacionView(generics.ListAPIView):
-    """Reporte de ocupación (US13): una fila por instancia, con filtros por vuelo, fechas y clase."""
+    """Reporte de ocupación (US13): una fila por instancia, con filtros por vuelo, fechas, origen, destino y clase."""
 
     permission_classes = [EsAdministrador]
     pagination_class = PaginacionReporte
@@ -57,6 +57,10 @@ class ReporteOcupacionView(generics.ListAPIView):
             vuelos = vuelos.filter(fecha_operacion__gte=f['desde'])
         if 'hasta' in f:
             vuelos = vuelos.filter(fecha_operacion__lte=f['hasta'])
+        if 'origen' in f:
+            vuelos = vuelos.filter(aeropuerto_origen__codigo_iata=f['origen'].upper())
+        if 'destino' in f:
+            vuelos = vuelos.filter(aeropuerto_destino__codigo_iata=f['destino'].upper())
 
         self.paginator.totales = totales(vuelos, clases)
         pagina = self.paginate_queryset(con_ocupacion(vuelos).order_by('fecha_operacion', 'hora_partida', 'numero_vuelo'))
