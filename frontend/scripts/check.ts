@@ -4,7 +4,7 @@ process.env.TZ = 'America/Argentina/Buenos_Aires' // UTC−3: detecta fechas cor
 import assert from 'node:assert/strict'
 import { aParams, abreHaciaArriba, elegirDia, leerFiltros, validarBusqueda, type Filtros } from '../src/lib/busqueda.ts'
 import { duracion, fechaCompleta, fechaCorta, fechaDeInstante, fechaLarga, hora, precio, rangoCorto, rangoFechas } from '../src/lib/formato.ts'
-import { cuentaDelPago, erroresTarjeta, formatearNumero, formatearVencimiento, luhnValido, marcaDe, medioDePago, mensajeCompra, TARJETAS_PRUEBA } from '../src/lib/pagos.ts'
+import { avisoFactura, cuentaDelPago, erroresTarjeta, formatearNumero, formatearVencimiento, luhnValido, marcaDe, medioDePago, mensajeCompra, TARJETAS_PRUEBA } from '../src/lib/pagos.ts'
 import { errorDePeriodo, erroresDe, fechasDePeriodo, paginasVisibles, primero, queryListado, yaSalio } from '../src/lib/adminVuelos.ts'
 import { ApiError } from '../src/lib/api.ts'
 import { destinoTrasLogin } from '../src/lib/auth.ts'
@@ -262,6 +262,12 @@ assert.equal(mensajeCompra({ estado: 'aprobado', vuelo, cantidad_pasajes: 1 }), 
 assert.equal(mensajeCompra({ estado: 'aprobado', vuelo: null, cantidad_pasajes: null }), 'Tu compra está confirmada.')
 assert.equal(mensajeCompra({ estado: 'rechazado', vuelo, cantidad_pasajes: 2 }), 'La compra no se confirmó.')
 assert.equal(mensajeCompra({ estado: 'pendiente', vuelo, cantidad_pasajes: 2 }), '')
+// avisoFactura: el toast al llegar recién pagado
+assert.deepEqual(avisoFactura({ estado: 'aprobado', factura_enviada_en: '2026-10-28T12:00:00Z' }, 'pepe@gmail.com'), { tono: 'ok', texto: 'Te enviamos la factura a pepe@gmail.com.' })
+assert.deepEqual(avisoFactura({ estado: 'aprobado', factura_enviada_en: null }, 'pepe@gmail.com'), { tono: 'error', texto: 'No pudimos enviar la factura por mail.' })
+assert.deepEqual(avisoFactura({ estado: 'aprobado', factura_enviada_en: '2026-10-28T12:00:00Z' }, ''), { tono: 'ok', texto: 'Te enviamos la factura por mail.' }, 'sin email conocido no queda "a ."')
+assert.equal(avisoFactura({ estado: 'pendiente', factura_enviada_en: null }, 'pepe@gmail.com'), null)
+assert.equal(avisoFactura({ estado: 'rechazado', factura_enviada_en: null }, 'pepe@gmail.com'), null)
 console.log('pagos: OK')
 
 // validarReglasReserva (US06)

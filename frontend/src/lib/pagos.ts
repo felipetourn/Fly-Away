@@ -28,6 +28,7 @@ export interface Pago {
   transaccion_externa_id: string | null
   creado_en: string
   procesado_en: string | null
+  factura_enviada_en: string | null // null: el mail de la factura no salió
 }
 
 export interface DatosTarjeta {
@@ -147,6 +148,18 @@ export function mensajeCompra(p: Pick<Pago, 'estado' | 'vuelo' | 'cantidad_pasaj
   return p.cantidad_pasajes === 1
     ? `Tu pasaje para ${vueloCorto(p.vuelo)} está confirmado.`
     : `Tus ${p.cantidad_pasajes} pasajes para ${vueloCorto(p.vuelo)} están confirmados.`
+}
+
+export interface Aviso {
+  tono: 'ok' | 'error'
+  texto: string
+}
+
+/** Aviso del envío de la factura al llegar recién pagado; null si la compra no está confirmada. */
+export function avisoFactura(p: Pick<Pago, 'estado' | 'factura_enviada_en'>, email: string): Aviso | null {
+  if (p.estado !== 'aprobado') return null
+  if (!p.factura_enviada_en) return { tono: 'error', texto: 'No pudimos enviar la factura por mail.' }
+  return { tono: 'ok', texto: email ? `Te enviamos la factura a ${email}.` : 'Te enviamos la factura por mail.' }
 }
 
 export const getPagos = () => api<Pago[]>('/pagos/')
