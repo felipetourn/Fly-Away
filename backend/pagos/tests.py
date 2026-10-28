@@ -371,6 +371,8 @@ class FacturacionTests(Datos):
         self.assertEqual((nombre, tipo), (f'factura-{pago.numero_factura}.pdf', 'application/pdf'))
         self.assertTrue(contenido.startswith(b'%PDF'))
         self.assertIn('12345678', mail.outbox[-1].alternatives[0][0])
+        self.assertIsNotNone(pago.factura_enviada_en)
+        self.assertIsNotNone(self.client.get(f'/api/pagos/{pago.id}/').data['factura_enviada_en'])
 
     def test_pago_rechazado_no_genera_factura_ni_envia_correo(self):
         reserva = self.reserva()
@@ -393,6 +395,7 @@ class FacturacionTests(Datos):
         self.assertEqual((respuesta.status_code, respuesta.data['estado']), (201, 'aprobado'))
         reserva.refresh_from_db()
         self.assertEqual(reserva.estado, 'pagada')
+        self.assertIsNone(Pago.objects.get(id=respuesta.data['id']).factura_enviada_en)
 
     def test_error_de_la_api_de_correo_no_tumba_la_compra(self):
         reserva = self.reserva()
@@ -402,6 +405,7 @@ class FacturacionTests(Datos):
                     respuesta = self.pagar(reserva.id)
 
         self.assertEqual((respuesta.status_code, respuesta.data['estado']), (201, 'aprobado'))
+        self.assertIsNone(Pago.objects.get(id=respuesta.data['id']).factura_enviada_en)
 
     def test_error_de_correo_no_revierte_ni_duplica_la_compra(self):
         reserva = self.reserva(cantidad=2)
@@ -414,6 +418,7 @@ class FacturacionTests(Datos):
         self.assertEqual((respuesta.status_code, respuesta.data['estado']), (201, 'aprobado'))
         pago = Pago.objects.get(id=respuesta.data['id'])
         self.assertTrue(pago.numero_factura)
+        self.assertIsNone(pago.factura_enviada_en)
         reserva.refresh_from_db()
         self.assertEqual(reserva.estado, 'pagada')
         self.assertEqual(Pago.objects.filter(reserva_id=reserva.id, estado=Pago.Estado.APROBADO).count(), 1)
@@ -433,6 +438,15 @@ class FacturacionTests(Datos):
                 servicios.confirmar_compra(pago, 'Pago aprobado.')
 
         self.assertEqual(len(mail.outbox), 1)
+
+    def test_respuesta_del_pago_con_tarjeta_trae_la_factura_enviada(self):
+        reserva = self.reserva()
+        with self.settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend'):
+            with patch('pagos.servicios.transaction.on_commit', side_effect=lambda f, robust=False: f()):
+                pago = servicios.pagar_con_tarjeta(reserva, '4242424242424242')
+
+        self.assertEqual(pago.estado, Pago.Estado.APROBADO)
+        self.assertIsNotNone(pago.factura_enviada_en)
 
 
 @patch('pagos.mercadopago.cuenta_del_comprador', new=lambda pago_id: None)
@@ -473,6 +487,7 @@ class PagoMercadoPagoTests(Datos):
         self.assertEqual(mail.outbox[0].to, [self.pasajero.email])
         pago = Pago.objects.get(id=pago_id)
         self.assertIn(pago.numero_factura, mail.outbox[0].subject)
+        self.assertIsNotNone(pago.factura_enviada_en)
 
     def test_rechazado_de_mp_no_toca_asientos(self, crear, consultar, cancelar):
         reserva = self.reserva(cantidad=2)

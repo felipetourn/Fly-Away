@@ -155,6 +155,7 @@ Table pagos {
   marca varchar [note: 'visa | mastercard | amex; la de la tarjeta o la usada dentro de Mercado Pago']
   cuenta_mp varchar [note: 'Mail de la cuenta de Mercado Pago que pagó']
   numero_factura varchar [unique, note: 'Se asigna únicamente al confirmar el pago; identifica el comprobante asociado a la operación']
+  factura_enviada_en timestamp [note: 'Cuándo el proveedor de correo aceptó el mail de la factura; null si no salió']
   transaccion_externa_id varchar
   procesado_en timestamp
   detalle varchar [note: 'Motivo legible del resultado, el que ve el pasajero']
