@@ -163,7 +163,23 @@ export function avisoFactura(p: Pick<Pago, 'estado' | 'factura_enviada_en'>, ema
 }
 
 export const getPagos = () => api<Pago[]>('/pagos/')
-export const getPago = (id: string) => api<Pago>(`/pagos/${id}/`)
+/**
+ * Mientras un pedido con la misma clave sigue en curso, devuelve esa misma promesa.
+ * StrictMode monta dos veces en dev: dos GET del pago a la vez harían que uno responda sin la factura enviada.
+ */
+export function compartirEnCurso<T>(pedir: (clave: string) => Promise<T>): (clave: string) => Promise<T> {
+  const enCurso = new Map<string, Promise<T>>()
+  return (clave) => {
+    let promesa = enCurso.get(clave)
+    if (!promesa) {
+      promesa = pedir(clave).finally(() => enCurso.delete(clave))
+      enCurso.set(clave, promesa)
+    }
+    return promesa
+  }
+}
+
+export const getPago = compartirEnCurso((id) => api<Pago>(`/pagos/${id}/`))
 
 export const pagarConTarjeta = (reservaId: string, t: DatosTarjeta) =>
   api<Pago>('/pagos/tarjeta/', {
