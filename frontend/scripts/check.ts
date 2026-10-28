@@ -9,6 +9,7 @@ import { errorDePeriodo, erroresDe, fechasDePeriodo, paginasVisibles, primero, q
 import { ApiError } from '../src/lib/api.ts'
 import { destinoTrasLogin } from '../src/lib/auth.ts'
 import { erroresPasajero, validarReglasReserva } from '../src/lib/reservas.ts'
+import { porcentaje } from '../src/lib/ocupacion.ts'
 import { duracionDe, estadoClase, llegaAlDiaSiguiente, queryBusqueda, vueltasPosibles, type ParamsBusqueda, type Vuelo } from '../src/lib/vuelos.ts'
 
 const hoy = '2026-10-02'
@@ -322,3 +323,11 @@ assert.ok(erroresPasajero({ ...pasajeroOk, dni_pasajero: '123456789' }).dni_pasa
 assert.ok(erroresPasajero({ ...pasajeroOk, dni_pasajero: 'AB123456' }).dni_pasajero, 'DNI con letras')
 assert.ok(erroresPasajero({ ...pasajeroOk, dni_pasajero: '30$11122' }).dni_pasajero, 'DNI con símbolos')
 console.log('pasajeros: OK')
+
+// ocupacion: porcentaje vendido (entero, sin dividir por cero)
+assert.equal(porcentaje(0, 150), 0)
+assert.equal(porcentaje(150, 150), 100)
+assert.equal(porcentaje(1, 3), 33)
+assert.equal(porcentaje(2, 3), 67)
+assert.equal(porcentaje(5, 0), 0, 'clase sin capacidad')
+console.log('ocupacion: OK')
