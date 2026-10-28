@@ -51,7 +51,11 @@ export default function AdminReporteOcupacion() {
     reporte: null,
     error: '',
   })
-  const [aviso, setAviso] = useState('')
+  // El aviso es de la URL en la que se pidió: al navegar (atrás, adelante) desaparece.
+  const [aviso, setAviso] = useState({ clave: '', texto: '' })
+  const textoAviso = aviso.clave === clave ? aviso.texto : ''
+  // Generar de nuevo con los mismos filtros vuelve a pedir el reporte (pudo haber ventas nuevas).
+  const [pedido, setPedido] = useState(0)
 
   useEffect(() => {
     const f = leerFiltros(new URLSearchParams(clave))
@@ -68,7 +72,7 @@ export default function AdminReporteOcupacion() {
     return () => {
       vigente = false
     }
-  }, [clave])
+  }, [clave, pedido])
 
   const cargando = !sinCriterio && resultado.clave !== clave
   const { reporte, error } = resultado.clave === clave ? resultado : { reporte: null, error: '' }
@@ -81,11 +85,12 @@ export default function AdminReporteOcupacion() {
       if (typeof valor === 'string' && valor.trim()) nuevos.set(campo, valor.trim())
     }
     if (faltaCriterio(leerFiltros(nuevos))) {
-      setAviso(FALTA_CRITERIO)
+      setAviso({ clave, texto: FALTA_CRITERIO })
       return
     }
-    setAviso('')
-    setParams(nuevos) // sin `page`: un reporte nuevo vuelve a la primera página
+    setAviso({ clave: '', texto: '' })
+    if (nuevos.toString() === clave) setPedido((n) => n + 1)
+    else setParams(nuevos) // sin `page`: un reporte nuevo vuelve a la primera página
   }
 
   function irAPagina(page: number) {
@@ -125,14 +130,14 @@ export default function AdminReporteOcupacion() {
           <button type="submit" className="rounded-xl bg-marino px-5 py-2 text-sm font-bold text-white hover:bg-cielo">
             Generar reporte
           </button>
-          <Link to="/admin/ocupacion" onClick={() => setAviso('')} className="rounded-xl border border-slate-300 bg-white px-5 py-2 text-sm font-bold text-marino hover:border-cielo">
+          <Link to="/admin/ocupacion" onClick={() => setAviso({ clave: '', texto: '' })} className="rounded-xl border border-slate-300 bg-white px-5 py-2 text-sm font-bold text-marino hover:border-cielo">
             Limpiar
           </Link>
-          {aviso && <p role="alert" className="text-sm font-semibold text-red-700">{aviso}</p>}
+          {textoAviso && <p role="alert" className="text-sm font-semibold text-red-700">{textoAviso}</p>}
         </div>
       </form>
 
-      {sinCriterio && !aviso && <p className="mt-6 text-sm text-slate-500">Elegí un vuelo o un rango de fechas para generar el reporte.</p>}
+      {sinCriterio && !textoAviso && <p className="mt-6 text-sm text-slate-500">Elegí un vuelo o un rango de fechas para generar el reporte.</p>}
       {error && <p role="alert" className="mt-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</p>}
       {cargando && (
         <div role="status" aria-label="Generando reporte" className="mt-6">
