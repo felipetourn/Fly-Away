@@ -4,6 +4,12 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-28 - US11, compras concurrentes (rama `feat/sprint3-concurrencia-ocupacion`)**
+- El mecanismo ya existía (US08): bloqueo de la fila del vuelo con `select_for_update()`, descuento con `F()` solo al confirmar, pago bloqueado después del vuelo. Nunca se había probado con operaciones simultáneas: los tests corren en SQLite, que no bloquea filas.
+- `pagos/tests_concurrencia.py`: hilos que largan juntos contra Postgres (último lugar con dos tarjetas, dos aprobaciones de MP, el mismo pago confirmado dos veces, 20 compradores por 10 lugares). En SQLite se saltean. Sin los `select_for_update()` fallan las cuatro; con ellos, cinco corridas seguidas OK. La suite completa del backend también pasa en Postgres.
+- Mensajes nuevos para quien pierde el último lugar mientras paga: tarjeta (400) "Se vendieron los últimos lugares de este vuelo mientras pagabas. No se hizo ningún cobro."; MP "…: corresponde devolución."
+- Escenarios y garantías en la sección "Concurrencia" de arquitectura.md. Sin migraciones.
+
 **2026-10-28 - Pantalla post-compra, aviso de factura y modales fluidos (rama `fix/sesion-y-detalles-sprint2`)**
 - `/pagos/:id` ya no abre un diálogo con los tickets: en la tarjeta de "¡Compra confirmada!" hay una sección "Tus tickets" con "Ver ticket" y "Descargar PDF" por pasajero, siempre disponible. Se sacó "Ver mis tickets" (llevaba a la lista de reservas).
 - `pagos.factura_enviada_en` (**migración `pagos/0005`**): `factura.py` la completa cuando el proveedor de correo acepta el mail; null si no salió. Viaja en `/api/pagos/`. Como el mail se intenta en el mismo pedido que aprueba el pago (tarjeta: el POST; MP: el GET que sincroniza), un pago aprobado con null significa "no salió".
@@ -160,6 +166,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-10-28 | Pruebas concurrentes en un archivo aparte (`pagos/tests_concurrencia.py`) que solo corre en Postgres | SQLite no bloquea filas: ahí la prueba no demuestra nada; la suite de todos los días sigue rápida y verde |
 | 2026-10-17 | La reserva de pasajes se crea en estado 'pendiente' y genera pasajes con precio congelado | Cumple que la reserva no es compra confirmada y asegura el precio al momento de reservar |
 | 2026-10-18 | Se elimina `reservas_demo` y `pagos.reserva_id` pasa a FK; se borran los pagos de prueba | Con reservas reales, las demo dejaban pagar reservas inventadas en producción |
 | 2026-10-18 | Ida y vuelta = dos reservas, cada una con su pago | Cada tramo puede tener otra clase y cantidad; `pagos` sigue apuntando a una sola reserva |

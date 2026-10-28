@@ -173,6 +173,31 @@ Dos medios. Ninguno guarda el número completo de la tarjeta ni el CVV: solo `ul
 - **Variables:** `MP_ACCESS_TOKEN` (Access Token de prueba de la app en developers.mercadopago.com; vacío = MP deshabilitado) y `FRONTEND_URL`. En Render: `FRONTEND_URL=https://fly-away-one.vercel.app`.
 - **Sandbox:** para pagar en MP se inicia sesión con el comprador de prueba (sus datos se comparten por fuera del repo) y se usa la Mastercard `5031 7557 3453 0604`, CVV `123`, vencimiento `11/30`, titular `APRO` (aprobada) u `OTHE` (rechazada).
 
+## Concurrencia (US11)
+
+Dos personas pueden pagar a la vez el último lugar. El mecanismo es **bloqueo pesimista de la fila del vuelo**: toda operación que lee o cambia la disponibilidad de una instancia hace `select_for_update()` sobre ese vuelo dentro de `transaction.atomic()`, así las operaciones sobre el mismo vuelo van de a una y cada una ve lo que dejó la anterior. Vuelos distintos (otra fecha del mismo número) no se bloquean entre sí. Los asientos se descuentan **solo al confirmar** (no hay lugares retenidos que liberar) y con `F()` en la base.
+
+| Escenario | Qué pasa | Qué lo garantiza |
+|---|---|---|
+| Dos pasajeros reservan a la vez el último lugar | Las dos reservas quedan `pendiente`: reservar no retiene asientos | `crear_reserva` bloquea el vuelo para validar; el lugar se vuelve a chequear al pagar |
+| Dos pagos con tarjeta a la vez por el último lugar | Uno se aprueba; el otro recibe 400 "Se vendieron los últimos lugares de este vuelo mientras pagabas. No se hizo ningún cobro." | `validar_reserva` y `confirmar_compra` en la misma transacción, con el vuelo bloqueado |
+| Mercado Pago aprueba cuando ya no hay lugar | El pago queda `rechazado`: "Se vendieron los últimos lugares mientras pagabas: corresponde devolución." | `confirmar_compra` relee lugar, estado y reserva con el vuelo bloqueado |
+| El mismo pago se confirma dos veces a la vez (vuelta de MP y reintento) | Una sola compra confirmada, asientos descontados una vez, una factura | Bloqueo del vuelo y después del pago (siempre en ese orden); si el pago ya no está `pendiente`, no hace nada |
+| Dos pagos de la misma reserva | El segundo responde 409 o queda rechazado ("ya pagada") | Chequeo de reserva `pagada` con el vuelo bloqueado + índice parcial `pago_un_aprobado_por_reserva` |
+| El admin cambia el avión mientras se compra | La edición espera la compra (o al revés) y recalcula con los vendidos reales | El `PATCH` bloquea el mismo vuelo (`select_for_update`) |
+| El admin cancela el vuelo con un pago en curso | El pago ve el vuelo cancelado y se rechaza | El `POST .../cancelar/` bloquea el mismo vuelo |
+| Pago rechazado o fallido | No cambia la disponibilidad | Nunca se descontó: se descuenta solo al aprobar |
+
+Respaldo en la base: `CHECK asientos_disponibles_* >= 0`. Si algo esquivara el bloqueo, la base rechaza la venta antes que quedar en negativo.
+
+**Pruebas:** `pagos/tests_concurrencia.py` lanza operaciones en hilos que largan juntos (cada uno con su conexión) contra **Postgres**: último lugar con dos tarjetas, último lugar con dos aprobaciones de MP, el mismo pago confirmado dos veces y 20 compradores por 10 lugares. En SQLite se saltean (no bloquea filas). Para correrlas hace falta un Postgres local cualquiera:
+
+```bash
+DATABASE_URL=postgres://postgres@localhost:5432/postgres .venv/bin/python manage.py test pagos.tests_concurrencia
+```
+
+Sin los `select_for_update()` de `pagos/servicios.py` las cuatro fallan (verificado).
+
 ## Emails
 
 - Factura de compra: enviada después de confirmar el pago; incluye plantilla HTML y texto, con el comprobante PDF adjunto. Solo se asigna número y se envía para pagos aprobados.
