@@ -336,6 +336,40 @@ class ConfirmacionTests(Datos):
         self.assertEqual(self.pagar(reserva).status_code, 409)
 
 
+class ConcurrenciaSecuencialTests(Datos):
+    """US11 sin hilos (corre también en SQLite): el control es por instancia y clase, y un rechazo no toca nada.
+
+    Las operaciones realmente simultáneas están en tests_concurrencia.py (solo Postgres).
+    """
+
+    def asientos(self, vuelo):
+        vuelo.refresh_from_db()
+        return vuelo.asientos_disponibles_economy, vuelo.asientos_disponibles_primera
+
+    def test_ultimo_lugar_de_economy_no_toca_primera_ni_otra_fecha(self):
+        manana = self.crear_vuelo('FA 4000', HOY + dt.timedelta(days=1), asientos_disponibles_economy=1)
+        pasado = self.crear_vuelo('FA 4000', HOY + dt.timedelta(days=2))
+        primero = servicios.confirmar_compra(self.pago(self.reserva(vuelo=manana), estado=Pago.Estado.PENDIENTE), 'Pago aprobado.')
+        self.assertEqual(primero.estado, 'aprobado')
+        self.assertEqual(self.asientos(manana), (0, 12))
+        self.assertEqual(self.asientos(pasado), (30, 12))
+
+        otra = self.reserva(vuelo=manana, pasajero=self.otro)
+        segundo = servicios.confirmar_compra(self.pago(otra, estado=Pago.Estado.PENDIENTE), 'Pago aprobado.')
+        self.assertEqual((segundo.estado, segundo.detalle), ('rechazado', servicios.SIN_ASIENTOS))
+        self.assertEqual(self.asientos(manana), (0, 12))
+
+    def test_rechazos_y_fallas_no_reducen_la_disponibilidad(self):
+        reserva = self.reserva(cantidad=3)
+        for numero in ('4000000000000002', '4000000000009995', '4000000000000119'):
+            self.assertEqual(servicios.pagar_con_tarjeta(reserva, numero).estado, 'rechazado', numero)
+        pago_mp = self.pago(reserva, estado=Pago.Estado.PENDIENTE, metodo=Pago.Metodo.MERCADOPAGO)
+        servicios.guardar_resultado(pago_mp, Pago.Estado.RECHAZADO, 'Rechazado por Mercado Pago.')
+        self.assertEqual(self.asientos(self.vuelos[0]), (30, 12))
+        reserva.refresh_from_db()
+        self.assertEqual(reserva.estado, 'pendiente')
+
+
 class FacturacionTests(Datos):
     def pagar(self, reserva_id, numero='4242424242424242'):
         return self.client.post(
