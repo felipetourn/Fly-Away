@@ -126,3 +126,111 @@ class OcupacionVueloTests(Datos):
         r = self.client.get('/api/reportes/ocupacion/abc/')
         self.assertEqual(r.status_code, 404)
         self.assertIn('detail', r.data)
+
+
+class ReporteTests(Datos):
+    """US13: GET /api/reportes/ocupacion/ con filtros por vuelo, fecha y clase."""
+
+    def get(self, **params):
+        return self.client.get('/api/reportes/ocupacion/', params)
+
+    def fecha(self, dias):
+        return (timezone.localdate() + dt.timedelta(days=dias)).isoformat()
+
+    def test_sin_criterios_400(self):
+        for params in ({}, {'vuelo': '', 'desde': ''}, {'clase': 'primera'}):
+            r = self.get(**params)
+            self.assertEqual(r.status_code, 400, params)
+            self.assertEqual(r.data['non_field_errors'], ['Elegí un vuelo o un rango de fechas.'])
+
+    def test_hasta_antes_de_desde_400(self):
+        r = self.get(desde=self.fecha(5), hasta=self.fecha(4))
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.data['hasta'], ['La fecha hasta no puede ser anterior a desde.'])
+
+    def test_fecha_y_clase_invalidas_400(self):
+        r = self.get(desde='2026-13-01')
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('desde', r.data)
+        r = self.get(desde=self.fecha(1), clase='business')
+        self.assertEqual(r.data['clase'], ['La clase debe ser economy o primera.'])
+
+    def test_por_numero_trae_todas_sus_instancias(self):
+        self.crear_vuelo('FA 5000', dias=6)
+        self.crear_vuelo('FA 5000', dias=7)
+        self.crear_vuelo('FA 5001', dias=6)
+        r = self.get(vuelo='5000')
+        self.assertEqual(r.data['count'], 3)
+        self.assertEqual({f['vuelo']['numero_vuelo'] for f in r.data['results']}, {'FA 5000'})
+
+    def test_por_id_trae_una(self):
+        self.crear_vuelo('FA 5000', dias=6)
+        r = self.get(vuelo=str(self.vuelo.id))
+        self.assertEqual([f['vuelo']['id'] for f in r.data['results']], [str(self.vuelo.id)])
+
+    def test_por_rango_de_fechas(self):
+        for dias in (3, 4, 6, 8):
+            self.crear_vuelo(f'FA 6{dias:03d}', dias=dias)
+        r = self.get(desde=self.fecha(4), hasta=self.fecha(6))
+        self.assertEqual([f['vuelo']['fecha_operacion'] for f in r.data['results']], [self.fecha(4), self.fecha(5), self.fecha(6)])
+        r = self.get(hasta=self.fecha(4))  # solo "hasta" también es un criterio
+        self.assertEqual([f['vuelo']['fecha_operacion'] for f in r.data['results']], [self.fecha(3), self.fecha(4)])
+
+    def test_clase_filtra_columnas(self):
+        self.confirmar(self.reserva(self.vuelo, 'primera', 2))
+        r = self.get(vuelo='FA 5000', clase='primera')
+        fila = r.data['results'][0]
+        self.assertEqual(fila['clases'], [{'clase': 'primera', 'capacidad': 12, 'vendidos': 2, 'disponibles': 10}])
+        self.assertEqual(fila['total'], {'capacidad': 12, 'vendidos': 2, 'disponibles': 10})
+        self.assertEqual([c['clase'] for c in r.data['totales']['clases']], ['primera'])
+        self.assertEqual(r.data['totales']['total'], {'capacidad': 12, 'vendidos': 2, 'disponibles': 10})
+
+    def test_vuelo_sin_ventas_aparece_en_cero(self):
+        r = self.get(vuelo='FA 5000')
+        self.assertEqual(r.data['results'][0]['total'], {'capacidad': 162, 'vendidos': 0, 'disponibles': 162})
+
+    def test_pendientes_y_rechazados_no_cuentan(self):
+        self.confirmar(self.reserva(self.vuelo, 'economy', 2))
+        self.reserva(self.vuelo, 'economy', 3)
+        rechazada = self.reserva(self.vuelo, 'economy', 1)
+        Pago.objects.create(
+            reserva_id=rechazada.id, monto=Decimal('1.00'), metodo_pago=Pago.Metodo.TARJETA, estado=Pago.Estado.RECHAZADO
+        )
+        r = self.get(vuelo='FA 5000')
+        self.assertEqual(r.data['results'][0]['total']['vendidos'], 2)
+        self.assertEqual(r.data['totales']['total']['vendidos'], 2)
+
+    def test_coincide_con_la_consulta_por_vuelo(self):
+        otro = self.crear_vuelo('FA 5000', dias=6)
+        self.confirmar(self.reserva(self.vuelo, 'economy', 3))
+        self.confirmar(self.reserva(otro, 'primera', 1))
+        for fila in self.get(vuelo='FA 5000').data['results']:
+            detalle = self.client.get(f"/api/reportes/ocupacion/{fila['vuelo']['id']}/").data
+            self.assertEqual((fila['clases'], fila['total']), (detalle['clases'], detalle['total']))
+
+    def test_totales_suman_todas_las_paginas(self):
+        vuelos = [self.crear_vuelo('FA 6000', dias=10 + n) for n in range(55)]
+        self.confirmar(self.reserva(vuelos[0], 'economy', 1))
+        self.confirmar(self.reserva(vuelos[-1], 'economy', 1))
+        r = self.get(vuelo='FA 6000')
+        self.assertEqual((r.data['count'], len(r.data['results'])), (55, 50))
+        self.assertEqual(r.data['totales']['total'], {'capacidad': 55 * 162, 'vendidos': 2, 'disponibles': 55 * 162 - 2})
+        self.assertEqual(len(self.get(vuelo='FA 6000', page=2).data['results']), 5)
+
+    def test_sin_resultados(self):
+        r = self.get(desde=self.fecha(100), hasta=self.fecha(101))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual((r.data['count'], r.data['results']), (0, []))
+        self.assertEqual(r.data['totales']['total'], {'capacidad': 0, 'vendidos': 0, 'disponibles': 0})
+
+    def test_incluye_cancelados_con_su_estado(self):
+        self.crear_vuelo('FA 5000', dias=6, estado=Vuelo.Estado.CANCELADO)
+        estados = [f['vuelo']['estado'] for f in self.get(vuelo='FA 5000').data['results']]
+        self.assertEqual(estados, ['activo', 'cancelado'])
+
+    def test_permisos(self):
+        self.client.force_authenticate(None)
+        self.assertEqual(self.get(vuelo='FA 5000').status_code, 401)
+        for usuario in (self.pasajero, self.empleado):
+            self.client.force_authenticate(usuario)
+            self.assertEqual(self.get(vuelo='FA 5000').status_code, 403, usuario.rol)
