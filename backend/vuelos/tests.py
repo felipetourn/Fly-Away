@@ -381,6 +381,20 @@ class SeedTests(Datos):
         self.assert_ventas_reales(regenerados)
 
 
+    def test_regenerar_tambien_rehace_los_vuelos_con_ventas_de_ejemplo(self):
+        self.correr()
+        vendido = Vuelo.objects.filter(reservas__pasajero__email='sistema@flyaway.local').distinct().first()
+        precio = vendido.precio_economy
+        Vuelo.objects.filter(id=vendido.id).update(precio_economy=Decimal('1.00'))
+
+        call_command('seed', vuelos=True, regenerar=True, stdout=StringIO())
+
+        self.assertFalse(Vuelo.objects.filter(id=vendido.id).exists(), 'sus ventas eran de ejemplo: se regenera')
+        nuevo = Vuelo.objects.get(numero_vuelo=vendido.numero_vuelo, fecha_operacion=vendido.fecha_operacion)
+        self.assertEqual(nuevo.precio_economy, precio)
+        self.assert_ventas_reales(Vuelo.objects.all())
+
+
 class MigracionFechaLlegadaTests(TransactionTestCase):
     def migrar(self, destino):
         ejecutor = MigrationExecutor(connection)

@@ -6,7 +6,8 @@ Solo crea lo que falta: no pisa correcciones hechas desde el admin.
 
 Cada vuelo de ejemplo trae de 0 a 5 lugares vendidos, y cada uno es una compra confirmada de verdad
 (reserva pagada + pasajes + pago aprobado, a nombre del usuario sistema): vendidos + disponibles = capacidad.
---regenerar borra los vuelos de ejemplo sin reservas y los vuelve a generar en las mismas fechas.
+--regenerar borra los vuelos de ejemplo y sus ventas de ejemplo y los vuelve a generar en las mismas fechas;
+los que tienen reservas reales se conservan.
 """
 import datetime as dt
 import random
@@ -63,7 +64,7 @@ class Command(BaseCommand):
         parser.add_argument('--dias', type=int, default=60, help='Días hacia adelante con vuelos (default 60).')
         parser.add_argument(
             '--regenerar', action='store_true',
-            help='Borra los vuelos de ejemplo sin reservas y los vuelve a generar en sus mismas fechas.',
+            help='Borra los vuelos de ejemplo (y sus ventas de ejemplo) y los vuelve a generar en sus mismas fechas.',
         )
 
     def handle(self, *args, dias, vuelos, regenerar=False, **opciones):
@@ -99,15 +100,18 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def regenerar(self, sistema, aeropuertos, aviones):
-        """Los vuelos de ejemplo sin reservas se borran y se generan de nuevo (mismas rutas, números y horarios).
+        """Los vuelos de ejemplo se borran y se generan de nuevo (mismas rutas, números y horarios), con sus ventas.
 
-        Los que tienen reservas reales se conservan y sus disponibles pasan a capacidad − vendidos reales.
-        Los vuelos cargados por el administrador no se tocan.
+        Las ventas de ejemplo (reservas de `sistema`) se borran con ellos. Los vuelos con reservas reales se
+        conservan y sus disponibles pasan a capacidad − vendidos reales. Los del administrador no se tocan.
         """
         de_ejemplo = Vuelo.objects.filter(creado_por=sistema)
         rango = de_ejemplo.aggregate(desde=Min('fecha_operacion'), hasta=Max('fecha_operacion'))
         if not rango['desde']:
             return
+        ventas_de_ejemplo = Reserva.objects.filter(pasajero=sistema, vuelo__in=de_ejemplo)
+        Pago.objects.filter(reserva__in=ventas_de_ejemplo).delete()  # PROTECT: antes que las reservas
+        ventas_de_ejemplo.delete()  # y sus pasajes, en cascada
         borrados, _ = de_ejemplo.filter(reservas__isnull=True).delete()
         conservados = de_ejemplo.select_related('avion').annotate(**{
             f'vendidos_{clase}': Count(
