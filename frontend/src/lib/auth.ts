@@ -28,6 +28,7 @@ export const MENU: Record<Usuario['rol'], { to: string; texto: string }[]> = {
     { to: '/', texto: 'Vuelos' },
     { to: '/admin/reservas', texto: 'Reservas' },
     { to: '/admin/vuelos', texto: 'Gestión de vuelos' },
+    { to: '/admin/ocupacion', texto: 'Ocupación' },
   ],
 }
 

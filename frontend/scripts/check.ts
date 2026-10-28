@@ -9,7 +9,7 @@ import { errorDePeriodo, erroresDe, fechasDePeriodo, paginasVisibles, primero, q
 import { ApiError } from '../src/lib/api.ts'
 import { destinoTrasLogin } from '../src/lib/auth.ts'
 import { erroresPasajero, validarReglasReserva } from '../src/lib/reservas.ts'
-import { porcentaje } from '../src/lib/ocupacion.ts'
+import { faltaCriterio, porcentaje, queryReporte, type FiltrosReporte } from '../src/lib/ocupacion.ts'
 import { duracionDe, estadoClase, llegaAlDiaSiguiente, queryBusqueda, vueltasPosibles, type ParamsBusqueda, type Vuelo } from '../src/lib/vuelos.ts'
 
 const hoy = '2026-10-02'
@@ -331,3 +331,13 @@ assert.equal(porcentaje(1, 3), 33)
 assert.equal(porcentaje(2, 3), 67)
 assert.equal(porcentaje(5, 0), 0, 'clase sin capacidad')
 console.log('ocupacion: OK')
+
+// reporte de ocupación: hace falta un vuelo o una fecha (misma regla que el backend)
+const sinFiltros: FiltrosReporte = { vuelo: '', desde: '', hasta: '', clase: '', page: 1 }
+assert.equal(faltaCriterio({ ...sinFiltros, clase: 'primera' }), true, 'la clase sola no alcanza')
+assert.equal(faltaCriterio({ ...sinFiltros, vuelo: '   ' }), true, 'espacios no cuentan')
+assert.equal(faltaCriterio({ ...sinFiltros, vuelo: ' FA 1000 ' }), false)
+assert.equal(faltaCriterio({ ...sinFiltros, hasta: '2026-11-30' }), false, 'solo hasta')
+assert.equal(queryReporte({ ...sinFiltros, desde: '2026-11-01' }).toString(), 'desde=2026-11-01')
+assert.equal(queryReporte({ ...sinFiltros, vuelo: ' FA 1000 ', clase: 'economy', page: 3 }).toString(), 'vuelo=FA+1000&clase=economy&page=3')
+console.log('reporte: OK')

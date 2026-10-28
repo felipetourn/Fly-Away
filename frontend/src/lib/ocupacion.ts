@@ -1,6 +1,7 @@
 import { api } from './api.ts'
 import type { Clase } from './busqueda.ts'
-import type { VueloDetalle } from './vuelos.ts'
+import type { Pagina } from './adminVuelos.ts'
+import type { Vuelo, VueloDetalle } from './vuelos.ts'
 
 // Ocupación de los vuelos (US12, US13). Vendidos = solo compras confirmadas; lo calcula el backend.
 
@@ -30,3 +31,38 @@ export function porcentaje(vendidos: number, capacidad: number): number {
 }
 
 export const getOcupacion = (id: string) => api<OcupacionDeVuelo>(`/reportes/ocupacion/${encodeURIComponent(id)}/`)
+
+/** Filtros del reporte (US13). '' = sin filtrar. `vuelo` = id de la instancia o parte del número. */
+export interface FiltrosReporte {
+  vuelo: string
+  desde: string
+  hasta: string
+  clase: '' | Clase
+  page: number
+}
+
+export interface FilaReporte extends Ocupacion {
+  vuelo: Vuelo
+}
+
+/** Una página de filas y los totales de todo el filtro. */
+export interface Reporte extends Pagina<FilaReporte> {
+  totales: Ocupacion
+}
+
+export const FALTA_CRITERIO = 'Elegí un vuelo o un rango de fechas.'
+
+/** La clase sola no alcanza: hace falta un vuelo o una fecha (la misma regla que el backend). */
+export const faltaCriterio = (f: FiltrosReporte) => !f.vuelo.trim() && !f.desde && !f.hasta
+
+export function queryReporte(f: FiltrosReporte): URLSearchParams {
+  const params = new URLSearchParams()
+  for (const clave of ['vuelo', 'desde', 'hasta', 'clase'] as const) {
+    const valor = f[clave].trim()
+    if (valor) params.set(clave, valor)
+  }
+  if (f.page > 1) params.set('page', String(f.page))
+  return params
+}
+
+export const getReporte = (f: FiltrosReporte) => api<Reporte>(`/reportes/ocupacion/?${queryReporte(f)}`)
