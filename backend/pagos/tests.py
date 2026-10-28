@@ -664,7 +664,7 @@ class ClienteMercadoPagoTests(Datos):
         self.assertEqual(llamar.call_args.kwargs['idempotencia'], str(pago.id))
         self.assertEqual(cuerpo['total_amount'], '100000.00')
         self.assertEqual(cuerpo['external_reference'], str(pago.id))
-        self.assertEqual(cuerpo['config']['online']['success_url'], f'{settings.FRONTEND_URL}/pagos/{pago.id}')
+        self.assertEqual(cuerpo['config']['online']['success_url'], f'{settings.FRONTEND_URL}/pagos/{pago.id}?recien=1')
 
     @patch('pagos.mercadopago._llamar', return_value={'status': 'created'})
     def test_respuesta_sin_checkout_url_es_error(self, llamar):

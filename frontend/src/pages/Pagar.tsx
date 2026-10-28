@@ -78,7 +78,7 @@ export default function Pagar() {
     try {
       const pago = await pagarConTarjeta(reserva.id, tarjeta)
       await espera
-      navigate(`/pagos/${pago.id}`)
+      navigate(`/pagos/${pago.id}?recien=1`) // recien: avisa del envío de la factura
     } catch (err) {
       await espera
       const delBackend = erroresDe(err)
