@@ -17,7 +17,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 **2026-10-28 - US11, compras concurrentes (rama `feat/sprint3-concurrencia-ocupacion`)**
 - El mecanismo ya existía (US08): bloqueo de la fila del vuelo con `select_for_update()`, descuento con `F()` solo al confirmar, pago bloqueado después del vuelo. Nunca se había probado con operaciones simultáneas: los tests corren en SQLite, que no bloquea filas.
 - `pagos/tests_concurrencia.py`: hilos que largan juntos contra Postgres (último lugar con dos tarjetas, dos aprobaciones de MP, el mismo pago confirmado dos veces, 20 compradores por 10 lugares). En SQLite se saltean. Sin los `select_for_update()` fallan las cuatro; con ellos, cinco corridas seguidas OK. La suite completa del backend también pasa en Postgres.
-- Mensajes nuevos para quien pierde el último lugar mientras paga: tarjeta (400) "Se vendieron los últimos lugares de este vuelo mientras pagabas. No se hizo ningún cobro."; MP "…: corresponde devolución."
+- Mensajes nuevos para quien pierde el último lugar mientras paga: tarjeta (400) "Se vendieron los últimos lugares de este vuelo mientras pagabas. No se hizo ningún cobro."; MP "Se vendieron los últimos lugares mientras pagabas. Te vamos a devolver el dinero." (el pago queda rechazado; corresponde devolución)
 - Escenarios y garantías en la sección "Concurrencia" de arquitectura.md. Sin migraciones.
 
 **2026-10-28 - Pantalla post-compra, aviso de factura y modales fluidos (rama `fix/sesion-y-detalles-sprint2`)**

@@ -15,7 +15,7 @@ from .models import Pago
 
 YA_PAGADA = 'Reserva ya pagada con otro pago: corresponde devolución.'
 SIN_LUGAR_AL_PAGAR = 'Se vendieron los últimos lugares de este vuelo mientras pagabas. No se hizo ningún cobro.'
-SIN_ASIENTOS = 'Se vendieron los últimos lugares mientras pagabas: corresponde devolución.'
+SIN_ASIENTOS = 'Se vendieron los últimos lugares mientras pagabas. Te vamos a devolver el dinero.'
 VUELO_NO_DISPONIBLE = 'El vuelo ya no está disponible: corresponde devolución.'
 EN_PROCESO = 'Tenés un pago de Mercado Pago en proceso para esta reserva.'
 SIN_CONEXION = 'No pudimos conectar con Mercado Pago.'

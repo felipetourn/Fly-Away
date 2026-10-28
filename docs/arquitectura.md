@@ -186,7 +186,7 @@ Dos personas pueden pagar a la vez el último lugar. El mecanismo es **bloqueo p
 |---|---|---|
 | Dos pasajeros reservan a la vez el último lugar | Las dos reservas quedan `pendiente`: reservar no retiene asientos | `crear_reserva` bloquea el vuelo para validar; el lugar se vuelve a chequear al pagar |
 | Dos pagos con tarjeta a la vez por el último lugar | Uno se aprueba; el otro recibe 400 "Se vendieron los últimos lugares de este vuelo mientras pagabas. No se hizo ningún cobro." | `validar_reserva` y `confirmar_compra` en la misma transacción, con el vuelo bloqueado |
-| Mercado Pago aprueba cuando ya no hay lugar | El pago queda `rechazado`: "Se vendieron los últimos lugares mientras pagabas: corresponde devolución." | `confirmar_compra` relee lugar, estado y reserva con el vuelo bloqueado |
+| Mercado Pago aprueba cuando ya no hay lugar | El pago queda `rechazado`: "Se vendieron los últimos lugares mientras pagabas. Te vamos a devolver el dinero." (corresponde devolución) | `confirmar_compra` relee lugar, estado y reserva con el vuelo bloqueado |
 | El mismo pago se confirma dos veces a la vez (vuelta de MP y reintento) | Una sola compra confirmada, asientos descontados una vez, una factura | Bloqueo del vuelo y después del pago (siempre en ese orden); si el pago ya no está `pendiente`, no hace nada |
 | Dos pagos de la misma reserva | El segundo responde 409 o queda rechazado ("ya pagada") | Chequeo de reserva `pagada` con el vuelo bloqueado + índice parcial `pago_un_aprobado_por_reserva` |
 | El admin cambia el avión mientras se compra | La edición espera la compra (o al revés) y recalcula con los vendidos reales | El `PATCH` bloquea el mismo vuelo (`select_for_update`) |

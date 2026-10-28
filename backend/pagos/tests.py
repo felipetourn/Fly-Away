@@ -359,6 +359,9 @@ class ConcurrenciaSecuencialTests(Datos):
         self.assertEqual((segundo.estado, segundo.detalle), ('rechazado', servicios.SIN_ASIENTOS))
         self.assertEqual(self.asientos(manana), (0, 12))
 
+    def test_sin_lugar_al_aprobar_mp_promete_la_devolucion(self):
+        self.assertEqual(servicios.SIN_ASIENTOS, 'Se vendieron los últimos lugares mientras pagabas. Te vamos a devolver el dinero.')
+
     def test_rechazos_y_fallas_no_reducen_la_disponibilidad(self):
         reserva = self.reserva(cantidad=3)
         for numero in ('4000000000000002', '4000000000009995', '4000000000000119'):
