@@ -24,8 +24,6 @@ export interface OcupacionDeVuelo extends Ocupacion {
   vuelo: VueloDetalle
 }
 
-export const NOMBRE_CLASE: Record<Clase, string> = { economy: 'Economy', primera: 'Primera' }
-
 /** Porcentaje vendido, entero de 0 a 100. Una clase sin capacidad cuenta como 0 %. */
 export function porcentaje(vendidos: number, capacidad: number): number {
   return capacidad > 0 ? Math.round((vendidos / capacidad) * 100) : 0

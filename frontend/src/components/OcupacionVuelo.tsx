@@ -1,4 +1,5 @@
-import { NOMBRE_CLASE, porcentaje, type Ocupacion } from '../lib/ocupacion'
+import { NOMBRE_CLASE } from '../lib/busqueda'
+import { porcentaje, type Ocupacion } from '../lib/ocupacion'
 
 const numero = (n: number) => n.toLocaleString('es-AR')
 
