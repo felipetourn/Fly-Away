@@ -4,6 +4,11 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-28 - US12, consultar ocupación (rama `feat/sprint3-concurrencia-ocupacion`)**
+- App `reportes` (sin modelos) con `GET /api/reportes/ocupacion/{id}/` para el administrador: capacidad, vendidos y disponibles por clase y en total. Vendidos = pasajes de reservas pagadas; disponibles = el contador del vuelo.
+- `/admin/vuelos/:id/ocupacion`, desde el ícono de barras de cada fila de Gestión de vuelos. El componente `OcupacionVuelo` solo muestra datos: la US14 lo reutiliza con su endpoint.
+- **Datos de ejemplo corregidos:** el `seed` ponía disponibles al azar sin pasajes detrás, y la ocupación no sumaba (ej. capacidad 104, 5 vendidos, 36 disponibles). Ahora cada vuelo de ejemplo trae de 0 a 5 ventas reales (reserva pagada, pasajes y pago aprobado a nombre de `sistema`). `seed --regenerar` limpió la base local: 15 006 vuelos, ninguno inconsistente. **Falta correrlo en Supabase.**
+
 **2026-10-28 - US11, compras concurrentes (rama `feat/sprint3-concurrencia-ocupacion`)**
 - El mecanismo ya existía (US08): bloqueo de la fila del vuelo con `select_for_update()`, descuento con `F()` solo al confirmar, pago bloqueado después del vuelo. Nunca se había probado con operaciones simultáneas: los tests corren en SQLite, que no bloquea filas.
 - `pagos/tests_concurrencia.py`: hilos que largan juntos contra Postgres (último lugar con dos tarjetas, dos aprobaciones de MP, el mismo pago confirmado dos veces, 20 compradores por 10 lugares). En SQLite se saltean. Sin los `select_for_update()` fallan las cuatro; con ellos, cinco corridas seguidas OK. La suite completa del backend también pasa en Postgres.
@@ -166,6 +171,8 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-10-28 | Ocupación en una app nueva `reportes`, no en `vuelos` | `vuelos/views.py` y `serializers.py` los cambia el compañero (US15/US16); la US14 importa `reportes.servicios` |
+| 2026-10-28 | Vuelos de ejemplo con 0 a 5 ventas reales en vez de disponibles al azar | La ocupación cuenta compras confirmadas: lugares "vendidos" sin pasajes la dejaban inconsistente. Pocas ventas para no llenar Supabase |
 | 2026-10-28 | Pruebas concurrentes en un archivo aparte (`pagos/tests_concurrencia.py`) que solo corre en Postgres | SQLite no bloquea filas: ahí la prueba no demuestra nada; la suite de todos los días sigue rápida y verde |
 | 2026-10-17 | La reserva de pasajes se crea en estado 'pendiente' y genera pasajes con precio congelado | Cumple que la reserva no es compra confirmada y asegura el precio al momento de reservar |
 | 2026-10-18 | Se elimina `reservas_demo` y `pagos.reserva_id` pasa a FK; se borran los pagos de prueba | Con reservas reales, las demo dejaban pagar reservas inventadas en producción |

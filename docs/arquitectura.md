@@ -39,7 +39,8 @@ Fly Away/
 │   ├── usuarios/             modelo Usuario (tabla usuarios, login por email, rol)
 │   ├── vuelos/               aeropuertos, aviones, vuelos; búsqueda, detalle y ABM del administrador; comando seed
 │   ├── reservas/             reservas y pasajes (US06); selección de clase, cantidad (1..9), disponibilidad y pasajes
-│   └── pagos/                pagos (tarjeta simulada y Mercado Pago)
+│   ├── pagos/                pagos (tarjeta simulada y Mercado Pago)
+│   └── reportes/             ocupación de los vuelos (US12, US13); sin modelos
 └── frontend/
     ├── .env.local / .env.example
     ├── vercel.json           rewrite SPA
@@ -89,7 +90,7 @@ Ideas clave del modelo:
   3. `asientos_disponibles_<clase>` ≥ pasajes pedidos de esa clase
 - **Precio** se copia a cada `pasaje` al comprar: si el admin cambia el precio del vuelo después, no afecta ventas pasadas.
 - **Comprador ≠ viajero:** `reservas.pasajero_id` es quien compra (recibe emails); los datos de cada viajero están en `pasajes`.
-- **Ocupación** (reportes) = capacidad del avión − `asientos_disponibles_*`, por vuelo/fecha/clase.
+- **Ocupación** (US12, US13) por vuelo y clase: **vendidos** = pasajes de reservas `pagada` (solo compras confirmadas), **disponibles** = `asientos_disponibles_*` (el contador que usa la venta), **capacidad** = la del avión actual. La US11 garantiza vendidos + disponibles = capacidad. Cálculo en `reportes/servicios.py` (`con_ocupacion`, `ocupacion_de`).
 - **Pagos:** nunca guardar el número de tarjeta completo; solo `ultimos_4`. Una reserva puede tener varios pagos (reintentos tras un rechazo).
 
 Traducción a Django (al implementar):
@@ -150,6 +151,8 @@ POST /api/reservas/ida-vuelta/   (pasajero) ✅ {vuelo_ida, vuelo_vuelta, ida:{c
                                  y sale después de que llega la ida; crea las dos reservas pendientes o ninguna
 GET  /api/pasajes/{codigo}/      ✅ hecho — (pasajero dueño) detalle del ticket, solo si la compra está pagada
 GET  /api/pasajes/{codigo}/pdf/  ✅ hecho — descarga ticket PDF, solo si la compra está pagada
+GET  /api/reportes/ocupacion/{id}/   (admin) ✅ ocupación de una instancia (US12): {vuelo, clases[{clase, capacidad, vendidos, disponibles}], total};
+                                 incluye cancelados y pasados; id inexistente o malformado: 404
 GET  /api/reportes/ocupacion/?vuelo=&desde=&hasta=   (admin)
 ```
 
@@ -157,7 +160,7 @@ El registro público siempre asigna el rol `pasajero` y valida la contraseña co
 
 **Errores 400:** formato estándar de DRF, `{"parametro": ["mensaje"]}`, con mensajes en español (los mismos que muestra el front). Los errores de un período del alta llegan en `periodos` indexados por posición (`{"periodos": {"0": {"desde": ["mensaje"]}}}`); los que no son de un campo, en `non_field_errors`. Un parámetro vacío (`?hasta=`) cuenta como no enviado. El 404 es `{"detail": "..."}`. Si la respuesta no es JSON (error 500, hosting caído), el front muestra un mensaje fijo (`ApiError` en `src/lib/api.ts`).
 
-**Catálogo y datos de ejemplo:** `python manage.py seed` carga los aeropuertos, la flota (10 aviones) y el usuario `sistema`; corre en `build.sh` porque no tienen ABM. `python manage.py seed --vuelos [--dias 60]` agrega vuelos de ejemplo sobre los primeros 4 aviones, para desarrollo local. Es idempotente y no pisa lo existente.
+**Catálogo y datos de ejemplo:** `python manage.py seed` carga los aeropuertos, la flota (10 aviones) y el usuario `sistema`; corre en `build.sh` porque no tienen ABM. `python manage.py seed --vuelos [--dias 60]` agrega vuelos de ejemplo sobre los primeros 4 aviones, para desarrollo local. Cada vuelo de ejemplo trae de 0 a 5 lugares vendidos y cada uno es una compra confirmada real (reserva pagada, pasajes y pago aprobado, a nombre de `sistema`), así vendidos + disponibles = capacidad. Es idempotente y no pisa lo existente. `seed --regenerar` borra los vuelos de ejemplo sin reservas y los vuelve a generar en sus mismas fechas; los que tienen reservas quedan con disponibles = capacidad − vendidos reales.
 
 ## Pagos
 
