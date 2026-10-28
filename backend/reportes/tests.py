@@ -141,7 +141,39 @@ class ReporteTests(Datos):
         for params in ({}, {'vuelo': '', 'desde': ''}, {'clase': 'primera'}):
             r = self.get(**params)
             self.assertEqual(r.status_code, 400, params)
-            self.assertEqual(r.data['non_field_errors'], ['Elegí un vuelo o un rango de fechas.'])
+            self.assertEqual(r.data['non_field_errors'], ['Elegí al menos un criterio: vuelo, fechas, origen o destino.'])
+
+    def rutas(self):
+        """Además del FA 5000 AEP → COR: COR → AEP y MDZ → COR."""
+        mdz = Aeropuerto.objects.create(codigo_iata='MDZ', nombre='El Plumerillo', ciudad='Mendoza', pais='Argentina')
+        self.crear_vuelo('FA 5100', dias=6, aeropuerto_origen=self.cor, aeropuerto_destino=self.aep)
+        self.crear_vuelo('FA 5200', dias=7, aeropuerto_origen=mdz, aeropuerto_destino=self.cor)
+
+    def numeros(self, r):
+        return [f['vuelo']['numero_vuelo'] for f in r.data['results']]
+
+    def test_origen_solo_es_criterio(self):
+        self.rutas()
+        r = self.get(origen='AEP')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self.numeros(r), ['FA 5000'])
+        self.assertEqual(self.numeros(self.get(origen='cor')), ['FA 5100'], 'acepta minúsculas')
+
+    def test_destino_solo_es_criterio(self):
+        self.rutas()
+        self.assertEqual(self.numeros(self.get(destino='COR')), ['FA 5000', 'FA 5200'])
+
+    def test_por_ruta_y_fechas(self):
+        self.rutas()
+        self.crear_vuelo('FA 5000', dias=9)
+        self.crear_vuelo('FA 5100', dias=9, aeropuerto_origen=self.cor, aeropuerto_destino=self.aep)  # ruta inversa
+        r = self.get(origen='AEP', destino='COR', desde=self.fecha(8))
+        self.assertEqual([f['vuelo']['fecha_operacion'] for f in r.data['results']], [self.fecha(9)])
+        self.assertEqual(r.data['totales']['total']['capacidad'], 162)
+
+    def test_aeropuerto_desconocido_sin_resultados(self):
+        r = self.get(origen='XYZ')
+        self.assertEqual((r.status_code, r.data['count']), (200, 0))
 
     def test_hasta_antes_de_desde_400(self):
         r = self.get(desde=self.fecha(5), hasta=self.fecha(4))
