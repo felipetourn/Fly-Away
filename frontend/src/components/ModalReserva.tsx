@@ -283,7 +283,7 @@ export default function ModalReserva({
       ref={dialogo}
       onClose={onCerrar}
       aria-labelledby="titulo-reserva"
-      className="m-auto max-h-[90vh] w-[min(42rem,calc(100%-2rem))] overflow-y-auto rounded-3xl p-0 text-slate-900 shadow-2xl backdrop:bg-marino/45 backdrop:backdrop-blur-sm"
+      className="m-auto max-h-[90vh] w-[min(42rem,calc(100%-2rem))] overflow-y-auto rounded-3xl p-0 text-slate-900 shadow-2xl backdrop:bg-marino/45"
     >
       <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 sm:px-6">
         <div>
