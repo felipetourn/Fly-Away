@@ -235,4 +235,5 @@ def pagar_con_tarjeta(reserva, numero):
             pago = confirmar_compra(pago, detalle)
         else:
             guardar_resultado(pago, Pago.Estado.RECHAZADO, detalle)
+    pago.refresh_from_db()  # factura_enviada_en lo guarda el envío de la factura, al cerrar la transacción
     return pago

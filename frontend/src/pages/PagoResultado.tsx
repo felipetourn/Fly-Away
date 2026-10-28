@@ -1,22 +1,26 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import ChipEstado from '../components/ChipEstado'
-import { EsqueletoPagina } from '../components/Esqueleto'
+import { Esqueleto, EsqueletoPagina } from '../components/Esqueleto'
+import Toast from '../components/Toast'
 import { precio } from '../lib/formato'
-import { getPago, medioDePago, mensajeCompra, vueloCorto, type Pago } from '../lib/pagos'
+import { avisoFactura, getPago, medioDePago, mensajeCompra, vueloCorto, type Aviso, type Pago } from '../lib/pagos'
 import { descargarTicket, getReserva, type Reserva } from '../lib/reservas'
+import { useSesion } from '../lib/sesion'
 
 const TITULO = { aprobado: '¡Compra confirmada!', rechazado: 'Pago rechazado', pendiente: 'Pago pendiente' }
 
 export default function PagoResultado() {
   const { id = '' } = useParams()
+  const [params, setParams] = useSearchParams()
+  const { usuario } = useSesion()
   const [pago, setPago] = useState<Pago | null>(null)
   const [error, setError] = useState('')
   const [actualizando, setActualizando] = useState(false)
-  const [reserva, setReserva] = useState<Reserva | null>(null)
+  const [reserva, setReserva] = useState<Reserva | null | undefined>(undefined) // undefined = cargando, null = falló
   const [descargando, setDescargando] = useState('')
   const [errorDescarga, setErrorDescarga] = useState('')
-  const dialogo = useRef<HTMLDialogElement>(null)
+  const [aviso, setAviso] = useState<Aviso | null>(null)
 
   const cargar = useCallback(
     () =>
@@ -36,17 +40,37 @@ export default function PagoResultado() {
   const aprobado = pago?.estado === 'aprobado'
   const reservaId = pago?.reserva_id
 
-  // Compra confirmada: se abre el diálogo con los tickets para descargar.
+  // Recién pagado (?recien=1, al llegar desde el pago): se avisa una sola vez del envío de la factura.
+  // Se lee al montar: si el pago sigue pendiente, el aviso sale cuando "Actualizar" lo trae aprobado.
+  const avisoPendiente = useRef(params.get('recien') === '1')
+  const facturaEnviadaEn = pago?.factura_enviada_en ?? null
+  const email = usuario?.email ?? ''
+
+  // Compra confirmada: los tickets de cada pasajero van en la misma tarjeta.
   useEffect(() => {
     if (!aprobado || !reservaId) return
+    const avisar = (r: Reserva | null) => {
+      if (!avisoPendiente.current) return
+      avisoPendiente.current = false
+      setAviso(avisoFactura({ estado: 'aprobado', factura_enviada_en: facturaEnviadaEn }, r?.contacto_email || email))
+      setParams(
+        (p) => {
+          p.delete('recien')
+          return p
+        },
+        { replace: true },
+      )
+    }
     getReserva(reservaId)
       .then((r) => {
         setReserva(r)
-        const d = dialogo.current
-        if (d && !d.open) d.showModal()
+        avisar(r)
       })
-      .catch(() => setReserva(null))
-  }, [aprobado, reservaId])
+      .catch(() => {
+        setReserva(null)
+        avisar(null)
+      })
+  }, [aprobado, reservaId, facturaEnviadaEn, email, setParams])
 
   async function descargar(codigo: string) {
     setDescargando(codigo)
@@ -74,45 +98,6 @@ export default function PagoResultado() {
 
   return (
     <main className="mx-auto max-w-xl px-4 py-16">
-      <dialog
-        ref={dialogo}
-        aria-labelledby="titulo-tickets"
-        className="m-auto max-h-[90vh] w-[min(32rem,calc(100%-2rem))] overflow-y-auto rounded-3xl p-0 text-slate-900 shadow-2xl backdrop:bg-marino/45 backdrop:backdrop-blur-sm"
-      >
-        <div className="p-6">
-          <h2 id="titulo-tickets" className="text-2xl font-extrabold text-marino">Tus tickets</h2>
-          <p className="mt-1 text-sm text-slate-500">Descargá el PDF de cada pasajero.</p>
-          <ul className="mt-5 space-y-3">
-            {reserva?.pasajes.map((pasaje) => (
-              <li key={pasaje.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 p-4">
-                <div>
-                  <p className="font-bold text-marino">{pasaje.nombre_pasajero} {pasaje.apellido_pasajero}</p>
-                  <p className="font-mono text-xs text-slate-500">{pasaje.codigo_pasaje}</p>
-                </div>
-                <button
-                  type="button"
-                  disabled={descargando !== ''}
-                  onClick={() => descargar(pasaje.codigo_pasaje)}
-                  className="rounded-xl bg-naranja px-4 py-2 text-sm font-bold text-white hover:bg-naranja/90 disabled:opacity-60"
-                >
-                  {descargando === pasaje.codigo_pasaje ? 'Preparando PDF…' : 'Descargar ticket PDF'}
-                </button>
-              </li>
-            ))}
-          </ul>
-          {errorDescarga && <p role="alert" className="mt-3 text-sm font-medium text-red-700">{errorDescarga}</p>}
-          <p className="mt-5 text-sm text-slate-500">Enviando la factura a tu correo…</p>
-          <div className="mt-6 flex justify-end">
-            <button
-              type="button"
-              onClick={() => dialogo.current?.close()}
-              className="rounded-xl border border-slate-300 px-5 py-2.5 font-bold text-marino hover:bg-slate-50"
-            >
-              Cerrar
-            </button>
-          </div>
-        </div>
-      </dialog>
       <section role="status" aria-live="polite" className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <ChipEstado estado={pago.estado} />
         <h1 className="mt-3 text-3xl font-extrabold text-marino">{TITULO[pago.estado]}</h1>
@@ -128,6 +113,52 @@ export default function PagoResultado() {
             <div className="flex justify-between gap-4"><dt className="text-slate-500">N° de operación</dt><dd className="font-mono text-xs break-all">{pago.transaccion_externa_id}</dd></div>
           )}
         </dl>
+        {aprobado && (
+          <div className="mt-6 border-t border-slate-100 pt-4">
+            <h2 className="font-extrabold text-marino">Tus tickets</h2>
+            {reserva === undefined && (
+              <div className="mt-3 space-y-3" aria-busy="true">
+                <Esqueleto className="h-16 w-full rounded-2xl" />
+                <Esqueleto className="h-16 w-full rounded-2xl" />
+              </div>
+            )}
+            {reserva === null && (
+              <p role="alert" className="mt-3 text-sm text-slate-600">
+                No pudimos cargar tus tickets.{' '}
+                <Link to="/reservas" className="font-bold text-cielo hover:underline">Ir a mis reservas</Link>
+              </p>
+            )}
+            {reserva && (
+              <ul className="mt-3 space-y-3">
+                {reserva.pasajes.map((pasaje) => (
+                  <li key={pasaje.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 p-4">
+                    <div>
+                      <p className="font-bold text-marino">{pasaje.nombre_pasajero} {pasaje.apellido_pasajero}</p>
+                      <p className="font-mono text-xs text-slate-500">{pasaje.codigo_pasaje}</p>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <Link
+                        to={`/pasajes/${encodeURIComponent(pasaje.codigo_pasaje)}`}
+                        className="text-sm font-bold text-cielo hover:underline"
+                      >
+                        Ver ticket
+                      </Link>
+                      <button
+                        type="button"
+                        disabled={descargando !== ''}
+                        onClick={() => descargar(pasaje.codigo_pasaje)}
+                        className="rounded-xl bg-naranja px-4 py-2 text-sm font-bold text-white hover:bg-naranja/90 disabled:opacity-60"
+                      >
+                        {descargando === pasaje.codigo_pasaje ? 'Preparando PDF…' : 'Descargar PDF'}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {errorDescarga && <p role="alert" className="mt-3 text-sm font-medium text-red-700">{errorDescarga}</p>}
+          </div>
+        )}
         {error && <p role="alert" className="mt-4 text-sm font-medium text-red-700">{error}</p>}
         <div className="mt-6 flex flex-wrap gap-3">
           {pago.estado === 'rechazado' && (
@@ -148,16 +179,12 @@ export default function PagoResultado() {
               {actualizando ? 'Actualizando…' : 'Actualizar'}
             </button>
           )}
-          {pago.estado === 'aprobado' && (
-            <Link to="/reservas" className="rounded-xl bg-cielo px-5 py-2.5 font-bold text-white hover:bg-cielo/90">
-              Ver mis tickets
-            </Link>
-          )}
           <Link to="/perfil" className="rounded-xl border border-slate-300 px-5 py-2.5 font-bold text-marino hover:bg-slate-50">
             Ver mis pagos
           </Link>
         </div>
       </section>
+      {aviso && <Toast aviso={aviso} onCerrar={() => setAviso(null)} />}
     </main>
   )
 }

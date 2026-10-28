@@ -28,6 +28,7 @@ export interface Pago {
   transaccion_externa_id: string | null
   creado_en: string
   procesado_en: string | null
+  factura_enviada_en: string | null // null: el mail de la factura no salió
 }
 
 export interface DatosTarjeta {
@@ -149,8 +150,36 @@ export function mensajeCompra(p: Pick<Pago, 'estado' | 'vuelo' | 'cantidad_pasaj
     : `Tus ${p.cantidad_pasajes} pasajes para ${vueloCorto(p.vuelo)} están confirmados.`
 }
 
+export interface Aviso {
+  tono: 'ok' | 'error'
+  texto: string
+}
+
+/** Aviso del envío de la factura al llegar recién pagado; null si la compra no está confirmada. */
+export function avisoFactura(p: Pick<Pago, 'estado' | 'factura_enviada_en'>, email: string): Aviso | null {
+  if (p.estado !== 'aprobado') return null
+  if (!p.factura_enviada_en) return { tono: 'error', texto: 'No pudimos enviar la factura por mail.' }
+  return { tono: 'ok', texto: email ? `Te enviamos la factura a ${email}.` : 'Te enviamos la factura por mail.' }
+}
+
 export const getPagos = () => api<Pago[]>('/pagos/')
-export const getPago = (id: string) => api<Pago>(`/pagos/${id}/`)
+/**
+ * Mientras un pedido con la misma clave sigue en curso, devuelve esa misma promesa.
+ * StrictMode monta dos veces en dev: dos GET del pago a la vez harían que uno responda sin la factura enviada.
+ */
+export function compartirEnCurso<T>(pedir: (clave: string) => Promise<T>): (clave: string) => Promise<T> {
+  const enCurso = new Map<string, Promise<T>>()
+  return (clave) => {
+    let promesa = enCurso.get(clave)
+    if (!promesa) {
+      promesa = pedir(clave).finally(() => enCurso.delete(clave))
+      enCurso.set(clave, promesa)
+    }
+    return promesa
+  }
+}
+
+export const getPago = compartirEnCurso((id) => api<Pago>(`/pagos/${id}/`))
 
 export const pagarConTarjeta = (reservaId: string, t: DatosTarjeta) =>
   api<Pago>('/pagos/tarjeta/', {

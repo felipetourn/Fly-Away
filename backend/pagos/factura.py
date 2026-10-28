@@ -181,4 +181,5 @@ def enviar_factura_confirmada(pago_id):
     if enviados != 1:
         logger.error('El backend de correo no confirmó el envío de la factura %s.', pago.numero_factura)
         return False
+    Pago.objects.filter(id=pago.id).update(factura_enviada_en=timezone.now())
     return True

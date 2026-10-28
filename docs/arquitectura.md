@@ -73,7 +73,7 @@ aviones         capacidad_economy, capacidad_primera
 vuelos          una fila por vuelo real en una fecha → avion, origen, destino, creado_por
   └─ reservas   comprador (usuario) + vuelo + cantidad_pasajes (1..9)
        ├─ pasajes   uno por asiento: datos del viajero, clase, precio, codigo_pasaje
-       └─ pagos     monto, estado, ultimos_4, numero_factura
+       └─ pagos     monto, estado, ultimos_4, numero_factura, factura_enviada_en
 notificaciones  usuario + vuelo (cambio de horario / cancelación)
 ```
 

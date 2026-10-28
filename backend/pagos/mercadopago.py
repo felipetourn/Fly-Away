@@ -35,7 +35,7 @@ def _llamar(metodo, url, cuerpo=None, idempotencia=None):
 
 def crear_orden(pago, items):
     """items: [(título, cantidad, precio unitario)]. Devuelve (order_id, checkout_url)."""
-    retorno = f'{settings.FRONTEND_URL}/pagos/{pago.id}'
+    retorno = f'{settings.FRONTEND_URL}/pagos/{pago.id}?recien=1'  # recien: el front avisa de la factura
     orden = _llamar('POST', API, {
         'type': 'online',
         'processing_mode': 'manual',
