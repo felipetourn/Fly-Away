@@ -4,6 +4,9 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-28 - Reporte de ocupación por ruta (rama `feat/ocupacion-filtro-ruta`)**
+- El reporte (US13) filtra también por origen y destino (código IATA, como Gestión de vuelos). Cualquiera de los dos alcanza solo para generarlo; la clase sola sigue sin alcanzar.
+
 **2026-10-28 - US13, reporte de ocupación (rama `feat/sprint3-concurrencia-ocupacion`)**
 - `GET /api/reportes/ocupacion/` con filtros por vuelo (id o número), desde/hasta y clase; de a 50 con totales de todo el filtro. Usa el mismo cálculo que la US12: los números coinciden siempre.
 - `/admin/ocupacion` (ítem "Ocupación" del admin): filtros en la URL, totales con `OcupacionVuelo`, tabla con vendidos/capacidad y disponibles por clase y % de ocupación; cada número abre la ocupación de esa instancia. Sin criterios no se genera; sin resultados, "No hay vuelos para esos criterios."
