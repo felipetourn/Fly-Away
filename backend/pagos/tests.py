@@ -248,6 +248,13 @@ class PagoTarjetaTests(Datos):
             self.assertIn('non_field_errors', r.data)
         self.assertFalse(Pago.objects.exists())
 
+    def test_sin_lugar_explica_que_se_vendieron_mientras_pagaba(self):
+        lleno = self.crear_vuelo('FA 3003', HOY + dt.timedelta(days=6), asientos_disponibles_economy=1)
+        r = self.pagar(self.reserva(vuelo=lleno, cantidad=2))
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.data['non_field_errors'], [servicios.SIN_LUGAR_AL_PAGAR])
+        self.assertFalse(Pago.objects.exists())
+
     def test_solo_pasajeros(self):
         reserva = self.reserva()
         self.client.force_authenticate(None)

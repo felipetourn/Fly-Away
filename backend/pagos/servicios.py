@@ -14,7 +14,8 @@ from . import factura, mercadopago, reservas_mock, tarjeta
 from .models import Pago
 
 YA_PAGADA = 'Reserva ya pagada con otro pago: corresponde devolución.'
-SIN_ASIENTOS = 'No quedaban asientos al confirmar el pago: corresponde devolución.'
+SIN_LUGAR_AL_PAGAR = 'Se vendieron los últimos lugares de este vuelo mientras pagabas. No se hizo ningún cobro.'
+SIN_ASIENTOS = 'Se vendieron los últimos lugares mientras pagabas: corresponde devolución.'
 VUELO_NO_DISPONIBLE = 'El vuelo ya no está disponible: corresponde devolución.'
 EN_PROCESO = 'Tenés un pago de Mercado Pago en proceso para esta reserva.'
 SIN_CONEXION = 'No pudimos conectar con Mercado Pago.'
@@ -49,7 +50,7 @@ def validar_reserva(reserva):
         raise error_general('El vuelo ya salió.')
     # ponytail: una reserva pendiente no retiene asientos, así que el lugar se vuelve a chequear al cobrar.
     if _motivo_sin_lugar(reserva, vuelo):
-        raise error_general('No quedan asientos suficientes en el vuelo.')
+        raise error_general(SIN_LUGAR_AL_PAGAR)
     return vuelo
 
 
