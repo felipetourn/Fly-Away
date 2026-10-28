@@ -25,7 +25,7 @@ El front es una SPA estática; toda la lógica de negocio y validación vive en 
 Fly Away/
 ├── README.md                 punto de entrada (cómo correr, convenciones)
 ├── docs/
-│   ├── enunciado.md
+│   ├── enunciados/           enunciado.md y la planificación de cada sprint (PDF)
 │   ├── arquitectura.md       este archivo
 │   ├── modelo.dbml           modelo relacional (fuente de verdad del esquema)
 │   └── memoria.md            estado + decisiones + pendientes
