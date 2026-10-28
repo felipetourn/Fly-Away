@@ -12,6 +12,8 @@ from django.db.migrations.executor import MigrationExecutor
 from django.test import TransactionTestCase
 from rest_framework.test import APITestCase
 
+from reservas.models import Pasaje, Reserva
+
 from .models import Aeropuerto, Avion, Vuelo
 
 BA = ZoneInfo('America/Argentina/Buenos_Aires')
@@ -310,6 +312,87 @@ class SeedTests(Datos):
         self.correr()
         self.assertEqual(Aeropuerto.objects.get(codigo_iata='BHI').nombre, 'Corregido a mano')
         self.assertEqual(Avion.objects.get(matricula='LV-FAA').capacidad_economy, 140)
+
+    def vendidos(self, vuelo, clase):
+        return Pasaje.objects.filter(reserva__vuelo=vuelo, reserva__estado='pagada', clase=clase).count()
+
+    def assert_ventas_reales(self, vuelos):
+        """Cada lugar vendido es una compra confirmada: vendidos + disponibles = capacidad, por clase."""
+        for v in vuelos.select_related('avion'):
+            for clase in ('economy', 'primera'):
+                self.assertEqual(
+                    self.vendidos(v, clase) + getattr(v, f'asientos_disponibles_{clase}'),
+                    getattr(v.avion, f'capacidad_{clase}'),
+                    f'{v} {clase}',
+                )
+
+    def test_los_vendidos_de_ejemplo_son_compras_reales(self):
+        self.correr()
+        vuelos = Vuelo.objects.all()
+        self.assert_ventas_reales(vuelos)
+        por_vuelo = [Pasaje.objects.filter(reserva__vuelo=v).count() for v in vuelos]
+        self.assertTrue(all(0 <= n <= 5 for n in por_vuelo), max(por_vuelo))
+        self.assertGreater(sum(por_vuelo), 0)
+        for reserva in Reserva.objects.all():
+            self.assertEqual(reserva.estado, 'pagada')
+            self.assertEqual(reserva.cantidad_pasajes, reserva.pasajes.count())
+            self.assertEqual(list(reserva.pagos.values_list('estado', flat=True)), ['aprobado'])
+            self.assertEqual(reserva.pagos.get().monto, reserva.monto)
+
+    def test_correr_dos_veces_no_duplica_ventas(self):
+        self.correr()
+        pasajes = Pasaje.objects.count()
+        self.correr()
+        self.assertEqual(Pasaje.objects.count(), pasajes)
+
+    def test_regenerar_limpia_los_vuelos_de_ejemplo_viejos(self):
+        sistema = get_user_model().objects.create_user(
+            'sistema@flyaway.local', None, nombre='Sistema', apellido='Fly Away', rol='administrador'
+        )
+        # Vuelos de ejemplo como los del seed anterior: lugares "vendidos" sin pasajes.
+        viejo = self.vuelo('FA 9990', creado_por=sistema, asientos_disponibles_economy=3, asientos_disponibles_primera=1)
+        con_compra = self.vuelo(
+            'FA 9991', fecha=HOY + dt.timedelta(days=2), creado_por=sistema,
+            asientos_disponibles_economy=5, asientos_disponibles_primera=2,
+        )
+        reserva = Reserva.objects.create(
+            pasajero=self.admin, contacto_email='a@mail.com', vuelo=con_compra, cantidad_pasajes=2, estado='pagada'
+        )
+        for i in range(2):
+            Pasaje.objects.create(
+                reserva=reserva, codigo_pasaje=f'X-{i}', nombre_pasajero='Ana', apellido_pasajero='Pérez',
+                dni_pasajero='12345678', clase='economy', precio=Decimal('1.00'),
+            )
+        del_admin = self.vuelo('FA 1', fecha=HOY + dt.timedelta(days=3), asientos_disponibles_economy=30)
+
+        call_command('seed', vuelos=True, regenerar=True, stdout=StringIO())
+
+        self.assertFalse(Vuelo.objects.filter(id=viejo.id).exists())
+        con_compra.refresh_from_db()
+        self.assertEqual((con_compra.asientos_disponibles_economy, con_compra.asientos_disponibles_primera), (148, 12))
+        del_admin.refresh_from_db()
+        self.assertEqual(del_admin.asientos_disponibles_economy, 30, 'no toca los vuelos cargados por el admin')
+        regenerados = Vuelo.objects.filter(creado_por=sistema)
+        self.assertGreater(regenerados.count(), 1)
+        self.assertEqual(
+            set(regenerados.values_list('fecha_operacion', flat=True)), {HOY + dt.timedelta(days=1), HOY + dt.timedelta(days=2)},
+            'las mismas fechas que tenían los vuelos de ejemplo',
+        )
+        self.assert_ventas_reales(regenerados)
+
+
+    def test_regenerar_tambien_rehace_los_vuelos_con_ventas_de_ejemplo(self):
+        self.correr()
+        vendido = Vuelo.objects.filter(reservas__pasajero__email='sistema@flyaway.local').distinct().first()
+        precio = vendido.precio_economy
+        Vuelo.objects.filter(id=vendido.id).update(precio_economy=Decimal('1.00'))
+
+        call_command('seed', vuelos=True, regenerar=True, stdout=StringIO())
+
+        self.assertFalse(Vuelo.objects.filter(id=vendido.id).exists(), 'sus ventas eran de ejemplo: se regenera')
+        nuevo = Vuelo.objects.get(numero_vuelo=vendido.numero_vuelo, fecha_operacion=vendido.fecha_operacion)
+        self.assertEqual(nuevo.precio_economy, precio)
+        self.assert_ventas_reales(Vuelo.objects.all())
 
 
 class MigracionFechaLlegadaTests(TransactionTestCase):

@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     'vuelos',
     'reservas',
     'pagos',
+    'reportes',
 ]
 
 MIDDLEWARE = [

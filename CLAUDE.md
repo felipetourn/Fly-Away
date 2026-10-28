@@ -7,7 +7,7 @@ Idioma del proyecto: **español** (docs, commits, textos de UI). Modelos y campo
 - [docs/arquitectura.md](docs/arquitectura.md) — stack, estructura, modelo de datos, API, deploy.
 - [docs/modelo.dbml](docs/modelo.dbml) — modelo relacional, **fuente de verdad del esquema**.
 - [docs/memoria.md](docs/memoria.md) — estado actual, decisiones tomadas y pendientes. **Actualizarlo al terminar cada tarea.**
-- [docs/enunciado.md](docs/enunciado.md) — requisitos originales de la cátedra.
+- [docs/enunciados/enunciado.md](docs/enunciados/enunciado.md) — requisitos originales de la cátedra (en `docs/enunciados/` están también los PDF de cada sprint).
 
 ## Estructura
 ```

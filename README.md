@@ -9,7 +9,8 @@ Sistema web de una aerolínea nacional: búsqueda de vuelos, gestión de vuelos 
 
 | Documento | Qué tiene |
 |---|---|
-| [docs/enunciado.md](docs/enunciado.md) | Requisitos de la cátedra y alcance del equipo |
+| [docs/enunciados/enunciado.md](docs/enunciados/enunciado.md) | Requisitos de la cátedra y alcance del equipo |
+| [docs/enunciados/](docs/enunciados/) | Planificación de cada sprint (PDF de la cátedra) |
 | [docs/arquitectura.md](docs/arquitectura.md) | Stack, carpetas, roles, modelo de datos, API, deploy y cómo correr en local |
 | [docs/modelo.dbml](docs/modelo.dbml) | Modelo relacional. **Fuente de verdad del esquema** (se ve en dbdiagram.io) |
 | [docs/memoria.md](docs/memoria.md) | Qué está hecho, decisiones tomadas con su motivo y pendientes |

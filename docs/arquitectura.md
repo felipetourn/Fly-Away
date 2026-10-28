@@ -25,7 +25,7 @@ El front es una SPA estática; toda la lógica de negocio y validación vive en 
 Fly Away/
 ├── README.md                 punto de entrada (cómo correr, convenciones)
 ├── docs/
-│   ├── enunciado.md
+│   ├── enunciados/           enunciado.md y la planificación de cada sprint (PDF)
 │   ├── arquitectura.md       este archivo
 │   ├── modelo.dbml           modelo relacional (fuente de verdad del esquema)
 │   └── memoria.md            estado + decisiones + pendientes
@@ -39,7 +39,8 @@ Fly Away/
 │   ├── usuarios/             modelo Usuario (tabla usuarios, login por email, rol)
 │   ├── vuelos/               aeropuertos, aviones, vuelos; búsqueda, detalle y ABM del administrador; comando seed
 │   ├── reservas/             reservas y pasajes (US06); selección de clase, cantidad (1..9), disponibilidad y pasajes
-│   └── pagos/                pagos (tarjeta simulada y Mercado Pago)
+│   ├── pagos/                pagos (tarjeta simulada y Mercado Pago)
+│   └── reportes/             ocupación de los vuelos (US12, US13); sin modelos
 └── frontend/
     ├── .env.local / .env.example
     ├── vercel.json           rewrite SPA
@@ -56,7 +57,7 @@ Fly Away/
 |---|---|---|
 | `pasajero` | Vuelos, Reservas (`/reservas`) | buscar vuelos, comprar (≤ 9 pasajes), ver/descargar sus pasajes |
 | `empleado_mostrador` | Vuelos, Reservas (`/empleado/reservas`) | vender pasajes a un pasajero en mostrador, consultar reservas |
-| `administrador` | Vuelos, Reservas (`/admin/reservas`), Gestión de vuelos (`/admin/vuelos`) | ABM de vuelos, cancelar, reportes de ocupación |
+| `administrador` | Vuelos, Reservas (`/admin/reservas`), Gestión de vuelos (`/admin/vuelos`), Ocupación (`/admin/ocupacion`) | ABM de vuelos, cancelar, ocupación de un vuelo (ícono de barras en Gestión de vuelos) y reporte de ocupación |
 
 Todos los roles comparten layout, header y footer y, al iniciar sesión, llegan a `/` (búsqueda de vuelos); el header muestra las opciones del rol (`MENU` en `src/lib/auth.ts`).
 
@@ -89,7 +90,7 @@ Ideas clave del modelo:
   3. `asientos_disponibles_<clase>` ≥ pasajes pedidos de esa clase
 - **Precio** se copia a cada `pasaje` al comprar: si el admin cambia el precio del vuelo después, no afecta ventas pasadas.
 - **Comprador ≠ viajero:** `reservas.pasajero_id` es quien compra (recibe emails); los datos de cada viajero están en `pasajes`.
-- **Ocupación** (reportes) = capacidad del avión − `asientos_disponibles_*`, por vuelo/fecha/clase.
+- **Ocupación** (US12, US13) por vuelo y clase: **vendidos** = pasajes de reservas `pagada` (solo compras confirmadas), **disponibles** = `asientos_disponibles_*` (el contador que usa la venta), **capacidad** = la del avión actual. La US11 garantiza vendidos + disponibles = capacidad. Cálculo en `reportes/servicios.py` (`con_ocupacion`, `ocupacion_de`).
 - **Pagos:** nunca guardar el número de tarjeta completo; solo `ultimos_4`. Una reserva puede tener varios pagos (reintentos tras un rechazo).
 
 Traducción a Django (al implementar):
@@ -150,14 +151,18 @@ POST /api/reservas/ida-vuelta/   (pasajero) ✅ {vuelo_ida, vuelo_vuelta, ida:{c
                                  y sale después de que llega la ida; crea las dos reservas pendientes o ninguna
 GET  /api/pasajes/{codigo}/      ✅ hecho — (pasajero dueño) detalle del ticket, solo si la compra está pagada
 GET  /api/pasajes/{codigo}/pdf/  ✅ hecho — descarga ticket PDF, solo si la compra está pagada
-GET  /api/reportes/ocupacion/?vuelo=&desde=&hasta=   (admin)
+GET  /api/reportes/ocupacion/{id}/   (admin) ✅ ocupación de una instancia (US12): {vuelo, clases[{clase, capacidad, vendidos, disponibles}], total};
+                                 incluye cancelados y pasados; id inexistente o malformado: 404
+GET  /api/reportes/ocupacion/?vuelo=&desde=&hasta=&clase=&page=   (admin) ✅ reporte (US13): una fila por instancia {vuelo, clases, total},
+                                 de a 50, más `totales` de todo el filtro. Hace falta `vuelo` (id o parte del número) o una fecha;
+                                 si no, 400 "Elegí un vuelo o un rango de fechas.". `clase` deja solo esa clase. Incluye cancelados
 ```
 
 El registro público siempre asigna el rol `pasajero` y valida la contraseña con los validadores de Django. Las cuentas de administrador y empleado se provisionan desde Django Admin por un administrador; las contraseñas se ingresan como texto en el formulario y se guardan hasheadas. Solo los usuarios activos con rol `administrador` son staff y acceden a Django Admin; empleados y pasajeros no acceden. El frontend renueva el access token con el refresh al recibir un 401 y descarta la sesión si la renovación falla. Cerrar sesión borra los tokens del navegador y manda el refresh a `/api/auth/logout/`, que lo invalida en el servidor (`token_blacklist` de SimpleJWT): ese refresh ya no renueva, y el access vigente vence solo (1 h). Las sesiones de otros usuarios o dispositivos no se tocan. Las rutas `/admin/*` (React) y `/empleado/*` exigen administrador y empleado, respectivamente (cualquier otro rol vuelve a `/`); las búsquedas públicas de vuelos siguen abiertas. Cualquier nueva operación de negocio exclusiva por rol debe validar el permiso también en su endpoint de backend.
 
 **Errores 400:** formato estándar de DRF, `{"parametro": ["mensaje"]}`, con mensajes en español (los mismos que muestra el front). Los errores de un período del alta llegan en `periodos` indexados por posición (`{"periodos": {"0": {"desde": ["mensaje"]}}}`); los que no son de un campo, en `non_field_errors`. Un parámetro vacío (`?hasta=`) cuenta como no enviado. El 404 es `{"detail": "..."}`. Si la respuesta no es JSON (error 500, hosting caído), el front muestra un mensaje fijo (`ApiError` en `src/lib/api.ts`).
 
-**Catálogo y datos de ejemplo:** `python manage.py seed` carga los aeropuertos, la flota (10 aviones) y el usuario `sistema`; corre en `build.sh` porque no tienen ABM. `python manage.py seed --vuelos [--dias 60]` agrega vuelos de ejemplo sobre los primeros 4 aviones, para desarrollo local. Es idempotente y no pisa lo existente.
+**Catálogo y datos de ejemplo:** `python manage.py seed` carga los aeropuertos, la flota (10 aviones) y el usuario `sistema`; corre en `build.sh` porque no tienen ABM. `python manage.py seed --vuelos [--dias 60]` agrega vuelos de ejemplo sobre los primeros 4 aviones, para desarrollo local. Cada vuelo de ejemplo trae de 0 a 5 lugares vendidos y cada uno es una compra confirmada real (reserva pagada, pasajes y pago aprobado, a nombre de `sistema`), así vendidos + disponibles = capacidad. Es idempotente y no pisa lo existente. `seed --regenerar` borra los vuelos de ejemplo (con sus ventas de ejemplo) y los vuelve a generar en sus mismas fechas; los que tienen reservas quedan con disponibles = capacidad − vendidos reales.
 
 ## Pagos
 
@@ -172,6 +177,31 @@ Dos medios. Ninguno guarda el número completo de la tarjeta ni el CVV: solo `ul
 - **Transacciones:** las llamadas a MP nunca van dentro de `transaction.atomic()`; el pago pendiente se commitea antes, así una falla de MP lo deja rechazado en vez de perderlo.
 - **Variables:** `MP_ACCESS_TOKEN` (Access Token de prueba de la app en developers.mercadopago.com; vacío = MP deshabilitado) y `FRONTEND_URL`. En Render: `FRONTEND_URL=https://fly-away-one.vercel.app`.
 - **Sandbox:** para pagar en MP se inicia sesión con el comprador de prueba (sus datos se comparten por fuera del repo) y se usa la Mastercard `5031 7557 3453 0604`, CVV `123`, vencimiento `11/30`, titular `APRO` (aprobada) u `OTHE` (rechazada).
+
+## Concurrencia (US11)
+
+Dos personas pueden pagar a la vez el último lugar. El mecanismo es **bloqueo pesimista de la fila del vuelo**: toda operación que lee o cambia la disponibilidad de una instancia hace `select_for_update()` sobre ese vuelo dentro de `transaction.atomic()`, así las operaciones sobre el mismo vuelo van de a una y cada una ve lo que dejó la anterior. Vuelos distintos (otra fecha del mismo número) no se bloquean entre sí. Los asientos se descuentan **solo al confirmar** (no hay lugares retenidos que liberar) y con `F()` en la base.
+
+| Escenario | Qué pasa | Qué lo garantiza |
+|---|---|---|
+| Dos pasajeros reservan a la vez el último lugar | Las dos reservas quedan `pendiente`: reservar no retiene asientos | `crear_reserva` bloquea el vuelo para validar; el lugar se vuelve a chequear al pagar |
+| Dos pagos con tarjeta a la vez por el último lugar | Uno se aprueba; el otro recibe 400 "Se vendieron los últimos lugares de este vuelo mientras pagabas. No se hizo ningún cobro." | `validar_reserva` y `confirmar_compra` en la misma transacción, con el vuelo bloqueado |
+| Mercado Pago aprueba cuando ya no hay lugar | El pago queda `rechazado`: "Se vendieron los últimos lugares mientras pagabas. Te vamos a devolver el dinero." (corresponde devolución) | `confirmar_compra` relee lugar, estado y reserva con el vuelo bloqueado |
+| El mismo pago se confirma dos veces a la vez (vuelta de MP y reintento) | Una sola compra confirmada, asientos descontados una vez, una factura | Bloqueo del vuelo y después del pago (siempre en ese orden); si el pago ya no está `pendiente`, no hace nada |
+| Dos pagos de la misma reserva | El segundo responde 409 o queda rechazado ("ya pagada") | Chequeo de reserva `pagada` con el vuelo bloqueado + índice parcial `pago_un_aprobado_por_reserva` |
+| El admin cambia el avión mientras se compra | La edición espera la compra (o al revés) y recalcula con los vendidos reales | El `PATCH` bloquea el mismo vuelo (`select_for_update`) |
+| El admin cancela el vuelo con un pago en curso | El pago ve el vuelo cancelado y se rechaza | El `POST .../cancelar/` bloquea el mismo vuelo |
+| Pago rechazado o fallido | No cambia la disponibilidad | Nunca se descontó: se descuenta solo al aprobar |
+
+Respaldo en la base: `CHECK asientos_disponibles_* >= 0`. Si algo esquivara el bloqueo, la base rechaza la venta antes que quedar en negativo.
+
+**Pruebas:** `pagos/tests_concurrencia.py` lanza operaciones en hilos que largan juntos (cada uno con su conexión) contra **Postgres**: último lugar con dos tarjetas, último lugar con dos aprobaciones de MP, el mismo pago confirmado dos veces y 20 compradores por 10 lugares. En SQLite se saltean (no bloquea filas). Para correrlas hace falta un Postgres local cualquiera:
+
+```bash
+DATABASE_URL=postgres://postgres@localhost:5432/postgres .venv/bin/python manage.py test pagos.tests_concurrencia
+```
+
+Sin los `select_for_update()` de `pagos/servicios.py` las cuatro fallan (verificado).
 
 ## Emails
 

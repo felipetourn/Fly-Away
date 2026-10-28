@@ -248,6 +248,13 @@ class PagoTarjetaTests(Datos):
             self.assertIn('non_field_errors', r.data)
         self.assertFalse(Pago.objects.exists())
 
+    def test_sin_lugar_explica_que_se_vendieron_mientras_pagaba(self):
+        lleno = self.crear_vuelo('FA 3003', HOY + dt.timedelta(days=6), asientos_disponibles_economy=1)
+        r = self.pagar(self.reserva(vuelo=lleno, cantidad=2))
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(r.data['non_field_errors'], [servicios.SIN_LUGAR_AL_PAGAR])
+        self.assertFalse(Pago.objects.exists())
+
     def test_solo_pasajeros(self):
         reserva = self.reserva()
         self.client.force_authenticate(None)
@@ -327,6 +334,43 @@ class ConfirmacionTests(Datos):
         reserva = self.reserva()
         reservas_mock.marcar_pagada(reserva)
         self.assertEqual(self.pagar(reserva).status_code, 409)
+
+
+class ConcurrenciaSecuencialTests(Datos):
+    """US11 sin hilos (corre también en SQLite): el control es por instancia y clase, y un rechazo no toca nada.
+
+    Las operaciones realmente simultáneas están en tests_concurrencia.py (solo Postgres).
+    """
+
+    def asientos(self, vuelo):
+        vuelo.refresh_from_db()
+        return vuelo.asientos_disponibles_economy, vuelo.asientos_disponibles_primera
+
+    def test_ultimo_lugar_de_economy_no_toca_primera_ni_otra_fecha(self):
+        manana = self.crear_vuelo('FA 4000', HOY + dt.timedelta(days=1), asientos_disponibles_economy=1)
+        pasado = self.crear_vuelo('FA 4000', HOY + dt.timedelta(days=2))
+        primero = servicios.confirmar_compra(self.pago(self.reserva(vuelo=manana), estado=Pago.Estado.PENDIENTE), 'Pago aprobado.')
+        self.assertEqual(primero.estado, 'aprobado')
+        self.assertEqual(self.asientos(manana), (0, 12))
+        self.assertEqual(self.asientos(pasado), (30, 12))
+
+        otra = self.reserva(vuelo=manana, pasajero=self.otro)
+        segundo = servicios.confirmar_compra(self.pago(otra, estado=Pago.Estado.PENDIENTE), 'Pago aprobado.')
+        self.assertEqual((segundo.estado, segundo.detalle), ('rechazado', servicios.SIN_ASIENTOS))
+        self.assertEqual(self.asientos(manana), (0, 12))
+
+    def test_sin_lugar_al_aprobar_mp_promete_la_devolucion(self):
+        self.assertEqual(servicios.SIN_ASIENTOS, 'Se vendieron los últimos lugares mientras pagabas. Te vamos a devolver el dinero.')
+
+    def test_rechazos_y_fallas_no_reducen_la_disponibilidad(self):
+        reserva = self.reserva(cantidad=3)
+        for numero in ('4000000000000002', '4000000000009995', '4000000000000119'):
+            self.assertEqual(servicios.pagar_con_tarjeta(reserva, numero).estado, 'rechazado', numero)
+        pago_mp = self.pago(reserva, estado=Pago.Estado.PENDIENTE, metodo=Pago.Metodo.MERCADOPAGO)
+        servicios.guardar_resultado(pago_mp, Pago.Estado.RECHAZADO, 'Rechazado por Mercado Pago.')
+        self.assertEqual(self.asientos(self.vuelos[0]), (30, 12))
+        reserva.refresh_from_db()
+        self.assertEqual(reserva.estado, 'pendiente')
 
 
 class FacturacionTests(Datos):
