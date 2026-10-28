@@ -4,6 +4,11 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-28 - US13, reporte de ocupación (rama `feat/sprint3-concurrencia-ocupacion`)**
+- `GET /api/reportes/ocupacion/` con filtros por vuelo (id o número), desde/hasta y clase; de a 50 con totales de todo el filtro. Usa el mismo cálculo que la US12: los números coinciden siempre.
+- `/admin/ocupacion` (ítem "Ocupación" del admin): filtros en la URL, totales con `OcupacionVuelo`, tabla con vendidos/capacidad y disponibles por clase y % de ocupación; cada número abre la ocupación de esa instancia. Sin criterios no se genera; sin resultados, "No hay vuelos para esos criterios."
+- Header: con cuatro opciones el menú del admin desbordaba en 375 px (en 320 px ya pasaba con tres). Los enlaces scrollean dentro del header y el avatar queda fijo.
+
 **2026-10-28 - US12, consultar ocupación (rama `feat/sprint3-concurrencia-ocupacion`)**
 - App `reportes` (sin modelos) con `GET /api/reportes/ocupacion/{id}/` para el administrador: capacidad, vendidos y disponibles por clase y en total. Vendidos = pasajes de reservas pagadas; disponibles = el contador del vuelo.
 - `/admin/vuelos/:id/ocupacion`, desde el ícono de barras de cada fila de Gestión de vuelos. El componente `OcupacionVuelo` solo muestra datos: la US14 lo reutiliza con su endpoint.
@@ -231,5 +236,5 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Próximos pasos
 
-1. Reportes de ocupación.
-2. Notificaciones por cambio de horario / cancelación (el ABM ya cancela y edita; falta avisar).
+1. Notificaciones por cambio de horario / cancelación (US15/US16; el ABM ya cancela y edita; falta avisar).
+2. Estado del vuelo desde mostrador (US14): reutilizar `reportes.servicios` y `OcupacionVuelo`.
