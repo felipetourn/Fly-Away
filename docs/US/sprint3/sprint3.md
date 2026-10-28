@@ -6,13 +6,13 @@ Objetivo del sprint: completar y robustecer las funcionalidades operativas de Fl
 
 | US | Nombre | Story points | Horas estimadas | Horas reales | Estado | Ficha |
 |---|---|---|---|---|---|---|
-| US11 | Gestionar compras concurrentes de pasajes | 13 | 25 | — | Terminada | [us11.md](us11.md) |
-| US12 | Consultar ocupación | 3 | 12 | — | Terminada | [us12.md](us12.md) |
-| US13 | Generar reporte de ocupación | 3 | 13 | — | Terminada | [us13.md](us13.md) |
+| US11 | Gestionar compras concurrentes de pasajes | 13 | 25 | 2 | Terminada | [us11.md](us11.md) |
+| US12 | Consultar ocupación | 3 | 12 | 2 | Terminada | [us12.md](us12.md) |
+| US13 | Generar reporte de ocupación | 3 | 13 | 2 | Terminada | [us13.md](us13.md) |
 | US14 | Consultar estado de un vuelo desde mostrador | 5 | 14 | — | A cargo de otro integrante | |
 | US15 | Notificar modificaciones de horario | 5 | 16 | — | A cargo de otro integrante | |
 | US16 | Notificar cancelaciones | 5 | 14 | — | A cargo de otro integrante | |
-| **Total** | | **34** | **94** | | | |
+| **Total** | | **34** | **94** | **6** (US11-US13) | | |
 
 ## Correr en local
 
