@@ -4,6 +4,7 @@ import { EsqueletoPagina } from './components/Esqueleto'
 import Header from './components/Header'
 import type { Usuario } from './lib/auth'
 import { useSesion } from './lib/sesion'
+import AdminOcupacionVuelo from './pages/AdminOcupacionVuelo'
 import AdminVueloForm from './pages/AdminVueloForm'
 import AdminVuelos from './pages/AdminVuelos'
 import Login from './pages/Login'
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="admin/vuelos" element={<RutaProtegida roles={['administrador']}><AdminVuelos /></RutaProtegida>} />
           <Route path="admin/vuelos/nuevo" element={<RutaProtegida roles={['administrador']}><AdminVueloForm /></RutaProtegida>} />
           <Route path="admin/vuelos/:id" element={<RutaProtegida roles={['administrador']}><AdminVueloForm /></RutaProtegida>} />
+          <Route path="admin/vuelos/:id/ocupacion" element={<RutaProtegida roles={['administrador']}><AdminOcupacionVuelo /></RutaProtegida>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

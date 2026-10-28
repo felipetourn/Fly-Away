@@ -31,6 +31,7 @@ function Icono({ d }: { d: string }) {
   )
 }
 const LAPIZ = 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'
+const BARRAS = 'M4 20V10M10 20V4M16 20v-7M22 20H2'
 const TACHO = 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6'
 
 /** Confirmación de la cancelación. Se abre al montarse; al cerrarse avisa con `onCerrar`. */
@@ -275,6 +276,9 @@ export default function AdminVuelos() {
                         <div className="flex gap-1">
                           <Link to={`/admin/vuelos/${v.id}`} aria-label={`Editar vuelo ${v.id}`} title={bloqueado ? 'Ver' : 'Editar'} className={ICONO}>
                             <Icono d={LAPIZ} />
+                          </Link>
+                          <Link to={`/admin/vuelos/${v.id}/ocupacion`} aria-label={`Ocupación del vuelo ${v.id}`} title="Ocupación" className={ICONO}>
+                            <Icono d={BARRAS} />
                           </Link>
                           <button type="button" onClick={() => setACancelar(v)} disabled={bloqueado} aria-label={`Cancelar vuelo ${v.id}`} title="Cancelar" className={ICONO}>
                             <Icono d={TACHO} />
