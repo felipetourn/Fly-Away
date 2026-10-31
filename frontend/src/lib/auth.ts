@@ -23,6 +23,7 @@ export const MENU: Record<Usuario['rol'], { to: string; texto: string }[]> = {
   empleado_mostrador: [
     { to: '/', texto: 'Vuelos' },
     { to: '/empleado/reservas', texto: 'Reservas' },
+    { to: '/empleado/vuelos', texto: 'Estado de vuelos' },
   ],
   administrador: [
     { to: '/', texto: 'Vuelos' },

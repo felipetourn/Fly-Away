@@ -4,6 +4,11 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-31 - US14, consultar estado de un vuelo desde mostrador**
+- Backend: `GET /api/mostrador/vuelos/` (búsqueda paginada por id o número de vuelo, origen, destino, fechas y estado) y `GET /api/mostrador/vuelos/{id}/` (detalle operativo de la instancia + ocupación total y por clase usando `reportes.servicios.con_ocupacion` y `ocupacion_de`), protegidos por `EsEmpleadoMostrador` (`401` sin sesión, `403` para pasajero o administrador). El empleado de mostrador no puede crear, modificar ni cancelar vuelos.
+- Frontend: opción "Estado de vuelos" (`/empleado/vuelos`) y detalle de instancia (`/empleado/vuelos/:id`) exclusivos para `empleado_mostrador`. Reutiliza `OcupacionVuelo`, muestra identificador de instancia (`id`), origen y destino, fecha y horarios, avión, estado actual, ocupación y disponibilidad por clase, con recarga en vivo.
+- Pruebas: `MostradorEstadoVueloTests` en `backend/vuelos/tests.py` y chequeos en `frontend/scripts/check.ts`. Documentación en [docs/US/sprint3/us14.md](US/sprint3/us14.md).
+
 **2026-10-28 - Reporte de ocupación por ruta (rama `feat/ocupacion-filtro-ruta`)**
 - El reporte (US13) filtra también por origen y destino (código IATA, como Gestión de vuelos). Cualquiera de los dos alcanza solo para generarlo; la clase sola sigue sin alcanzar.
 
@@ -179,6 +184,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-10-31 | Endpoints de mostrador (`/api/mostrador/vuelos/` y `/api/mostrador/vuelos/{id}/`) separados con `EsEmpleadoMostrador` | Reutilizan `_filtrar_listado` y `reportes.servicios` sin abrir el ABM del administrador ni permitir acceso a pasajeros |
 | 2026-10-28 | Ocupación en una app nueva `reportes`, no en `vuelos` | `vuelos/views.py` y `serializers.py` los cambia el compañero (US15/US16); la US14 importa `reportes.servicios` |
 | 2026-10-28 | Vuelos de ejemplo con 0 a 5 ventas reales en vez de disponibles al azar | La ocupación cuenta compras confirmadas: lugares "vendidos" sin pasajes la dejaban inconsistente. Pocas ventas para no llenar Supabase |
 | 2026-10-28 | Pruebas concurrentes en un archivo aparte (`pagos/tests_concurrencia.py`) que solo corre en Postgres | SQLite no bloquea filas: ahí la prueba no demuestra nada; la suite de todos los días sigue rápida y verde |
@@ -240,4 +246,3 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 ## Próximos pasos
 
 1. Notificaciones por cambio de horario / cancelación (US15/US16; el ABM ya cancela y edita; falta avisar).
-2. Estado del vuelo desde mostrador (US14): reutilizar `reportes.servicios` y `OcupacionVuelo`.

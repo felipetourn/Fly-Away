@@ -7,8 +7,10 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from reportes.servicios import con_ocupacion, ocupacion_de
+
 from .models import Aeropuerto, Avion, Vuelo
-from .permissions import EsAdministrador
+from .permissions import EsAdministrador, EsEmpleadoMostrador
 from .serializers import (
     AeropuertoSerializer,
     AltaVueloSerializer,
@@ -114,6 +116,32 @@ class AvionesView(generics.ListAPIView):
     serializer_class = AvionSerializer
 
 
+def _filtrar_listado(vuelos, query_params):
+    filtros = FiltrosListadoSerializer(data={k: v for k, v in query_params.items() if v != ''})
+    filtros.is_valid(raise_exception=True)
+    f = filtros.validated_data
+    vuelos = vuelos.order_by('fecha_operacion', 'hora_partida', 'numero_vuelo')
+    q = f.get('q')
+    if q:
+        try:
+            vuelos = vuelos.filter(pk=uuid.UUID(q))
+        except ValueError:
+            vuelos = vuelos.filter(numero_vuelo__icontains=q)
+    # Sin `desde` ni `q`, desde hoy; con `q` se busca en todas las fechas (un id puede ser de un vuelo pasado).
+    desde = f.get('desde') or (None if q else timezone.localdate())
+    if desde:
+        vuelos = vuelos.filter(fecha_operacion__gte=desde)
+    if 'hasta' in f:
+        vuelos = vuelos.filter(fecha_operacion__lte=f['hasta'])
+    if 'estado' in f:
+        vuelos = vuelos.filter(estado=f['estado'])
+    if 'origen' in f:
+        vuelos = vuelos.filter(aeropuerto_origen__codigo_iata=f['origen'].upper())
+    if 'destino' in f:
+        vuelos = vuelos.filter(aeropuerto_destino__codigo_iata=f['destino'].upper())
+    return vuelos
+
+
 class VuelosView(generics.ListAPIView):
     """ABM de vuelos del administrador: listado paginado con filtros y alta con recurrencia."""
 
@@ -122,29 +150,7 @@ class VuelosView(generics.ListAPIView):
     pagination_class = Paginacion
 
     def get_queryset(self):
-        filtros = FiltrosListadoSerializer(data={k: v for k, v in self.request.query_params.items() if v != ''})
-        filtros.is_valid(raise_exception=True)
-        f = filtros.validated_data
-        vuelos = VUELOS_CON_RELACIONES.order_by('fecha_operacion', 'hora_partida', 'numero_vuelo')
-        q = f.get('q')
-        if q:
-            try:
-                vuelos = vuelos.filter(pk=uuid.UUID(q))
-            except ValueError:
-                vuelos = vuelos.filter(numero_vuelo__icontains=q)
-        # Sin `desde` ni `q`, desde hoy; con `q` se busca en todas las fechas (un id puede ser de un vuelo pasado).
-        desde = f.get('desde') or (None if q else timezone.localdate())
-        if desde:
-            vuelos = vuelos.filter(fecha_operacion__gte=desde)
-        if 'hasta' in f:
-            vuelos = vuelos.filter(fecha_operacion__lte=f['hasta'])
-        if 'estado' in f:
-            vuelos = vuelos.filter(estado=f['estado'])
-        if 'origen' in f:
-            vuelos = vuelos.filter(aeropuerto_origen__codigo_iata=f['origen'].upper())
-        if 'destino' in f:
-            vuelos = vuelos.filter(aeropuerto_destino__codigo_iata=f['destino'].upper())
-        return vuelos
+        return _filtrar_listado(VUELOS_CON_RELACIONES, self.request.query_params)
 
     def post(self, request):
         alta = AltaVueloSerializer(data=request.data)
@@ -155,3 +161,25 @@ class VuelosView(generics.ListAPIView):
             # Dos altas a la vez tomaron el mismo número: el índice único frena a la segunda.
             raise error_general('No se pudo asignar el número de vuelo. Probá de nuevo.')
         return Response({'numero_vuelo': numero, 'cantidad': cantidad}, status=201)
+
+
+class MostradorVuelosView(generics.ListAPIView):
+    """Búsqueda y listado de instancias de vuelo desde mostrador (US14). Solo lectura."""
+
+    permission_classes = [EsEmpleadoMostrador]
+    serializer_class = VueloDetalleSerializer
+    pagination_class = Paginacion
+
+    def get_queryset(self):
+        return _filtrar_listado(VUELOS_CON_RELACIONES, self.request.query_params)
+
+
+class MostradorEstadoVueloView(generics.RetrieveAPIView):
+    """Estado operativo, ocupación y disponibilidad por clase de una instancia desde mostrador (US14)."""
+
+    permission_classes = [EsEmpleadoMostrador]
+    queryset = con_ocupacion(Vuelo.objects.all())
+
+    def retrieve(self, request, *args, **kwargs):
+        vuelo = self.get_object()
+        return Response({'vuelo': VueloDetalleSerializer(vuelo).data, **ocupacion_de(vuelo)})

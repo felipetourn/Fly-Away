@@ -344,3 +344,18 @@ assert.equal(queryReporte({ ...sinFiltros, desde: '2026-11-01' }).toString(), 'd
 assert.equal(queryReporte({ ...sinFiltros, vuelo: ' FA 1000 ', clase: 'economy', page: 3 }).toString(), 'vuelo=FA+1000&clase=economy&page=3')
 assert.equal(queryReporte({ ...sinFiltros, origen: 'AEP', destino: 'COR', desde: '2026-11-01' }).toString(), 'desde=2026-11-01&origen=AEP&destino=COR')
 console.log('reporte: OK')
+
+
+// mostrador (US14): menú del empleado y lectura de filtros desde query string
+import { MENU } from '../src/lib/auth.ts'
+import { leerFiltrosMostrador } from '../src/lib/mostrador.ts'
+
+assert.ok(MENU.empleado_mostrador.some((item) => item.to === '/empleado/vuelos'), 'empleado tiene acceso a Estado de vuelos')
+assert.equal(MENU.pasajero.some((item) => item.to.startsWith('/empleado/')), false, 'pasajero no ve rutas de empleado')
+assert.equal(MENU.empleado_mostrador.some((item) => item.to.startsWith('/admin/')), false, 'empleado no ve rutas de admin')
+assert.deepEqual(
+  leerFiltrosMostrador(new URLSearchParams('q=FA+1010&origen=BHI&estado=activo&page=2')),
+  { q: 'FA 1010', origen: 'BHI', destino: '', desde: '', hasta: '', estado: 'activo', page: 2 },
+)
+assert.equal(leerFiltrosMostrador(new URLSearchParams('page=-3')).page, 1)
+console.log('mostrador: OK')

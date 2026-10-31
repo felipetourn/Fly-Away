@@ -47,7 +47,7 @@ Fly Away/
     └── src/
         ├── lib/              api.ts (fetch + JWT + renovación), sesion.tsx, llamadas a la API y lógica pura
         ├── components/       Header, HeroCarrusel, BuscadorVuelos, FiltroPrecio, CardVuelo, ListaVuelos, DetalleVuelo
-        ├── pages/            pantallas (AdminVuelos y AdminVueloForm: ABM de vuelos; Reservas provisoria, Pagar, PagoResultado; Perfil con mis pagos)
+        ├── pages/            pantallas (AdminVuelos y AdminVueloForm: ABM de vuelos; EmpleadoVuelos y EmpleadoEstadoVuelo: mostrador; Reservas, Pagar, PagoResultado; Perfil con mis pagos)
         └── App.tsx           rutas: / (todos), /empleado/*, /admin/* (por rol)
 ```
 
@@ -56,7 +56,7 @@ Fly Away/
 | Rol (`usuarios.rol`) | Opciones del header | Puede |
 |---|---|---|
 | `pasajero` | Vuelos, Reservas (`/reservas`) | buscar vuelos, comprar (≤ 9 pasajes), ver/descargar sus pasajes |
-| `empleado_mostrador` | Vuelos, Reservas (`/empleado/reservas`) | vender pasajes a un pasajero en mostrador, consultar reservas |
+| `empleado_mostrador` | Vuelos, Reservas (`/empleado/reservas`), Estado de vuelos (`/empleado/vuelos`) | buscar vuelos y consultar el estado operativo, ocupación y disponibilidad de una instancia en mostrador (US14), vender pasajes y consultar reservas |
 | `administrador` | Vuelos, Reservas (`/admin/reservas`), Gestión de vuelos (`/admin/vuelos`), Ocupación (`/admin/ocupacion`) | ABM de vuelos, cancelar, ocupación de un vuelo (ícono de barras en Gestión de vuelos) y reporte de ocupación |
 
 Todos los roles comparten layout, header y footer y, al iniciar sesión, llegan a `/` (búsqueda de vuelos); el header muestra las opciones del rol (`MENU` en `src/lib/auth.ts`).
@@ -90,7 +90,7 @@ Ideas clave del modelo:
   3. `asientos_disponibles_<clase>` ≥ pasajes pedidos de esa clase
 - **Precio** se copia a cada `pasaje` al comprar: si el admin cambia el precio del vuelo después, no afecta ventas pasadas.
 - **Comprador ≠ viajero:** `reservas.pasajero_id` es quien compra (recibe emails); los datos de cada viajero están en `pasajes`.
-- **Ocupación** (US12, US13) por vuelo y clase: **vendidos** = pasajes de reservas `pagada` (solo compras confirmadas), **disponibles** = `asientos_disponibles_*` (el contador que usa la venta), **capacidad** = la del avión actual. La US11 garantiza vendidos + disponibles = capacidad. Cálculo en `reportes/servicios.py` (`con_ocupacion`, `ocupacion_de`).
+- **Ocupación** (US12, US13, US14) por vuelo y clase: **vendidos** = pasajes de reservas `pagada` (solo compras confirmadas), **disponibles** = `asientos_disponibles_*` (el contador que usa la venta), **capacidad** = la del avión actual. La US11 garantiza vendidos + disponibles = capacidad. Cálculo en `reportes/servicios.py` (`con_ocupacion`, `ocupacion_de`).
 - **Pagos:** nunca guardar el número de tarjeta completo; solo `ultimos_4`. Una reserva puede tener varios pagos (reintentos tras un rechazo).
 
 Traducción a Django (al implementar):
@@ -137,6 +137,10 @@ POST /api/vuelos/                (admin) ✅ alta: origen, destino, horas y peri
 PATCH /api/vuelos/{id}/          (admin) ✅ edita una instancia activa que no salió (fecha, horas, ruta, avión, precios)
 POST /api/vuelos/{id}/cancelar/  (admin) ✅ estado = cancelado; la fila se conserva. Falta notificar por email (US16)
 GET  /api/aviones/               (admin) ✅ catálogo para el formulario
+GET  /api/mostrador/vuelos/      (empleado) ✅ listado paginado (50) desde mostrador (US14): q (id o número), origen, destino,
+                                 desde, hasta, estado; sin desde ni q, desde hoy; solo lectura
+GET  /api/mostrador/vuelos/{id}/ (empleado) ✅ estado operativo de una instancia (US14): {vuelo, clases[{clase, capacidad, vendidos, disponibles}], total};
+                                 incluye cancelados y pasados; id inexistente o malformado: 404
 GET  /api/pagos/                 (pasajero) ✅ sus pagos, del más nuevo al más viejo (estado guardado, no consulta a MP)
 GET  /api/pagos/{id}/            (pasajero) ✅ un pago; si es de MP y está pendiente, consulta la orden y lo actualiza
 POST /api/pagos/tarjeta/         (pasajero) ✅ {reserva_id, numero, titular, vencimiento MM/AA, cvv} → 201 pago (aprobado o rechazado)

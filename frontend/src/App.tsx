@@ -8,6 +8,8 @@ import AdminOcupacionVuelo from './pages/AdminOcupacionVuelo'
 import AdminReporteOcupacion from './pages/AdminReporteOcupacion'
 import AdminVueloForm from './pages/AdminVueloForm'
 import AdminVuelos from './pages/AdminVuelos'
+import EmpleadoEstadoVuelo from './pages/EmpleadoEstadoVuelo'
+import EmpleadoVuelos from './pages/EmpleadoVuelos'
 import Login from './pages/Login'
 import Pagar from './pages/Pagar'
 import PagoResultado from './pages/PagoResultado'
@@ -57,6 +59,8 @@ export default function App() {
           <Route path="login" element={<Login />} />
           <Route path="registro" element={<Registro />} />
           <Route path="empleado/reservas" element={<RutaProtegida roles={['empleado_mostrador']}><Proximamente titulo="Reservas" /></RutaProtegida>} />
+          <Route path="empleado/vuelos" element={<RutaProtegida roles={['empleado_mostrador']}><EmpleadoVuelos /></RutaProtegida>} />
+          <Route path="empleado/vuelos/:id" element={<RutaProtegida roles={['empleado_mostrador']}><EmpleadoEstadoVuelo /></RutaProtegida>} />
           <Route path="admin/reservas" element={<RutaProtegida roles={['administrador']}><Proximamente titulo="Reservas" /></RutaProtegida>} />
           <Route path="admin/vuelos" element={<RutaProtegida roles={['administrador']}><AdminVuelos /></RutaProtegida>} />
           <Route path="admin/vuelos/nuevo" element={<RutaProtegida roles={['administrador']}><AdminVueloForm /></RutaProtegida>} />

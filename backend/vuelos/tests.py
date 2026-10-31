@@ -821,3 +821,116 @@ class CancelacionTests(AdminDatos):
     def test_404(self):
         for id_ in (uuid.uuid4(), 'no-es-un-uuid'):
             self.assertEqual(self.cancelar(id_).status_code, 404, id_)
+
+
+
+class MostradorEstadoVueloTests(AdminDatos):
+    """US14: consulta operativa del estado de un vuelo desde mostrador."""
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_authenticate(self.empleado)
+        factura = patch('pagos.factura.enviar_factura_confirmada')
+        factura.start()
+        self.addCleanup(factura.stop)
+
+    def buscar_mostrador(self, **params):
+        r = self.client.get('/api/mostrador/vuelos/', params)
+        self.assertEqual(r.status_code, 200, r.content)
+        return r.json()['results']
+
+    def consultar_estado(self, id_):
+        return self.client.get(f'/api/mostrador/vuelos/{id_}/')
+
+    def confirmar_venta(self, vuelo, clase='economy', cantidad=1):
+        from pagos import servicios as pagos
+        from pagos.models import Pago
+
+        reserva = Reserva.objects.create(
+            pasajero=self.pasajero, contacto_email='pepe@mail.com', vuelo=vuelo, cantidad_pasajes=cantidad
+        )
+        for i in range(cantidad):
+            Pasaje.objects.create(
+                reserva=reserva, codigo_pasaje=f'{reserva.id.hex[:8]}-{i:02d}', nombre_pasajero='Pepe',
+                apellido_pasajero='Pérez', dni_pasajero='12345678', clase=clase, precio=Decimal('100000.00'),
+            )
+        pago = Pago.objects.create(reserva_id=reserva.id, monto=Decimal('100000.00') * cantidad, metodo_pago=Pago.Metodo.TARJETA)
+        pagos.confirmar_compra(pago, 'Pago aprobado.')
+
+    def test_empleado_busca_y_selecciona_vuelo(self):
+        v1 = self.vuelo('FA 1010', fecha=MANANA, origen=self.bhi, destino=self.aep)
+        v2 = self.vuelo('FA 2020', fecha=MANANA, origen=self.cor, destino=self.aep, estado=Vuelo.Estado.CANCELADO)
+        pasado = self.vuelo('FA 3030', fecha=HOY - dt.timedelta(days=2))
+
+        self.assertEqual([v['id'] for v in self.buscar_mostrador()], [str(v1.id), str(v2.id)])
+        self.assertEqual([v['id'] for v in self.buscar_mostrador(q='1010')], [str(v1.id)])
+        self.assertEqual([v['id'] for v in self.buscar_mostrador(q=str(pasado.id))], [str(pasado.id)])
+        self.assertEqual([v['id'] for v in self.buscar_mostrador(origen='cor')], [str(v2.id)])
+        self.assertEqual([v['id'] for v in self.buscar_mostrador(estado='cancelado')], [str(v2.id)])
+
+    def test_consulta_identificador_ruta_horarios_estado_ocupacion_y_disponibilidad_por_clase(self):
+        v = self.vuelo(
+            'FA 1010', fecha=MANANA, origen=self.bhi, destino=self.aep, partida='15:00',
+            asientos_disponibles_economy=150, asientos_disponibles_primera=12,
+        )
+        self.confirmar_venta(v, 'economy', 3)
+        self.confirmar_venta(v, 'primera', 1)
+
+        r = self.consultar_estado(v.id)
+        self.assertEqual(r.status_code, 200, r.content)
+        d = r.json()
+        vuelo = d['vuelo']
+        self.assertEqual(vuelo['id'], str(v.id))
+        self.assertEqual(vuelo['numero_vuelo'], 'FA 1010')
+        self.assertEqual((vuelo['origen']['codigo_iata'], vuelo['destino']['codigo_iata']), ('BHI', 'AEP'))
+        self.assertEqual((vuelo['fecha_operacion'], vuelo['fecha_llegada']), (str(MANANA), str(MANANA)))
+        self.assertEqual((vuelo['hora_partida'], vuelo['hora_llegada']), ('15:00:00', '16:00:00'))
+        self.assertEqual(vuelo['estado'], 'activo')
+        self.assertEqual((vuelo['asientos_disponibles_economy'], vuelo['asientos_disponibles_primera']), (147, 11))
+        self.assertEqual(d['clases'], [
+            {'clase': 'economy', 'capacidad': 150, 'vendidos': 3, 'disponibles': 147},
+            {'clase': 'primera', 'capacidad': 12, 'vendidos': 1, 'disponibles': 11},
+        ])
+        self.assertEqual(d['total'], {'capacidad': 162, 'vendidos': 4, 'disponibles': 158})
+
+    def test_informacion_actualizada_ante_ventas_y_cambios_de_estado(self):
+        v = self.vuelo(
+            'FA 1010', fecha=MANANA, asientos_disponibles_economy=150, asientos_disponibles_primera=12
+        )
+        inicial = self.consultar_estado(v.id).json()
+        self.assertEqual(inicial['total'], {'capacidad': 162, 'vendidos': 0, 'disponibles': 162})
+
+        self.confirmar_venta(v, 'economy', 2)
+        tras_venta = self.consultar_estado(v.id).json()
+        self.assertEqual(tras_venta['total'], {'capacidad': 162, 'vendidos': 2, 'disponibles': 160})
+        self.assertEqual(tras_venta['vuelo']['asientos_disponibles_economy'], 148)
+
+        self.client.force_authenticate(self.admin)
+        self.client.post(f'/api/vuelos/{v.id}/cancelar/')
+        self.client.force_authenticate(self.empleado)
+        tras_cancelar = self.consultar_estado(v.id).json()
+        self.assertEqual(tras_cancelar['vuelo']['estado'], 'cancelado')
+
+    def test_empleado_no_puede_crear_modificar_ni_cancelar_vuelos(self):
+        v = self.vuelo('FA 1010', fecha=MANANA)
+        self.assertEqual(self.client.post('/api/vuelos/', {}, format='json').status_code, 403)
+        self.assertEqual(self.client.patch(f'/api/vuelos/{v.id}/', {'precio_economy': '1.00'}, format='json').status_code, 403)
+        self.assertEqual(self.client.post(f'/api/vuelos/{v.id}/cancelar/').status_code, 403)
+        self.assertEqual(self.client.post('/api/mostrador/vuelos/', {}, format='json').status_code, 405)
+        self.assertEqual(self.client.patch(f'/api/mostrador/vuelos/{v.id}/', {}, format='json').status_code, 405)
+        v.refresh_from_db()
+        self.assertEqual((v.estado, v.precio_economy), (Vuelo.Estado.ACTIVO, Decimal('100000.00')))
+
+    def test_pasajero_y_anonimo_no_acceden_a_mostrador(self):
+        v = self.vuelo('FA 1010', fecha=MANANA)
+        for url in ('/api/mostrador/vuelos/', f'/api/mostrador/vuelos/{v.id}/'):
+            self.client.force_authenticate(None)
+            self.assertEqual(self.client.get(url).status_code, 401, url)
+            self.client.force_authenticate(self.pasajero)
+            self.assertEqual(self.client.get(url).status_code, 403, url)
+
+    def test_404_en_instancia_inexistente_o_id_invalido(self):
+        for id_ in (uuid.uuid4(), 'no-es-un-uuid'):
+            r = self.consultar_estado(id_)
+            self.assertEqual(r.status_code, 404, id_)
+            self.assertIn('detail', r.json())
