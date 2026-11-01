@@ -1,0 +1,13 @@
+Hola{% if nombre %} {{ nombre }}{% endif %}:
+
+Te informamos que tu vuelo fue cancelado.
+
+Vuelo cancelado: {{ vuelo.numero_vuelo }} (ID de instancia: {{ vuelo.id }})
+Origen: {{ vuelo.aeropuerto_origen.ciudad }} ({{ vuelo.aeropuerto_origen.codigo_iata }}) - {{ vuelo.aeropuerto_origen.nombre }}
+Destino: {{ vuelo.aeropuerto_destino.ciudad }} ({{ vuelo.aeropuerto_destino.codigo_iata }}) - {{ vuelo.aeropuerto_destino.nombre }}
+Fecha programada: {{ vuelo.fecha_operacion|date:"d/m/Y" }}
+Horario programado: salida {{ vuelo.hora_partida|time:"H:i" }} - llegada {{ vuelo.fecha_llegada|date:"d/m/Y" }} {{ vuelo.hora_llegada|time:"H:i" }}
+{% if codigos_pasaje %}
+Pasajes asociados: {{ codigos_pasaje|join:", " }}
+{% endif %}
+Lamentamos los inconvenientes ocasionados. Gracias por viajar con Fly Away.

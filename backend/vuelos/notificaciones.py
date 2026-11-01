@@ -1,4 +1,4 @@
-"""Identificación de pasajeros afectados y envío de notificaciones por cambios de vuelo (US15)."""
+"""Identificación de pasajeros afectados y envío de notificaciones por cambios o cancelación de vuelo (US15, US16)."""
 from collections import OrderedDict
 import logging
 import smtplib
@@ -74,6 +74,18 @@ def mensaje_cambio_horario(vuelo, anterior):
         f'llegada {anterior["fecha_llegada"]:%d/%m/%Y} {anterior["hora_llegada"]:%H:%M}. '
         f'Nuevo horario: salida {vuelo.fecha_operacion:%d/%m/%Y} {vuelo.hora_partida:%H:%M}, '
         f'llegada {vuelo.fecha_llegada:%d/%m/%Y} {vuelo.hora_llegada:%H:%M}.'
+    )
+
+
+def mensaje_cancelacion(vuelo):
+    """Texto resumen persistido en `notificaciones.mensaje` con identificación del vuelo cancelado."""
+    origen = vuelo.aeropuerto_origen
+    destino = vuelo.aeropuerto_destino
+    return (
+        f'El vuelo {vuelo.numero_vuelo} ({origen.ciudad} {origen.codigo_iata} -> '
+        f'{destino.ciudad} {destino.codigo_iata}, instancia {vuelo.id}) programado para el '
+        f'{vuelo.fecha_operacion:%d/%m/%Y} a las {vuelo.hora_partida:%H:%M} '
+        f'(llegada {vuelo.fecha_llegada:%d/%m/%Y} a las {vuelo.hora_llegada:%H:%M}) fue cancelado.'
     )
 
 
