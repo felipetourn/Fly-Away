@@ -272,10 +272,26 @@ class SeedTests(Datos):
         self.correr(vuelos=False)
         self.assertEqual((Aeropuerto.objects.count(), Avion.objects.count(), Vuelo.objects.count()), (11, 10, 0))
 
-    def test_los_vuelos_de_ejemplo_usan_los_primeros_cuatro_aviones(self):
+    def test_los_vuelos_de_ejemplo_usan_todos_los_aviones_sin_superponerse(self):
+        from .servicios import choque_de_avion
+
         self.correr()
         usados = set(Vuelo.objects.values_list('avion__matricula', flat=True))
-        self.assertLessEqual(usados, {'LV-FAA', 'LV-FAB', 'LV-FAC', 'LV-FAD'})
+        self.assertEqual(usados, set(Avion.objects.values_list('matricula', flat=True)))
+        activos = list(Vuelo.objects.filter(estado=Vuelo.Estado.ACTIVO).select_related('avion'))
+        for v in activos:
+            self.assertIsNone(choque_de_avion([v], excluir=v.id), f'Choque en {v}')
+        # Un vuelo activo futuro de ejemplo permite ajustar su horario dentro del margen sin chocar de avión.
+        editable = Vuelo.objects.filter(estado=Vuelo.Estado.ACTIVO, fecha_operacion=MANANA).first()
+        nueva_partida = (dt.datetime.combine(MANANA, editable.hora_partida) + dt.timedelta(minutes=15)).time()
+        nueva_llegada = (dt.datetime.combine(MANANA, editable.hora_llegada) + dt.timedelta(minutes=15)).time()
+        self.client.force_authenticate(self.admin)
+        r = self.client.patch(
+            f'/api/vuelos/{editable.id}/',
+            {'hora_partida': f'{nueva_partida:%H:%M}', 'hora_llegada': f'{nueva_llegada:%H:%M}'},
+            format='json',
+        )
+        self.assertEqual(r.status_code, 200, r.content)
 
     def test_carga_datos_de_ejemplo(self):
         self.correr()
@@ -349,7 +365,8 @@ class SeedTests(Datos):
         sistema = get_user_model().objects.create_user(
             'sistema@flyaway.local', None, nombre='Sistema', apellido='Fly Away', rol='administrador'
         )
-        # Vuelos de ejemplo como los del seed anterior: lugares "vendidos" sin pasajes.
+        # Vuelos de ejemplo como los del seed anterior: lugares "vendidos" sin pasajes y uno en el pasado.
+        pasado = self.vuelo('FA 9989', fecha=HOY - dt.timedelta(days=5), creado_por=sistema)
         viejo = self.vuelo('FA 9990', creado_por=sistema, asientos_disponibles_economy=3, asientos_disponibles_primera=1)
         con_compra = self.vuelo(
             'FA 9991', fecha=HOY + dt.timedelta(days=2), creado_por=sistema,
@@ -367,6 +384,7 @@ class SeedTests(Datos):
 
         call_command('seed', vuelos=True, regenerar=True, stdout=StringIO())
 
+        self.assertFalse(Vuelo.objects.filter(id=pasado.id).exists())
         self.assertFalse(Vuelo.objects.filter(id=viejo.id).exists())
         con_compra.refresh_from_db()
         self.assertEqual((con_compra.asientos_disponibles_economy, con_compra.asientos_disponibles_primera), (148, 12))
@@ -375,8 +393,9 @@ class SeedTests(Datos):
         regenerados = Vuelo.objects.filter(creado_por=sistema)
         self.assertGreater(regenerados.count(), 1)
         self.assertEqual(
-            set(regenerados.values_list('fecha_operacion', flat=True)), {HOY + dt.timedelta(days=1), HOY + dt.timedelta(days=2)},
-            'las mismas fechas que tenían los vuelos de ejemplo',
+            set(regenerados.values_list('fecha_operacion', flat=True)),
+            {HOY, HOY + dt.timedelta(days=1), HOY + dt.timedelta(days=2)},
+            'genera desde hoy en adelante sin recrear fechas pasadas',
         )
         self.assert_ventas_reales(regenerados)
 

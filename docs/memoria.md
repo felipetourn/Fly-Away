@@ -4,6 +4,10 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-11-01 - Vuelos de ejemplo sin superposición de aviones y desde hoy en adelante (`seed`)**
+- `seed.py` (`--vuelos` y `--regenerar`) ahora reparte los vuelos de ejemplo alternando **todos los aviones** de la flota y verificando que ningún avión tenga horarios superpuestos (dejando además un margen de 30 minutos entre vuelos del mismo avión para permitir editar horarios desde Gestión de vuelos sin choques).
+- `--regenerar` limpia los vuelos de ejemplo pasados sin reservas reales y vuelve a generar únicamente desde `timezone.localdate()` (hoy) en adelante.
+
 **2026-11-01 - US16, notificar cancelaciones**
 - Al cancelar una instancia (`POST /api/vuelos/{id}/cancelar/`), `CancelarVueloView.post` invoca `programar_notificaciones_cancelacion` (`vuelos/notificaciones.py`), que identifica únicamente las reservas `pagada` de esa instancia, agrupa por `(pasajero_id, email)`, evita duplicados por `(vuelo, tipo = cancelacion)` y agenda `enviar_notificacion_cancelacion` mediante `transaction.on_commit(..., robust=True)`.
 - Plantillas `vuelos/emails/cancelacion.txt` y `cancelacion.html` enviadas con `EmailMultiAlternatives`: incluyen `numero_vuelo`, ID de instancia, origen y destino (IATA, ciudad y aeropuerto), fecha y horario programados y códigos de pasaje. Si el proveedor de correo falla, `enviado` queda en `False` sin provocar modificaciones adicionales sobre el vuelo.
