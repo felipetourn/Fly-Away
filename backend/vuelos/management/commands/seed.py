@@ -6,9 +6,11 @@ Solo crea lo que falta: no pisa correcciones hechas desde el admin.
 
 Cada vuelo de ejemplo trae de 0 a 5 lugares vendidos, y cada uno es una compra confirmada de verdad
 (reserva pagada + pasajes + pago aprobado, a nombre del usuario sistema): vendidos + disponibles = capacidad.
---regenerar borra los vuelos de ejemplo y sus ventas de ejemplo y los vuelve a generar en las mismas fechas;
+Los vuelos de ejemplo se reparten alternando todos los aviones disponibles sin superponer horarios de un mismo avión.
+--regenerar borra los vuelos de ejemplo y sus ventas de ejemplo y los vuelve a generar desde hoy en adelante;
 los que tienen reservas reales se conservan.
 """
+from collections import defaultdict
 import datetime as dt
 import random
 
@@ -49,7 +51,7 @@ FLOTA = [
     ('LV-FAI', 'Boeing 737 MAX 8', 170, 12),
     ('LV-FAJ', 'Embraer E195-E2', 120, 12),
 ]
-AVIONES_DE_EJEMPLO = 4  # los vuelos de ejemplo no validan avión libre: el resto de la flota queda sin ocupar
+MARGEN_ENTRE_VUELOS = 30  # minutos libres entre vuelos del mismo avión para permitir ediciones de horario
 MAX_VENDIDOS = 5  # por vuelo de ejemplo: pocos pasajes en la base
 CLASES = ('economy', 'primera')
 NOMBRES = ['Ana', 'Bruno', 'Carla', 'Diego', 'Elena', 'Facundo', 'Gabriela', 'Hernán', 'Inés', 'Julián', 'Lucía', 'Martín']
@@ -64,7 +66,7 @@ class Command(BaseCommand):
         parser.add_argument('--dias', type=int, default=60, help='Días hacia adelante con vuelos (default 60).')
         parser.add_argument(
             '--regenerar', action='store_true',
-            help='Borra los vuelos de ejemplo (y sus ventas de ejemplo) y los vuelve a generar en sus mismas fechas.',
+            help='Borra los vuelos de ejemplo (y sus ventas de ejemplo) y los vuelve a generar desde hoy en adelante.',
         )
 
     def handle(self, *args, dias, vuelos, regenerar=False, **opciones):
@@ -82,25 +84,25 @@ class Command(BaseCommand):
             )[0]
             for iata, ciudad, nombre in AEROPUERTOS
         ]
-        aviones = [
+        for matricula, modelo, economy, primera in FLOTA:
             Avion.objects.get_or_create(
                 matricula=matricula,
                 defaults={'modelo': modelo, 'capacidad_economy': economy, 'capacidad_primera': primera},
-            )[0]
-            for matricula, modelo, economy, primera in FLOTA
-        ]
+            )
+        aviones = list(Avion.objects.order_by('matricula'))
 
+        hoy = timezone.localdate()
         if regenerar:
-            self.regenerar(sistema, aeropuertos, aviones[:AVIONES_DE_EJEMPLO])
+            self.regenerar(sistema, aeropuertos, aviones, hoy, dias)
         elif vuelos:
-            self.cargar_vuelos(sistema, aeropuertos, aviones[:AVIONES_DE_EJEMPLO], timezone.localdate(), dias)
+            self.cargar_vuelos(sistema, aeropuertos, aviones, hoy, dias)
         self.stdout.write(self.style.SUCCESS(
             f'Seed listo: {len(aeropuertos)} aeropuertos, {len(aviones)} aviones, {Vuelo.objects.count()} vuelos.'
         ))
 
     @transaction.atomic
-    def regenerar(self, sistema, aeropuertos, aviones):
-        """Los vuelos de ejemplo se borran y se generan de nuevo (mismas rutas, números y horarios), con sus ventas.
+    def regenerar(self, sistema, aeropuertos, aviones, hoy, dias):
+        """Los vuelos de ejemplo se borran y se generan de nuevo desde hoy en adelante, sin superponer aviones.
 
         Las ventas de ejemplo (reservas de `sistema`) se borran con ellos. Los vuelos con reservas reales se
         conservan y sus disponibles pasan a capacidad − vendidos reales. Los del administrador no se tocan.
@@ -113,74 +115,130 @@ class Command(BaseCommand):
         Pago.objects.filter(reserva__in=ventas_de_ejemplo).delete()  # PROTECT: antes que las reservas
         ventas_de_ejemplo.delete()  # y sus pasajes, en cascada
         borrados, _ = de_ejemplo.filter(reservas__isnull=True).delete()
-        conservados = de_ejemplo.select_related('avion').annotate(**{
+        conservados = list(de_ejemplo.select_related('avion').annotate(**{
             f'vendidos_{clase}': Count(
                 'reservas__pasajes', filter=Q(reservas__estado=Reserva.Estado.PAGADA, reservas__pasajes__clase=clase)
             )
             for clase in CLASES
-        })
+        }))
         for vuelo in conservados:
             for clase in CLASES:
                 capacidad = getattr(vuelo.avion, f'capacidad_{clase}')
                 setattr(vuelo, f'asientos_disponibles_{clase}', capacidad - getattr(vuelo, f'vendidos_{clase}'))
             vuelo.save(update_fields=['asientos_disponibles_economy', 'asientos_disponibles_primera', 'actualizado_en'])
-        dias = (rango['hasta'] - rango['desde']).days + 1
-        creados = self.cargar_vuelos(sistema, aeropuertos, aviones, rango['desde'], dias)
+        desde = max(rango['desde'], hoy)
+        hasta = rango['hasta'] if rango['hasta'] >= desde else desde + dt.timedelta(days=dias - 1)
+        cantidad_dias = (hasta - desde).days + 1
+        creados = self.cargar_vuelos(sistema, aeropuertos, aviones, desde, cantidad_dias)
         self.stdout.write(
-            f'Regenerados del {rango["desde"]} al {rango["hasta"]}: {borrados} filas borradas, '
+            f'Regenerados del {desde} al {hasta}: {borrados} filas borradas, '
             f'{len(conservados)} vuelos con reservas conservados, {creados} vuelos nuevos.'
         )
 
     def cargar_vuelos(self, sistema, aeropuertos, aviones, desde, dias):
-        """Crea los vuelos de ejemplo que faltan entre `desde` y `desde + dias`, con sus ventas. Devuelve cuántos."""
+        """Crea vuelos de ejemplo entre `desde` y `desde + dias` alternando aviones sin superponerse."""
+        if not aviones or dias <= 0:
+            return 0
+        hasta = desde + dt.timedelta(days=dias - 1)
         existentes = set(
-            Vuelo.objects.filter(fecha_operacion__range=(desde, desde + dt.timedelta(days=dias - 1)))
+            Vuelo.objects.filter(fecha_operacion__range=(desde, hasta))
             .values_list('numero_vuelo', 'fecha_operacion')
         )
-        nuevos = []
-        ventas = []  # (vuelo, economy, primera)
+        # Intervalos ya ocupados en la base por vuelos ajenos al seed o vuelos de ejemplo conservados con compras reales.
+        ocupados_base = defaultdict(list)
+        vuelos_fijos = (
+            Vuelo.objects.filter(
+                estado=Vuelo.Estado.ACTIVO,
+                fecha_operacion__range=(desde - dt.timedelta(days=1), hasta + dt.timedelta(days=1)),
+            )
+            .exclude(creado_por=sistema, reservas__isnull=True)
+            .exclude(creado_por=sistema, reservas__pasajero=sistema)
+        )
+        for fijo in vuelos_fijos:
+            ocupados_base[(fijo.avion_id, fijo.fecha_operacion)].append(
+                (fijo.hora_partida.hour * 60 + fijo.hora_partida.minute, fijo.hora_llegada.hour * 60 + fijo.hora_llegada.minute)
+            )
+
+        rutas = []
         for i, origen in enumerate(aeropuertos):
             for j, destino in enumerate(aeropuertos):
                 if origen.ciudad == destino.ciudad:
                     continue
-                # Semillas por texto: mismo resultado en cada corrida.
-                ruta = random.Random(f'{origen.codigo_iata}-{destino.codigo_iata}')
-                duracion = 60 + ruta.randrange(30) * 5  # 1 h a 3 h 25 m, fija por ruta
-                avion = aviones[ruta.randrange(len(aviones))]
+                ruta_rng = random.Random(f'{origen.codigo_iata}-{destino.codigo_iata}')
+                duracion = 60 + ruta_rng.randrange(30) * 5  # 1 h a 3 h 25 m, fija por ruta
                 primer_numero = 1000 + (i * len(aeropuertos) + j) * 10  # bloque de números por ruta
-                for n in range(dias):
-                    fecha = desde + dt.timedelta(days=n)
-                    r = random.Random(f'{origen.codigo_iata}-{destino.codigo_iata}-{fecha}')
-                    for k in range(r.randrange(5)):  # 0 a 4 vuelos ese día
-                        partida = (6 + k * 4) * 60 + r.randrange(8) * 15  # 06:00 a 19:45: llega antes de medianoche
-                        llegada = partida + duracion
-                        economy = round((40000 + duracion * 900 + r.random() * 40000) / 10) * 10
-                        numero = f'FA {primer_numero + k}'
-                        if (numero, fecha) in existentes:
-                            continue  # no pisa lo que ya existe
-                        vendidos = self.vendidos_de_ejemplo(random.Random(f'{numero}-{fecha}-ventas'))
-                        vuelo = Vuelo(
-                            numero_vuelo=numero,
-                            avion=avion,
-                            aeropuerto_origen=origen,
-                            aeropuerto_destino=destino,
-                            fecha_operacion=fecha,
-                            fecha_llegada=fecha,
-                            hora_partida=dt.time(partida // 60, partida % 60),
-                            hora_llegada=dt.time(llegada // 60, llegada % 60),
-                            precio_economy=economy,
-                            precio_primera=round(economy * 2.2 / 10) * 10,
-                            asientos_disponibles_economy=avion.capacidad_economy - vendidos['economy'],
-                            asientos_disponibles_primera=avion.capacidad_primera - vendidos['primera'],
-                            estado=Vuelo.Estado.CANCELADO if r.random() < 0.1 else Vuelo.Estado.ACTIVO,
-                            creado_por=sistema,
-                        )
-                        nuevos.append(vuelo)
-                        ventas.append((vuelo, vendidos))
+                rutas.append((origen, destino, duracion, primer_numero))
+
+        nuevos = []
+        ventas = []  # (vuelo, vendidos)
+        for n in range(dias):
+            fecha = desde + dt.timedelta(days=n)
+            candidatos = []
+            for origen, destino, duracion, primer_numero in rutas:
+                r = random.Random(f'{origen.codigo_iata}-{destino.codigo_iata}-{fecha}')
+                for k in range(r.randrange(5)):  # 0 a 4 candidatos por ruta ese día
+                    partida = (6 + k * 4) * 60 + r.randrange(8) * 15  # 06:00 a 19:45: llega antes de medianoche
+                    llegada = partida + duracion
+                    economy = round((40000 + duracion * 900 + r.random() * 40000) / 10) * 10
+                    numero = f'FA {primer_numero + k}'
+                    cancelado = r.random() < 0.1
+                    candidatos.append((numero, origen, destino, partida, llegada, economy, cancelado))
+
+            # Mezclar candidatos del día de forma determinística para repartir aviones entre todas las rutas.
+            random.Random(f'orden-{fecha}').shuffle(candidatos)
+            ocupados_dia = defaultdict(list, {
+                avion.id: list(ocupados_base.get((avion.id, fecha), [])) for avion in aviones
+            })
+            turno = n % len(aviones)
+
+            for numero, origen, destino, partida, llegada, economy, cancelado in candidatos:
+                avion_elegido = None
+                for paso in range(len(aviones)):
+                    indice = (turno + paso) % len(aviones)
+                    candidato_avion = aviones[indice]
+                    if self._avion_libre(ocupados_dia[candidato_avion.id], partida, llegada):
+                        avion_elegido = candidato_avion
+                        turno = (indice + 1) % len(aviones)
+                        break
+                if avion_elegido is None:
+                    continue
+
+                ocupados_dia[avion_elegido.id].append((partida, llegada))
+                if (numero, fecha) in existentes:
+                    continue  # no pisa lo que ya existe
+
+                vendidos = self.vendidos_de_ejemplo(random.Random(f'{numero}-{fecha}-ventas'))
+                vuelo = Vuelo(
+                    numero_vuelo=numero,
+                    avion=avion_elegido,
+                    aeropuerto_origen=origen,
+                    aeropuerto_destino=destino,
+                    fecha_operacion=fecha,
+                    fecha_llegada=fecha,
+                    hora_partida=dt.time(partida // 60, partida % 60),
+                    hora_llegada=dt.time(llegada // 60, llegada % 60),
+                    precio_economy=economy,
+                    precio_primera=round(economy * 2.2 / 10) * 10,
+                    asientos_disponibles_economy=avion_elegido.capacidad_economy - vendidos['economy'],
+                    asientos_disponibles_primera=avion_elegido.capacidad_primera - vendidos['primera'],
+                    estado=Vuelo.Estado.CANCELADO if cancelado else Vuelo.Estado.ACTIVO,
+                    creado_por=sistema,
+                )
+                nuevos.append(vuelo)
+                ventas.append((vuelo, vendidos))
+
         with transaction.atomic():
             Vuelo.objects.bulk_create(nuevos, batch_size=1000)
             self.crear_ventas(sistema, ventas)
         return len(nuevos)
+
+    @staticmethod
+    def _avion_libre(intervalos, partida, llegada):
+        """True si `[partida, llegada]` no se superpone (con margen) con ningún intervalo ya asignado al avión."""
+        for otro_sale, otro_llega in intervalos:
+            if partida - MARGEN_ENTRE_VUELOS < otro_llega and otro_sale < llegada + MARGEN_ENTRE_VUELOS:
+                return False
+        return True
 
     @staticmethod
     def vendidos_de_ejemplo(r):
