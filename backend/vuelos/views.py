@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from reportes.servicios import con_ocupacion, ocupacion_de
 
 from .models import Aeropuerto, Avion, Vuelo
+from .notificaciones import cambio_el_horario, programar_notificaciones_cambio_horario, snapshot_horario
 from .permissions import EsAdministrador, EsEmpleadoMostrador
 from .serializers import (
     AeropuertoSerializer,
@@ -85,9 +86,12 @@ class VueloDetalleView(generics.RetrieveAPIView):
     def patch(self, request, *args, **kwargs):
         vuelo = self.get_object()
         exigir_modificable(vuelo)
+        anterior = snapshot_horario(vuelo)
         edicion = EdicionVueloSerializer(vuelo, data=request.data, partial=True)
         edicion.is_valid(raise_exception=True)
         edicion.save()
+        if cambio_el_horario(anterior, vuelo):
+            programar_notificaciones_cambio_horario(vuelo, anterior)
         return Response(VueloDetalleSerializer(vuelo).data)
 
 

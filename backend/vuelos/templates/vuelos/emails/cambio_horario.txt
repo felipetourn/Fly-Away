@@ -1,0 +1,18 @@
+Hola{% if nombre %} {{ nombre }}{% endif %}:
+
+Te informamos que el horario de tu vuelo fue modificado.
+
+Vuelo: {{ vuelo.numero_vuelo }} (ID de instancia: {{ vuelo.id }})
+Ruta: {{ vuelo.aeropuerto_origen.ciudad }} ({{ vuelo.aeropuerto_origen.codigo_iata }}) - {{ vuelo.aeropuerto_destino.ciudad }} ({{ vuelo.aeropuerto_destino.codigo_iata }})
+
+Horario anterior:
+- Salida: {{ anterior.fecha_operacion|date:"d/m/Y" }} a las {{ anterior.hora_partida|time:"H:i" }}
+- Llegada: {{ anterior.fecha_llegada|date:"d/m/Y" }} a las {{ anterior.hora_llegada|time:"H:i" }}
+
+Nuevo horario:
+- Salida: {{ vuelo.fecha_operacion|date:"d/m/Y" }} a las {{ vuelo.hora_partida|time:"H:i" }}
+- Llegada: {{ vuelo.fecha_llegada|date:"d/m/Y" }} a las {{ vuelo.hora_llegada|time:"H:i" }}
+{% if codigos_pasaje %}
+Pasajes asociados: {{ codigos_pasaje|join:", " }}
+{% endif %}
+Gracias por viajar con Fly Away.

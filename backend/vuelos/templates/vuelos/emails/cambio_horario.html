@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+  <body style="margin:0;background:#f1f5f9;color:#0f172a;font-family:Arial,sans-serif">
+    <main style="max-width:600px;margin:24px auto;background:#fff;border-radius:16px;overflow:hidden">
+      <header style="padding:24px;background:#0f172a;color:#fff">
+        <p style="margin:0;color:#7dd3fc;font-size:12px;font-weight:bold;letter-spacing:2px">FLY AWAY</p>
+        <h1 style="margin:8px 0 0;font-size:22px">Modificación de horario de vuelo</h1>
+      </header>
+      <section style="padding:24px">
+        <p>Hola{% if nombre %} {{ nombre }}{% endif %},</p>
+        <p>Te informamos que la instancia de tu vuelo sufrió una modificación de horario.</p>
+        <p style="padding:12px;background:#f8fafc;border-radius:8px">
+          <strong>Vuelo:</strong> {{ vuelo.numero_vuelo }}<br>
+          <strong>Instancia:</strong> {{ vuelo.id }}<br>
+          <strong>Origen:</strong> {{ vuelo.aeropuerto_origen.ciudad }} ({{ vuelo.aeropuerto_origen.codigo_iata }}) - {{ vuelo.aeropuerto_origen.nombre }}<br>
+          <strong>Destino:</strong> {{ vuelo.aeropuerto_destino.ciudad }} ({{ vuelo.aeropuerto_destino.codigo_iata }}) - {{ vuelo.aeropuerto_destino.nombre }}
+        </p>
+        <div style="display:block;margin:16px 0;padding:12px;background:#fff7ed;border-left:4px solid #f97316;border-radius:6px">
+          <strong>Horario anterior</strong><br>
+          Salida: {{ anterior.fecha_operacion|date:"d/m/Y" }} - {{ anterior.hora_partida|time:"H:i" }}<br>
+          Llegada: {{ anterior.fecha_llegada|date:"d/m/Y" }} - {{ anterior.hora_llegada|time:"H:i" }}
+        </div>
+        <div style="display:block;margin:16px 0;padding:12px;background:#ecfdf5;border-left:4px solid #10b981;border-radius:6px">
+          <strong>Nuevo horario</strong><br>
+          Salida: {{ vuelo.fecha_operacion|date:"d/m/Y" }} - {{ vuelo.hora_partida|time:"H:i" }}<br>
+          Llegada: {{ vuelo.fecha_llegada|date:"d/m/Y" }} - {{ vuelo.hora_llegada|time:"H:i" }}
+        </div>
+        {% if codigos_pasaje %}
+          <p><strong>Pasajes asociados:</strong> {{ codigos_pasaje|join:", " }}</p>
+        {% endif %}
+        <p>Gracias por viajar con Fly Away.</p>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,7 +1,19 @@
-"""Identificación de pasajeros afectados y armado de notificaciones por cambios de vuelo (US15)."""
+"""Identificación de pasajeros afectados y envío de notificaciones por cambios de vuelo (US15)."""
 from collections import OrderedDict
+import logging
+import smtplib
+
+from anymail.exceptions import AnymailError
+from django.conf import settings
+from django.core.mail import EmailMultiAlternatives
+from django.db import transaction
+from django.template.loader import render_to_string
 
 from reservas.models import Reserva
+
+from .models import Notificacion
+
+logger = logging.getLogger(__name__)
 
 
 def snapshot_horario(vuelo):
@@ -63,3 +75,74 @@ def mensaje_cambio_horario(vuelo, anterior):
         f'Nuevo horario: salida {vuelo.fecha_operacion:%d/%m/%Y} {vuelo.hora_partida:%H:%M}, '
         f'llegada {vuelo.fecha_llegada:%d/%m/%Y} {vuelo.hora_llegada:%H:%M}.'
     )
+
+
+def enviar_notificacion_cambio_horario(notificacion_id, email_destino, nombre, anterior, codigos_pasaje):
+    """Envía por correo la notificación tras el commit; cualquier error queda registrado sin revertir el cambio."""
+    try:
+        notificacion = (
+            Notificacion.objects.select_related('vuelo__aeropuerto_origen', 'vuelo__aeropuerto_destino', 'usuario')
+            .get(id=notificacion_id)
+        )
+    except Notificacion.DoesNotExist:
+        logger.error('No se pudo enviar la notificación %s: no existe.', notificacion_id)
+        return False
+
+    if notificacion.enviado:
+        return True
+
+    vuelo = notificacion.vuelo
+    contexto = {
+        'vuelo': vuelo,
+        'anterior': anterior,
+        'nombre': nombre,
+        'codigos_pasaje': codigos_pasaje,
+        'mensaje': notificacion.mensaje,
+    }
+    try:
+        texto = render_to_string('vuelos/emails/cambio_horario.txt', contexto)
+        html = render_to_string('vuelos/emails/cambio_horario.html', contexto)
+        correo = EmailMultiAlternatives(
+            subject=f'Modificación de horario - Vuelo {vuelo.numero_vuelo} ({vuelo.fecha_operacion:%d/%m/%Y})',
+            body=texto,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[email_destino],
+        )
+        correo.attach_alternative(html, 'text/html')
+        enviados = correo.send(fail_silently=False)
+    except (OSError, smtplib.SMTPException, AnymailError, Exception):
+        logger.exception('Falló el envío de la notificación %s a %s.', notificacion.id, email_destino)
+        return False
+
+    if enviados != 1:
+        logger.error('El proveedor de correo no confirmó el envío de la notificación %s a %s.', notificacion.id, email_destino)
+        return False
+
+    Notificacion.objects.filter(id=notificacion.id).update(enviado=True)
+    return True
+
+
+def programar_notificaciones_cambio_horario(vuelo, anterior):
+    """Registra una `Notificacion` por pasajero afectado y agenda su envío por email tras el commit."""
+    destinatarios = destinatarios_afectados(vuelo)
+    if not destinatarios:
+        return []
+
+    mensaje = mensaje_cambio_horario(vuelo, anterior)
+    creadas = []
+    for dest in destinatarios:
+        notificacion = Notificacion.objects.create(
+            usuario=dest['usuario'],
+            vuelo=vuelo,
+            tipo=Notificacion.Tipo.CAMBIO_HORARIO,
+            mensaje=mensaje,
+            enviado=False,
+        )
+        creadas.append(notificacion)
+        transaction.on_commit(
+            lambda nid=notificacion.id, email=dest['email'], nombre=dest['nombre'], ant=dict(anterior), codigos=list(dest['codigos_pasaje']): (
+                enviar_notificacion_cambio_horario(nid, email, nombre, ant, codigos)
+            ),
+            robust=True,
+        )
+    return creadas
