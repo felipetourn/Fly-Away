@@ -79,3 +79,30 @@ class Vuelo(models.Model):
 
     def __str__(self):
         return f'{self.numero_vuelo} {self.fecha_operacion}'
+
+
+class Notificacion(models.Model):
+    """Notificaciones a pasajeros por cambio de horario o cancelación de un vuelo (tabla `notificaciones` del DBML)."""
+
+    class Tipo(models.TextChoices):
+        CAMBIO_HORARIO = 'cambio_horario', 'Cambio de horario'
+        CANCELACION = 'cancelacion', 'Cancelación'
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name='notificaciones',
+    )
+    vuelo = models.ForeignKey(Vuelo, on_delete=models.PROTECT, related_name='notificaciones')
+    tipo = models.CharField(max_length=30, choices=Tipo.choices)
+    mensaje = models.TextField()
+    enviado = models.BooleanField(default=False)
+    creado_en = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'notificaciones'
+        ordering = ['-creado_en', 'id']
+
+    def __str__(self):
+        return f'{self.tipo} - {self.vuelo} -> {self.usuario_id}'
