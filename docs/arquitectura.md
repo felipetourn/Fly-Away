@@ -37,7 +37,7 @@ Fly Away/
 │   ├── manage.py
 │   ├── config/               settings, urls, wsgi
 │   ├── usuarios/             modelo Usuario (tabla usuarios, login por email, rol)
-│   ├── vuelos/               aeropuertos, aviones, vuelos, notificaciones (US15); búsqueda, detalle y ABM del administrador; comando seed
+│   ├── vuelos/               aeropuertos, aviones, vuelos, notificaciones (US15, US16); búsqueda, detalle y ABM del administrador; comando seed
 │   ├── reservas/             reservas y pasajes (US06); selección de clase, cantidad (1..9), disponibilidad y pasajes
 │   ├── pagos/                pagos (tarjeta simulada y Mercado Pago)
 │   └── reportes/             ocupación de los vuelos (US12, US13); sin modelos
@@ -136,7 +136,7 @@ POST /api/vuelos/                (admin) ✅ alta: origen, destino, horas y peri
                                  → 201 {numero_vuelo, cantidad}; genera una fila por fecha, todo o nada
 PATCH /api/vuelos/{id}/          (admin) ✅ edita una instancia activa que no salió (fecha, horas, ruta, avión, precios);
                                  si cambia fecha u horario, notifica por email a pasajeros con compra confirmada (US15)
-POST /api/vuelos/{id}/cancelar/  (admin) ✅ estado = cancelado; la fila se conserva. Falta notificar por email (US16)
+POST /api/vuelos/{id}/cancelar/  (admin) ✅ estado = cancelado; la fila se conserva y notifica por email a pasajeros con compra confirmada (US16)
 GET  /api/aviones/               (admin) ✅ catálogo para el formulario
 GET  /api/mostrador/vuelos/      (empleado) ✅ listado paginado (50) desde mostrador (US14): q (id o número), origen, destino,
                                  desde, hasta, estado; sin desde ni q, desde hoy; solo lectura
@@ -214,7 +214,7 @@ Sin los `select_for_update()` de `pagos/servicios.py` las cuatro fallan (verific
 - Envío por la **API HTTP de Brevo** con `django-anymail` (Render free bloquea el SMTP saliente). Con `BREVO_API_KEY` el backend es `anymail.backends.brevo.EmailBackend`; sin ella, los mails se imprimen en la terminal de `runserver`. Un `EMAIL_BACKEND` explícito gana sobre los dos.
 - Variables: `BREVO_API_KEY`, `DEFAULT_FROM_EMAIL` (remitente verificado en la cuenta de Brevo) y `EMAIL_TIMEOUT` (segundos, 5 por defecto, también para la API). En Render, no definir `EMAIL_BACKEND` o ponerlo en `anymail.backends.brevo.EmailBackend`. Las credenciales no se guardan en el repositorio.
 - Cambio de horario (US15): al modificar fecha u hora de partida o llegada de una instancia (`PATCH /api/vuelos/{id}/`), se registra una `Notificacion` (`tipo = cambio_horario`) por cada comprador con reserva `pagada` en esa instancia y se envía por `on_commit` (`robust=True`) un email HTML y texto con el identificador del vuelo, ruta, códigos de pasaje, horario anterior y nuevo horario. Un fallo de envío no revierte la modificación.
-- Cancelación: email pendiente de implementar (US16).
+- Cancelación (US16): al cancelar una instancia (`POST /api/vuelos/{id}/cancelar/`), se registra una `Notificacion` (`tipo = cancelacion`) por cada comprador con reserva `pagada` en esa instancia y se envía por `on_commit` (`robust=True`) un email HTML y texto con el identificador del vuelo cancelado, origen, destino, fecha y horario programados y códigos de pasaje. Un fallo de envío no altera el estado cancelado del vuelo.
 
 ## Correr en local
 

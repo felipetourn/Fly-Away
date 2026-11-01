@@ -4,6 +4,11 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-11-01 - US16, notificar cancelaciones**
+- Al cancelar una instancia (`POST /api/vuelos/{id}/cancelar/`), `CancelarVueloView.post` invoca `programar_notificaciones_cancelacion` (`vuelos/notificaciones.py`), que identifica únicamente las reservas `pagada` de esa instancia, agrupa por `(pasajero_id, email)`, evita duplicados por `(vuelo, tipo = cancelacion)` y agenda `enviar_notificacion_cancelacion` mediante `transaction.on_commit(..., robust=True)`.
+- Plantillas `vuelos/emails/cancelacion.txt` y `cancelacion.html` enviadas con `EmailMultiAlternatives`: incluyen `numero_vuelo`, ID de instancia, origen y destino (IATA, ciudad y aeropuerto), fecha y horario programados y códigos de pasaje. Si el proveedor de correo falla, `enviado` queda en `False` sin provocar modificaciones adicionales sobre el vuelo.
+- Pruebas: `NotificacionCancelacionTests` en `backend/vuelos/tests.py`. Documentación en [docs/US/sprint3/us16.md](US/sprint3/us16.md).
+
 **2026-10-31 - US15, notificar modificaciones de horario**
 - Modelo `Notificacion` en `vuelos/models.py` (**migración `vuelos/0004_notificacion`**), alineado con la tabla `notificaciones` de `docs/modelo.dbml`.
 - Cuando `PATCH /api/vuelos/{id}/` modifica `fecha_operacion`, `fecha_llegada`, `hora_partida` o `hora_llegada` de una instancia, `programar_notificaciones_cambio_horario` (`vuelos/notificaciones.py`) identifica únicamente las reservas `pagada` de esa instancia puntual, deduplica por `(pasajero_id, email)`, crea la fila en `notificaciones` (`tipo = cambio_horario`) y agenda el envío de correo con `transaction.on_commit(..., robust=True)`.
@@ -252,4 +257,4 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Próximos pasos
 
-1. Notificaciones por cancelación de vuelo (US16).
+1. Correr `python manage.py migrate` y `python manage.py seed --regenerar` en Supabase si aún no se actualizaron los datos de ejemplo del Sprint 3.

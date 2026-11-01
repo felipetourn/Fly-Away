@@ -11,8 +11,8 @@ Objetivo del sprint: completar y robustecer las funcionalidades operativas de Fl
 | US13 | Generar reporte de ocupación | 3 | 13 | 2 | Terminada | [us13.md](us13.md) |
 | US14 | Consultar estado de un vuelo desde mostrador | 5 | 14 | 3 | Terminada | [us14.md](us14.md) |
 | US15 | Notificar modificaciones de horario | 5 | 16 | 3 | Terminada | [us15.md](us15.md) |
-| US16 | Notificar cancelaciones | 5 | 14 | — | Pendiente | |
-| **Total** | | **34** | **94** | **12** (US11-US15) | | |
+| US16 | Notificar cancelaciones | 5 | 14 | 2 | Terminada | [us16.md](us16.md) |
+| **Total** | | **34** | **94** | **14** (US11-US16) | | |
 
 ## Correr en local
 
