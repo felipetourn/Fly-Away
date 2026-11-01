@@ -4,6 +4,12 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Estado actual
 
+**2026-10-31 - US15, notificar modificaciones de horario**
+- Modelo `Notificacion` en `vuelos/models.py` (**migración `vuelos/0004_notificacion`**), alineado con la tabla `notificaciones` de `docs/modelo.dbml`.
+- Cuando `PATCH /api/vuelos/{id}/` modifica `fecha_operacion`, `fecha_llegada`, `hora_partida` o `hora_llegada` de una instancia, `programar_notificaciones_cambio_horario` (`vuelos/notificaciones.py`) identifica únicamente las reservas `pagada` de esa instancia puntual, deduplica por `(pasajero_id, email)`, crea la fila en `notificaciones` (`tipo = cambio_horario`) y agenda el envío de correo con `transaction.on_commit(..., robust=True)`.
+- Plantillas `vuelos/emails/cambio_horario.txt` y `cambio_horario.html` enviadas con `EmailMultiAlternatives`: incluyen `numero_vuelo`, ID de instancia, ruta (IATA y ciudad), códigos de pasaje, horario anterior y nuevo horario. Un fallo de envío deja `enviado = False` sin revertir el cambio del vuelo.
+- Pruebas: `NotificacionCambioHorarioTests` en `backend/vuelos/tests.py`. Documentación en [docs/US/sprint3/us15.md](US/sprint3/us15.md).
+
 **2026-10-31 - US14, consultar estado de un vuelo desde mostrador**
 - Backend: `GET /api/mostrador/vuelos/` (búsqueda paginada por id o número de vuelo, origen, destino, fechas y estado) y `GET /api/mostrador/vuelos/{id}/` (detalle operativo de la instancia + ocupación total y por clase usando `reportes.servicios.con_ocupacion` y `ocupacion_de`), protegidos por `EsEmpleadoMostrador` (`401` sin sesión, `403` para pasajero o administrador). El empleado de mostrador no puede crear, modificar ni cancelar vuelos.
 - Frontend: opción "Estado de vuelos" (`/empleado/vuelos`) y detalle de instancia (`/empleado/vuelos/:id`) exclusivos para `empleado_mostrador`. Reutiliza `OcupacionVuelo`, muestra identificador de instancia (`id`), origen y destino, fecha y horarios, avión, estado actual, ocupación y disponibilidad por clase, con recarga en vivo.
@@ -184,6 +190,7 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 | Fecha | Decisión | Motivo |
 |---|---|---|
+| 2026-10-31 | Envío de notificaciones por cambio de horario en `transaction.on_commit(..., robust=True)` con deduplicación por `(pasajero_id, email)` | Garantiza una sola notificación por comprador afectado en esa instancia y evita que una falla de correo revierta la edición del vuelo |
 | 2026-10-31 | Endpoints de mostrador (`/api/mostrador/vuelos/` y `/api/mostrador/vuelos/{id}/`) separados con `EsEmpleadoMostrador` | Reutilizan `_filtrar_listado` y `reportes.servicios` sin abrir el ABM del administrador ni permitir acceso a pasajeros |
 | 2026-10-28 | Ocupación en una app nueva `reportes`, no en `vuelos` | `vuelos/views.py` y `serializers.py` los cambia el compañero (US15/US16); la US14 importa `reportes.servicios` |
 | 2026-10-28 | Vuelos de ejemplo con 0 a 5 ventas reales en vez de disponibles al azar | La ocupación cuenta compras confirmadas: lugares "vendidos" sin pasajes la dejaban inconsistente. Pocas ventas para no llenar Supabase |
@@ -245,4 +252,4 @@ Registro vivo: qué está hecho, qué se decidió y por qué, qué falta. Actual
 
 ## Próximos pasos
 
-1. Notificaciones por cambio de horario / cancelación (US15/US16; el ABM ya cancela y edita; falta avisar).
+1. Notificaciones por cancelación de vuelo (US16).

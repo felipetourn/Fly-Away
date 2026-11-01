@@ -10,12 +10,12 @@ Objetivo del sprint: completar y robustecer las funcionalidades operativas de Fl
 | US12 | Consultar ocupación | 3 | 12 | 2 | Terminada | [us12.md](us12.md) |
 | US13 | Generar reporte de ocupación | 3 | 13 | 2 | Terminada | [us13.md](us13.md) |
 | US14 | Consultar estado de un vuelo desde mostrador | 5 | 14 | 3 | Terminada | [us14.md](us14.md) |
-| US15 | Notificar modificaciones de horario | 5 | 16 | — | Pendiente | |
+| US15 | Notificar modificaciones de horario | 5 | 16 | 3 | Terminada | [us15.md](us15.md) |
 | US16 | Notificar cancelaciones | 5 | 14 | — | Pendiente | |
-| **Total** | | **34** | **94** | **9** (US11-US14) | | |
+| **Total** | | **34** | **94** | **12** (US11-US15) | | |
 
 ## Correr en local
 
-- La rama `feat/sprint3-concurrencia-ocupacion` y la US14 **no agregan migraciones**.
+- La US15 agrega la migración `vuelos/0004_notificacion` (`DATABASE_URL= .venv/bin/python manage.py migrate`).
 - Los vuelos de ejemplo cambiaron (ventas reales): para limpiar una base vieja, `DATABASE_URL= .venv/bin/python manage.py seed --regenerar`.
 - Las pruebas concurrentes de la US11 necesitan Postgres: ver [us11.md](us11.md#cómo-probarlo).
