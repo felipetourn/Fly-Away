@@ -934,3 +934,172 @@ class MostradorEstadoVueloTests(AdminDatos):
             r = self.consultar_estado(id_)
             self.assertEqual(r.status_code, 404, id_)
             self.assertIn('detail', r.json())
+
+
+class NotificacionCambioHorarioTests(AdminDatos):
+    """US15: Notificar modificaciones de horario a pasajeros con compra confirmada."""
+
+    def reserva(self, vuelo, pasajero=None, email=None, estado=Reserva.Estado.PAGADA, cantidad=1):
+        pasajero = pasajero or self.pasajero
+        reserva = Reserva.objects.create(
+            pasajero=pasajero,
+            contacto_email=email if email is not None else pasajero.email,
+            vuelo=vuelo,
+            cantidad_pasajes=cantidad,
+            estado=estado,
+        )
+        for i in range(cantidad):
+            Pasaje.objects.create(
+                reserva=reserva,
+                codigo_pasaje=f'{reserva.id.hex[:8]}-{i:02d}',
+                nombre_pasajero=pasajero.nombre,
+                apellido_pasajero=pasajero.apellido,
+                dni_pasajero='12345678',
+                clase=Pasaje.Clase.ECONOMY,
+                precio=Decimal('100000.00'),
+            )
+        return reserva
+
+    def modificar(self, vuelo, **datos):
+        with (
+            self.settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend'),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
+            return self.client.patch(f'/api/vuelos/{vuelo.id}/', datos, format='json')
+
+    def test_modifica_horario_notifica_pasajeros_con_compra_confirmada(self):
+        from django.core import mail
+
+        from .models import Notificacion
+
+        otro = get_user_model().objects.create_user(
+            'ana@mail.com', 'x', nombre='Ana', apellido='García', rol='pasajero'
+        )
+        v = self.vuelo('FA 1010', fecha=MANANA, origen=self.bhi, destino=self.aep, partida='15:00')
+        self.reserva(v, pasajero=self.pasajero, email='pepe.contacto@mail.com')
+        self.reserva(v, pasajero=otro, email='ana@mail.com')
+
+        r = self.modificar(v, hora_partida='17:30', hora_llegada='18:45')
+        self.assertEqual(r.status_code, 200, r.content)
+
+        self.assertEqual(len(mail.outbox), 2)
+        destinatarios = {m.to[0]: m for m in mail.outbox}
+        self.assertEqual(set(destinatarios), {'pepe.contacto@mail.com', 'ana@mail.com'})
+
+        correo = destinatarios['pepe.contacto@mail.com']
+        self.assertIn('FA 1010', correo.subject)
+        for dato in (
+            'FA 1010',
+            str(v.id),
+            'BHI',
+            'Bahía Blanca',
+            'AEP',
+            'Buenos Aires',
+            '15:00',
+            '16:00',
+            '17:30',
+            '18:45',
+            '21/10/2026',
+        ):
+            self.assertIn(dato, correo.body)
+            self.assertIn(dato, correo.alternatives[0][0])
+
+        notificaciones = list(Notificacion.objects.filter(vuelo=v).order_by('usuario__email'))
+        self.assertEqual(len(notificaciones), 2)
+        self.assertTrue(all(n.enviado and n.tipo == Notificacion.Tipo.CAMBIO_HORARIO for n in notificaciones))
+        self.assertIn('15:00', notificaciones[0].mensaje)
+        self.assertIn('17:30', notificaciones[0].mensaje)
+
+    def test_no_notifica_otras_instancias_de_la_misma_recurrencia(self):
+        from django.core import mail
+
+        from .models import Notificacion
+
+        otro = get_user_model().objects.create_user(
+            'otro@mail.com', 'x', nombre='Luis', apellido='L', rol='pasajero'
+        )
+        v_modificado = self.vuelo('FA 1000', fecha=MANANA, partida='15:00')
+        v_otra_fecha = self.vuelo('FA 1000', fecha=MANANA + dt.timedelta(days=2), partida='15:00')
+        self.reserva(v_modificado, pasajero=self.pasajero, email='pepe@mail.com')
+        self.reserva(v_otra_fecha, pasajero=otro, email='otro@mail.com')
+
+        r = self.modificar(v_modificado, hora_partida='16:30', hora_llegada='17:30')
+        self.assertEqual(r.status_code, 200, r.content)
+
+        self.assertEqual([m.to for m in mail.outbox], [['pepe@mail.com']])
+        self.assertEqual(
+            list(Notificacion.objects.values_list('usuario_id', 'vuelo_id')),
+            [(self.pasajero.id, v_modificado.id)],
+        )
+
+    def test_no_notifica_compras_no_confirmadas(self):
+        from django.core import mail
+
+        from .models import Notificacion
+
+        pendiente = get_user_model().objects.create_user(
+            'pendiente@mail.com', 'x', nombre='Pau', apellido='P', rol='pasajero'
+        )
+        cancelado = get_user_model().objects.create_user(
+            'cancelado@mail.com', 'x', nombre='Caro', apellido='C', rol='pasajero'
+        )
+        v = self.vuelo('FA 1010', fecha=MANANA, partida='15:00')
+        self.reserva(v, pasajero=pendiente, estado=Reserva.Estado.PENDIENTE)
+        self.reserva(v, pasajero=cancelado, estado=Reserva.Estado.CANCELADA)
+
+        r = self.modificar(v, hora_partida='18:00', hora_llegada='19:00')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(mail.outbox, [])
+        self.assertEqual(Notificacion.objects.count(), 0)
+
+    def test_no_duplica_notificaciones_en_una_misma_operacion_ni_sin_cambio_horario(self):
+        from django.core import mail
+
+        from .models import Notificacion
+        from .notificaciones import enviar_notificacion_cambio_horario, snapshot_horario
+
+        v = self.vuelo('FA 1010', fecha=MANANA, partida='15:00')
+        self.reserva(v, pasajero=self.pasajero, email='pepe@mail.com', cantidad=3)
+        self.reserva(v, pasajero=self.pasajero, email='pepe@mail.com', cantidad=2)
+
+        # Editar solo precio (sin cambiar horario) o enviar el mismo horario no dispara notificaciones.
+        r1 = self.modificar(v, precio_economy='120000.00', hora_partida='15:00', hora_llegada='16:00')
+        self.assertEqual(r1.status_code, 200, r1.content)
+        self.assertEqual(mail.outbox, [])
+        self.assertEqual(Notificacion.objects.count(), 0)
+
+        # Una operación que modifica el horario envía exactamente 1 notificación por pasajero afectado.
+        anterior = snapshot_horario(v)
+        r2 = self.modificar(v, hora_partida='16:15', hora_llegada='17:15')
+        self.assertEqual(r2.status_code, 200, r2.content)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(Notificacion.objects.count(), 1)
+
+        # Un reintento idempotente sobre la notificación ya enviada no reenvía el correo.
+        notificacion = Notificacion.objects.get()
+        v.refresh_from_db()
+        with self.settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend'):
+            enviar_notificacion_cambio_horario(
+                notificacion.id, 'pepe@mail.com', ['ABC-00'], anterior, snapshot_horario(v)
+            )
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_error_en_envio_de_correo_no_revierte_modificacion_del_vuelo(self):
+        from smtplib import SMTPException
+
+        from .models import Notificacion
+
+        v = self.vuelo('FA 1010', fecha=MANANA, partida='15:00')
+        self.reserva(v, pasajero=self.pasajero, email='pepe@mail.com')
+
+        with (
+            patch('vuelos.notificaciones.EmailMultiAlternatives.send', side_effect=SMTPException('SMTP caído')),
+            self.assertLogs('vuelos.notificaciones', level='ERROR'),
+        ):
+            r = self.modificar(v, hora_partida='19:00', hora_llegada='20:00')
+
+        self.assertEqual(r.status_code, 200, r.content)
+        v.refresh_from_db()
+        self.assertEqual((v.hora_partida, v.hora_llegada), (dt.time(19, 0), dt.time(20, 0)))
+        notificacion = Notificacion.objects.get(vuelo=v, usuario=self.pasajero)
+        self.assertFalse(notificacion.enviado)
