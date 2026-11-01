@@ -158,3 +158,79 @@ def programar_notificaciones_cambio_horario(vuelo, anterior):
             robust=True,
         )
     return creadas
+
+
+def enviar_notificacion_cancelacion(notificacion_id, email_destino, nombre, codigos_pasaje):
+    """Envía por correo la notificación de cancelación tras el commit sin alterar el estado del vuelo ante fallas."""
+    try:
+        notificacion = (
+            Notificacion.objects.select_related('vuelo__aeropuerto_origen', 'vuelo__aeropuerto_destino', 'usuario')
+            .get(id=notificacion_id)
+        )
+    except Notificacion.DoesNotExist:
+        logger.error('No se pudo enviar la notificación %s: no existe.', notificacion_id)
+        return False
+
+    if notificacion.enviado:
+        return True
+
+    vuelo = notificacion.vuelo
+    contexto = {
+        'vuelo': vuelo,
+        'nombre': nombre,
+        'codigos_pasaje': codigos_pasaje,
+        'mensaje': notificacion.mensaje,
+    }
+    try:
+        texto = render_to_string('vuelos/emails/cancelacion.txt', contexto)
+        html = render_to_string('vuelos/emails/cancelacion.html', contexto)
+        correo = EmailMultiAlternatives(
+            subject=f'Cancelación de vuelo - Vuelo {vuelo.numero_vuelo} ({vuelo.fecha_operacion:%d/%m/%Y})',
+            body=texto,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[email_destino],
+        )
+        correo.attach_alternative(html, 'text/html')
+        enviados = correo.send(fail_silently=False)
+    except (OSError, smtplib.SMTPException, AnymailError, Exception):
+        logger.exception('Falló el envío de la notificación %s a %s.', notificacion.id, email_destino)
+        return False
+
+    if enviados != 1:
+        logger.error('El proveedor de correo no confirmó el envío de la notificación %s a %s.', notificacion.id, email_destino)
+        return False
+
+    Notificacion.objects.filter(id=notificacion.id).update(enviado=True)
+    return True
+
+
+def programar_notificaciones_cancelacion(vuelo):
+    """Registra una `Notificacion` de cancelación por pasajero afectado y agenda su envío tras el commit."""
+    destinatarios = destinatarios_afectados(vuelo)
+    if not destinatarios:
+        return []
+
+    mensaje = mensaje_cancelacion(vuelo)
+    ya_notificados = set(
+        Notificacion.objects.filter(vuelo=vuelo, tipo=Notificacion.Tipo.CANCELACION).values_list('usuario_id', flat=True)
+    )
+    creadas = []
+    for dest in destinatarios:
+        if dest['usuario'].id in ya_notificados:
+            continue
+        notificacion = Notificacion.objects.create(
+            usuario=dest['usuario'],
+            vuelo=vuelo,
+            tipo=Notificacion.Tipo.CANCELACION,
+            mensaje=mensaje,
+            enviado=False,
+        )
+        ya_notificados.add(dest['usuario'].id)
+        creadas.append(notificacion)
+        transaction.on_commit(
+            lambda nid=notificacion.id, email=dest['email'], nombre=dest['nombre'], codigos=list(dest['codigos_pasaje']): (
+                enviar_notificacion_cancelacion(nid, email, nombre, codigos)
+            ),
+            robust=True,
+        )
+    return creadas

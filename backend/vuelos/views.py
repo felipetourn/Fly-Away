@@ -10,7 +10,12 @@ from rest_framework.views import APIView
 from reportes.servicios import con_ocupacion, ocupacion_de
 
 from .models import Aeropuerto, Avion, Vuelo
-from .notificaciones import cambio_el_horario, programar_notificaciones_cambio_horario, snapshot_horario
+from .notificaciones import (
+    cambio_el_horario,
+    programar_notificaciones_cambio_horario,
+    programar_notificaciones_cancelacion,
+    snapshot_horario,
+)
 from .permissions import EsAdministrador, EsEmpleadoMostrador
 from .serializers import (
     AeropuertoSerializer,
@@ -107,6 +112,7 @@ class CancelarVueloView(generics.GenericAPIView):
         exigir_modificable(vuelo)
         vuelo.estado = Vuelo.Estado.CANCELADO
         vuelo.save(update_fields=['estado', 'actualizado_en'])
+        programar_notificaciones_cancelacion(vuelo)
         return Response(VueloDetalleSerializer(vuelo).data)
 
 
